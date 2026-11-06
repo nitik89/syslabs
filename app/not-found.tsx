@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Unplug } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
@@ -9,9 +9,9 @@ export default function NotFound() {
         <Unplug className="size-6 text-status-crit" aria-hidden="true" />
         <h1 className="text-lg font-semibold">No route to this page</h1>
         <p className="text-sm text-muted-foreground">This page could not be found. The link may be wrong, or the challenge may not exist.</p>
-        <Button nativeButton={false} render={<Link href="/" />} variant="outline" size="sm">
+        <Link href="/" className={buttonVariants({ variant: "outline", size: "sm" })}>
           Back to dashboard
-        </Button>
+        </Link>
       </div>
     </div>
   );

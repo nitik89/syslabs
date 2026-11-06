@@ -9,7 +9,7 @@ import { scoreChallenge } from "@/lib/challenges/score";
 import { CATALOG, simulate, type SimResult } from "@/lib/sim";
 import { getRepo, type ChallengeRecord, type DesignDoc } from "@/lib/storage";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Designer } from "@/components/lab/designer";
 import { LoadDesignButton, ResetButton, SaveDesignButton, type CurrentDesign } from "@/components/lab/design-actions";
@@ -159,9 +159,9 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
   return (
     <div className="flex flex-1 flex-col lg:h-dvh">
       <div className="flex flex-wrap items-center gap-3 border-b border-border/60 px-4 py-3 md:px-6">
-        <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/challenges" />} aria-label="Back to challenges">
+        <Link href="/challenges" className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label="Back to challenges">
           <ArrowLeft />
-        </Button>
+        </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-lg font-semibold tracking-tight">{challenge.title}</h1>

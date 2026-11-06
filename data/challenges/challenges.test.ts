@@ -135,3 +135,13 @@ describe("scoring", () => {
     expect(s.objectives.find((o) => o.objective.id === "spof")!.met).toBe(false);
   });
 });
+
+describe("scoring regressions", () => {
+  it("a design that serves nothing cannot earn reliability or cost points", () => {
+    const { s } = run("url-shortener", { nodes: [n("client-1", "client")], edges: [] });
+    const by = Object.fromEntries(s.categories.map((c) => [c.category, c.score]));
+    expect(by.reliability).toBe(0);
+    expect(by.cost).toBe(0);
+    expect(s.total).toBeLessThan(15);
+  });
+});

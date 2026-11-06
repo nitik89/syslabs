@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { KIND_ACCENT, KIND_ICON } from "./kind-style";
-import { connectionProblem, type FlowEdge, type SysNode } from "./model";
+import { connectionProblem, nodeName, type FlowEdge, type SysNode } from "./model";
 import { FractionField, NumberField } from "./number-field";
 
 export function NodeInspector({
@@ -43,7 +43,10 @@ export function NodeInspector({
   const connectId = useId();
   const [connectTarget, setConnectTarget] = useState("");
 
-  const nameOf = (id: string) => nodes.find((n) => n.id === id)?.data.label ?? id;
+  const nameOf = (id: string) => {
+    const f = nodes.find((n) => n.id === id);
+    return f ? nodeName(f) : id;
+  };
   const outgoing = edges.filter((e) => e.source === node.id);
   const incoming = edges.filter((e) => e.target === node.id);
   const candidates = nodes.filter((n) => connectionProblem(node.id, n.id, nodes, edges) === null);
@@ -162,7 +165,7 @@ export function NodeInspector({
                 <option value="">Choose a component…</option>
                 {candidates.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.data.label}
+                    {nodeName(c)}
                   </option>
                 ))}
               </select>

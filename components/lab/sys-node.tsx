@@ -10,6 +10,7 @@ import { KIND_ACCENT, KIND_ICON, STATUS_BAR, STATUS_LABEL, STATUS_RING, STATUS_T
 
 function SysNodeView({ data, selected }: NodeProps<SysNode>) {
   const spec = CATALOG[data.kind];
+  const name = data.label.trim() || spec.label;
   const Icon = KIND_ICON[data.kind];
   const r = data.result;
   const status = r?.status;
@@ -23,7 +24,7 @@ function SysNodeView({ data, selected }: NodeProps<SysNode>) {
         status ? STATUS_RING[status] : "border-border",
         selected && "outline-2 outline-offset-2 outline-ring",
       )}
-      aria-label={`${data.label} (${spec.label})${status ? `, ${STATUS_LABEL[status]}` : ""}`}
+      aria-label={`${name} (${spec.label})${status ? `, ${STATUS_LABEL[status]}` : ""}`}
     >
       {!isSource && (
         <Handle type="target" position={Position.Left} className="!size-2.5 !border-2 !border-background !bg-brand-blue" />
@@ -33,7 +34,7 @@ function SysNodeView({ data, selected }: NodeProps<SysNode>) {
           <Icon className="size-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium leading-tight">{data.label}</p>
+          <p className="truncate text-[13px] font-medium leading-tight">{name}</p>
           <p className="truncate text-[11px] text-muted-foreground">{spec.label}</p>
         </div>
         {data.config.replicas > 1 && (

@@ -264,7 +264,9 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
   // Ctrl/Cmd + Enter runs the simulation.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      // Don't fire behind an open dialog or sheet (e.g. while naming a design).
+      const inOverlay = e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]');
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !inOverlay) {
         e.preventDefault();
         run();
       }

@@ -145,10 +145,19 @@ export function scoreChallenge(ch: Challenge, r: SimResult, graph: SimGraph): Ch
   }
   architecture = clamp(architecture);
 
+  // Reliability and cost only count for traffic you actually serve: a cheap design that drops
+  // everything is neither reliable nor cost-effective.
+  const servedShare = noTraffic ? 0 : Math.min(1, r.servedRps / r.offeredRps);
+  if (!noTraffic && servedShare < 0.999) {
+    const note = `Scaled by the ${Math.round(servedShare * 100)}% of traffic actually served.`;
+    relNotes.push(note);
+    costNotes.push(note);
+  }
+
   const raw: Record<ScoreCategory, [number, string[]]> = {
     performance: [clamp(performance), perfNotes],
-    reliability: [reliability, relNotes],
-    cost: [cost, costNotes],
+    reliability: [reliability * servedShare, relNotes],
+    cost: [cost * servedShare, costNotes],
     architecture: [architecture, archNotes],
   };
   const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0) || 1;

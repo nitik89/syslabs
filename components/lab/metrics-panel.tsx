@@ -5,7 +5,7 @@ import { CATALOG, type Health, type SimResult } from "@/lib/sim";
 import { fmtMs, fmtPct, fmtRps, fmtUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { STATUS_BAR, STATUS_TEXT } from "./kind-style";
-import type { SysNode } from "./model";
+import { nodeName, type SysNode } from "./model";
 
 const HEALTH: Record<Health, { label: string; cls: string; icon: typeof CircleCheck }> = {
   idle: { label: "No traffic", cls: "text-muted-foreground bg-secondary", icon: CircleDashed },
@@ -61,7 +61,10 @@ export function MetricsPanel({
 
   const h = HEALTH[result.health];
   const HIcon = h.icon;
-  const nameOf = (id: string) => nodes.find((n) => n.id === id)?.data.label ?? id;
+  const nameOf = (id: string) => {
+    const f = nodes.find((n) => n.id === id);
+    return f ? nodeName(f) : id;
+  };
   const errTone = result.errorRate > 0.05 ? "crit" : result.errorRate > 0.005 ? "warn" : "ok";
   const rows = nodes
     .map((n) => ({ n, r: result.nodes[n.id] }))

@@ -30,6 +30,11 @@ export function docToFlow(doc: DesignDoc): { nodes: SysNode[]; edges: FlowEdge[]
   return { nodes, edges };
 }
 
+/** Display name, falling back to the component type when the user cleared the label. */
+export function nodeName(n: SysNode): string {
+  return n.data.label.trim() || CATALOG[n.data.kind].label;
+}
+
 export function flowToGraph(nodes: SysNode[], edges: FlowEdge[]): SimGraph {
   return {
     nodes: nodes.map((n) => ({ id: n.id, kind: n.data.kind, label: n.data.label, config: n.data.config })),

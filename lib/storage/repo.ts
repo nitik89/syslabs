@@ -1,5 +1,6 @@
 import type { SimGraph, TrafficProfile } from "@/lib/sim";
 import type { StorageDriver } from "./driver";
+import { BACKUP_APP, BACKUP_VERSION, mergeDesigns, mergeProgress, type BackupFile } from "./backup";
 
 /* ------------------------------- Models ------------------------------- */
 
@@ -141,6 +142,20 @@ export function createRepo(driver: StorageDriver, now: () => Date = () => new Da
 
     async resetProgress(): Promise<void> {
       await driver.remove(KEYS.progress);
+    },
+
+    /** Everything worth keeping: saved designs and progress (drafts are scratch space and not included). */
+    async exportBackup(): Promise<BackupFile> {
+      return { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: now().toISOString(), designs: await listDesigns(), progress: await this.getProgress() };
+    },
+
+    /** Apply a validated backup. "merge" keeps the best of both; "replace" overwrites designs and progress. */
+    async importBackup(backup: BackupFile, mode: "merge" | "replace"): Promise<{ designs: number; progress: ProgressState }> {
+      const designs = mode === "replace" ? backup.designs : mergeDesigns(await listDesigns(), backup.designs);
+      const progress = mode === "replace" ? backup.progress : mergeProgress(await this.getProgress(), backup.progress);
+      await driver.set(KEYS.designs, designs);
+      await driver.set(KEYS.progress, progress);
+      return { designs: designs.length, progress };
     },
   };
 }

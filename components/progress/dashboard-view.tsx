@@ -100,7 +100,7 @@ export function DashboardView() {
                 {designs.slice(0, 3).map((d) => (
                   <li key={d.id}>
                     <Link
-                      href={d.challengeId ? `/challenges/${d.challengeId}` : `/lab?design=${encodeURIComponent(d.id)}`}
+                      href={d.challengeId ? `/challenges/${d.challengeId}?design=${encodeURIComponent(d.id)}` : `/lab?design=${encodeURIComponent(d.id)}`}
                       className="block rounded-2xl border border-border bg-card p-4 outline-none transition-colors hover:border-brand-blue/50 focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <p className="truncate text-sm font-medium">{d.name}</p>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, BookOpen, Lightbulb, Loader2, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
@@ -30,15 +31,26 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
   const [briefOpen, setBriefOpen] = useState(false);
   const [explanationOpen, setExplanationOpen] = useState(false);
   const draftWarned = useRef(false);
+  const router = useRouter();
+  const params = useSearchParams();
+  // Read ?design= once: clearing it from the URL afterwards must not reload the draft over it.
+  const [designParam] = useState(() => params.get("design"));
 
   const boot = useCallback(() => {
     let cancelled = false;
     const repo = getRepo();
-    Promise.all([repo.getDraft(draftScope), repo.getProgress()]).then(
-      ([draft, progress]) => {
+    Promise.all([repo.getDraft(draftScope), repo.getProgress(), designParam ? repo.listDesigns() : Promise.resolve([])]).then(
+      ([draft, progress, designs]) => {
         if (cancelled) return;
-        // Traffic is always the challenge's, even if an old draft says otherwise.
-        const doc = draft ? { ...draft, traffic: { ...challenge.traffic } } : startingDoc(challenge);
+        const saved = designs.find((d) => d.id === designParam && d.challengeId === challenge.id);
+        if (designParam) {
+          if (!saved) toast.error("That saved design no longer exists.");
+          router.replace(`/challenges/${challenge.id}`);
+        }
+        // Traffic is always the challenge's, even if an old draft or save says otherwise.
+        const base = saved ?? draft;
+        const doc = base ? { graph: base.graph, positions: base.positions, traffic: { ...challenge.traffic } } : startingDoc(challenge);
+        if (saved) setCurrent({ id: saved.id, name: saved.name });
         setRecord(progress.challenges[challenge.id] ?? null);
         setState({ phase: "ready", doc, key: Date.now() });
       },
@@ -49,7 +61,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
     return () => {
       cancelled = true;
     };
-  }, [challenge, draftScope]);
+  }, [challenge, draftScope, designParam, router]);
 
   useEffect(() => boot(), [boot]);
 

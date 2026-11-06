@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { BackupPanel } from "./backup-panel";
 import { ActivityGrid, EmptyBlock, ErrorBlock, LoadingBlock, StatTile } from "./bits";
 import { useProgressData } from "./use-progress";
 
@@ -50,18 +51,21 @@ export function ProgressView() {
 
   if (!hasAnything) {
     return (
-      <EmptyBlock
-        icon={Sparkles}
-        title="No progress yet"
-        body="Run a simulation in the Lab or attempt a challenge. XP, streaks, scores and saved designs will show up here, all stored in this browser."
-      >
-        <Link href="/challenges" className={buttonVariants({ size: "sm" })}>
-          Browse challenges
-        </Link>
-        <Link href="/lab" className={buttonVariants({ variant: "outline", size: "sm" })}>
-          Open the Lab
-        </Link>
-      </EmptyBlock>
+      <div className="space-y-6">
+        <EmptyBlock
+          icon={Sparkles}
+          title="No progress yet"
+          body="Run a simulation in the Lab or attempt a challenge. XP, streaks, scores and saved designs will show up here, all stored in this browser."
+        >
+          <Link href="/challenges" className={buttonVariants({ size: "sm" })}>
+            Browse challenges
+          </Link>
+          <Link href="/lab" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Open the Lab
+          </Link>
+        </EmptyBlock>
+        <BackupPanel onImported={reload} />
+      </div>
     );
   }
 
@@ -160,8 +164,8 @@ export function ProgressView() {
                         <Trash2 />
                       </Button>
                       {ch ? (
-                        <Link href={`/challenges/${ch.id}`} className={buttonVariants({ variant: "outline", size: "sm" })} title="Open the challenge, then use Load">
-                          Open challenge
+                        <Link href={`/challenges/${ch.id}?design=${encodeURIComponent(d.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                          Open in challenge
                         </Link>
                       ) : (
                         <Link href={`/lab?design=${encodeURIComponent(d.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
@@ -176,6 +180,8 @@ export function ProgressView() {
           </ul>
         )}
       </section>
+
+      <BackupPanel onImported={reload} />
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border p-4">
         <div>

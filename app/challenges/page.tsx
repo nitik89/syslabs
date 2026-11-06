@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
-import { Target } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
-import { ComingUp } from "@/components/shell/coming-up";
+import { ChallengeList } from "@/components/challenges/challenge-list";
+import { CHALLENGES } from "@/data/challenges";
 
 export const metadata: Metadata = { title: "Challenges" };
 
 export default function ChallengesPage() {
   return (
     <>
-      <PageHeader eyebrow="Challenges" title="Challenges" description="Guided scenarios with broken architectures to fix, scored from simulation output." />
-      <ComingUp icon={Target} title="No challenges loaded yet" body="This section is under construction." />
+      <PageHeader
+        eyebrow="Challenges"
+        title="Fix broken architectures"
+        description="Each challenge gives you a scenario, fixed traffic and a set of objectives. Your score (0 to 100) is computed from the simulation: performance, reliability, cost and architecture."
+      />
+      <div className="p-6 md:p-8">
+        <ChallengeList challenges={CHALLENGES} />
+      </div>
     </>
   );
 }

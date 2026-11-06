@@ -1,0 +1,53 @@
+{
+  "id": "single-point-of-failure",
+  "order": 2,
+  "title": "One Server to Rule Them All",
+  "difficulty": "Easy",
+  "summary": "Everything runs through one app server. It handles today's load, but when it dies, so does the product.",
+  "scenario": [
+    "A small SaaS app serves 900 requests per second through a single app server. Capacity looks fine: utilization is about 60%.",
+    "Last week that server was rebooted for a kernel patch and the whole product went down for 4 minutes. Customers noticed.",
+    "Make the system survive the loss of any one component, without blowing the budget. The NoSQL database is already replicated."
+  ],
+  "objectives": [
+    { "id": "spof", "label": "No single points of failure", "metric": "spofCount", "op": "==", "value": 0 },
+    { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },
+    { "id": "cost", "label": "Monthly cost at or below $800", "metric": "monthlyCost", "op": "<=", "value": 800 }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        { "id": "client-1", "kind": "client", "label": "Customers", "config": { "capacity": 0, "latencyMs": 20, "replicas": 1, "costPerReplica": 0 } },
+        { "id": "appServer-1", "kind": "appServer", "label": "App Server", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 1, "costPerReplica": 70 } },
+        { "id": "nosqlDb-1", "kind": "nosqlDb", "label": "Accounts Store", "config": { "capacity": 5000, "latencyMs": 5, "replicas": 2, "costPerReplica": 180 } }
+      ],
+      "edges": [
+        { "id": "e:client-1->appServer-1", "source": "client-1", "target": "appServer-1" },
+        { "id": "e:appServer-1->nosqlDb-1", "source": "appServer-1", "target": "nosqlDb-1" }
+      ]
+    },
+    "positions": {
+      "client-1": { "x": 0, "y": 100 },
+      "appServer-1": { "x": 300, "y": 100 },
+      "nosqlDb-1": { "x": 600, "y": 100 }
+    }
+  },
+  "traffic": { "rps": 900, "readRatio": 0.8, "hotKeyFraction": 0.5, "staticFraction": 0 },
+  "allowedComponents": ["client", "loadBalancer", "apiGateway", "appServer", "cache", "nosqlDb", "monitoring"],
+  "hints": [
+    "Run the simulation and look at Single points of failure. The simulator fails each component in turn and measures how much traffic loses its path.",
+    "Redundancy means more than one of something, plus a way to route around the broken one. Raise the app server's replicas, or add a second app server.",
+    "If you put a Load Balancer in front, it becomes the new single point of failure, so give it 2 replicas too. Two of everything still fits under $800."
+  ],
+  "scoring": {
+    "weights": { "performance": 0.2, "reliability": 0.5, "cost": 0.15, "architecture": 0.15 },
+    "latencyTargetMs": 50,
+    "costBudget": 650
+  },
+  "explanation": [
+    "A single point of failure (SPOF) is any component whose loss takes down a meaningful share of traffic. Spare capacity doesn't help if there is only one instance.",
+    "The fix is N+1 redundancy: at least two instances behind something that health-checks them and stops sending traffic to a dead one. That is the load balancer's real job, beyond spreading load.",
+    "Watch for the SPOF you just added. A single load balancer is itself a SPOF, which is why production setups run LBs in pairs or use a managed, multi-zone LB.",
+    "Redundancy costs money, so size the survivors to carry the full load alone. Here one app server can handle 900 rps, so two give you N+1 at about double the compute cost."
+  ]
+}

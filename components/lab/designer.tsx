@@ -333,7 +333,6 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
           fitViewOptions={{ padding: 0.2, maxZoom: 1.1 }}
           minZoom={0.25}
           maxZoom={2}
-          proOptions={{ hideAttribution: true }}
           ariaLabelConfig={{ "node.a11yDescription.default": "Press Enter or Space to select. Use arrow keys to move. Press Delete to remove." }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="oklch(1 0 0 / 10%)" />

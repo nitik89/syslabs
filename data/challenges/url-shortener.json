@@ -1,0 +1,41 @@
+{
+  "id": "url-shortener",
+  "order": 3,
+  "title": "Design a URL Shortener",
+  "difficulty": "Medium",
+  "summary": "Blank canvas. 12,000 requests per second, 95% of them redirects. Build it fast, reliable and affordable.",
+  "scenario": [
+    "You're building a link shortener. Users create short links (writes) and millions of people click them (reads that redirect to the long URL).",
+    "Peak traffic is 12,000 requests per second. Reads outnumber writes 19 to 1, and popular links get clicked far more than the rest: 80% of redirects hit a small set of hot links.",
+    "Start from an empty canvas. A redirect should feel instant, the service must survive any single failure, and finance wants the bill under $2,000 a month."
+  ],
+  "objectives": [
+    { "id": "errors", "label": "Error rate at or below 0.5%", "metric": "errorRate", "op": "<=", "value": 0.005 },
+    { "id": "latency", "label": "Average latency at or below 60 ms", "metric": "avgLatencyMs", "op": "<=", "value": 60 },
+    { "id": "spof", "label": "No single points of failure", "metric": "spofCount", "op": "==", "value": 0 },
+    { "id": "db", "label": "Database load at or below 4,000 rps", "metric": "dbLoadRps", "op": "<=", "value": 4000 },
+    { "id": "cost", "label": "Monthly cost at or below $2,000", "metric": "monthlyCost", "op": "<=", "value": 2000 }
+  ],
+  "startingDesign": {
+    "graph": { "nodes": [], "edges": [] },
+    "positions": {}
+  },
+  "traffic": { "rps": 12000, "readRatio": 0.95, "hotKeyFraction": 0.8, "staticFraction": 0 },
+  "allowedComponents": ["client", "cdn", "loadBalancer", "apiGateway", "appServer", "cache", "sqlDb", "nosqlDb", "queue", "objectStorage", "search", "monitoring"],
+  "hints": [
+    "Start with the request path: Client, then Load Balancer, then App Servers, then a datastore. Run it and let the bottlenecks tell you what to scale.",
+    "A short code maps to one long URL: a pure key-value lookup with no joins. A NoSQL store scales reads and writes with shards. Redirects of hot links should be answered by a cache before reaching it.",
+    "One app server handles 1,500 rps, so 12,000 rps needs at least 8, and around 12 for headroom. Give the load balancer, cache and database 2 replicas each to remove single points of failure, and add Monitoring."
+  ],
+  "scoring": {
+    "weights": { "performance": 0.3, "reliability": 0.3, "cost": 0.2, "architecture": 0.2 },
+    "latencyTargetMs": 50,
+    "costBudget": 1600
+  },
+  "explanation": [
+    "A strong baseline: Client → Load Balancer (×2) → stateless App Servers (×12) → Redis Cache (×2, ~32 GB) in front of a sharded NoSQL store (×2), plus Monitoring.",
+    "Why NoSQL: the access pattern is get(shortCode) and put(shortCode, longUrl). No joins and no multi-row transactions, and both reads and writes need to scale horizontally. Partition by short code.",
+    "Why the cache: with 80% of clicks on hot links, a large cache absorbs roughly 80% of redirect reads, cutting database load from ~11,400 to ~2,100 rps and lowering latency.",
+    "Things the simulator doesn't model but an interviewer will ask about: generating unique short codes (counter with base62, or pre-allocated ranges), custom aliases, link expiry, abuse and rate limiting, and analytics. Click counts belong on an async queue so they never slow down the redirect."
+  ]
+}

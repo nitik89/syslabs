@@ -215,3 +215,30 @@ describe("cost and edge cases", () => {
     expect(r.errorRate).toBe(1);
   });
 });
+
+describe("failure semantics", () => {
+  const t: TrafficProfile = { rps: 500, readRatio: 1, hotKeyFraction: 0.9, staticFraction: 0 };
+
+  it("an app server does not answer reads itself when its only database is down", () => {
+    const g: SimGraph = {
+      nodes: [node("c", "client"), node("app", "appServer", { replicas: 2 }), node("db", "nosqlDb")],
+      edges: [edge("c", "app"), edge("app", "db")],
+    };
+    expect(simulate(g, t).spofs.map((s) => s.nodeId)).toEqual(["db"]);
+  });
+
+  it("a failed cache falls back to the database, so it is not a SPOF", () => {
+    const g: SimGraph = {
+      nodes: [node("c", "client"), node("app", "appServer", { replicas: 2 }), node("cache", "cache"), node("db", "nosqlDb", { replicas: 2 })],
+      edges: [edge("c", "app"), edge("app", "cache"), edge("app", "db")],
+    };
+    expect(simulate(g, t).spofs).toEqual([]);
+  });
+
+  it("an app server with no downstream still serves traffic itself", () => {
+    const g: SimGraph = { nodes: [node("c", "client"), node("app", "appServer")], edges: [edge("c", "app")] };
+    const r = simulate(g, t);
+    expect(r.servedRps).toBeCloseTo(500, 6);
+    expect(r.errorRps).toBe(0);
+  });
+});

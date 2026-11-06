@@ -226,8 +226,7 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     }
   }
 
-  const liveKids = (id: string) =>
-    children.get(id)!.filter((c) => !backEdges.has(`${id}->${c.target}`) && !failed.has(c.target));
+  const forwardKids = (id: string) => children.get(id)!.filter((c) => !backEdges.has(`${id}->${c.target}`));
 
   // Seed traffic.
   const inbound = new Map<string, Buckets>();
@@ -315,7 +314,8 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     let dropped = 0;
     let hitRatio: number | undefined;
     let nodeBacklog = 0;
-    const kids = liveKids(id);
+    const allKids = forwardKids(id);
+    const kids = allKids.filter((c) => !failed.has(c.target));
 
     for (const mode of ["sync", "async"] as const) {
       for (const cls of TRAFFIC_CLASSES) {
@@ -365,7 +365,7 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
           continue;
         }
 
-        const route = routeFor(node, cls, kids, nodeById, children);
+        const route = routeFor(node, cls, allKids, nodeById, children, failed);
         if (route === "consume") consume(mode, f);
         else if (route === "none") {
           drop(mode, f.rps, true);
@@ -441,63 +441,76 @@ function accepts(n: SimNode, cls: TrafficClass, children: Map<string, Kid[]>): b
   }
 }
 
+/**
+ * Decide where a node sends one traffic class.
+ * Candidates come in priority groups (e.g. cache before database). The first group with a healthy member wins,
+ * which models fallback (cache down → go straight to the DB). If groups exist but every member is down, the
+ * traffic fails ("none"). A node only serves traffic itself ("consume") when it has no downstream at all.
+ */
 function routeFor(
   node: SimNode,
   cls: TrafficClass,
   kids: Kid[],
   byId: Map<string, SimNode>,
   children: Map<string, Kid[]>,
+  failed: ReadonlySet<string>,
 ): Kid[] | "consume" | "none" {
   const kindOf = (k: Kid) => byId.get(k.target)!.kind;
   const accepting = kids.filter((k) => accepts(byId.get(k.target)!, cls, children));
-  const firstNonEmpty = (...groups: Kid[][]) => groups.find((g) => g.length > 0);
+  const ofKind = (pred: (k: NodeKind) => boolean) => accepting.filter((k) => pred(kindOf(k)));
+
+  let groups: Kid[][];
+  let whenNoDownstream: "consume" | "none";
 
   switch (node.kind) {
     case "client":
     case "loadBalancer":
-    case "apiGateway": {
+    case "apiGateway":
+      whenNoDownstream = "none";
       if (cls === "static") {
-        const cdns = accepting.filter((k) => kindOf(k) === "cdn");
-        if (cdns.length > 0) return cdns;
+        const cdns = ofKind((k) => k === "cdn");
+        groups = [cdns, accepting.filter((k) => !cdns.includes(k))];
+      } else {
+        // Dynamic traffic skips leaf CDNs (they only serve static assets).
+        groups = [accepting.filter((k) => kindOf(k) !== "cdn" || (children.get(k.target)?.length ?? 0) > 0)];
       }
-      // Dynamic traffic prefers compute/edge paths over talking to storage directly.
-      const nonStatic = cls === "static" ? accepting : accepting.filter((k) => kindOf(k) !== "cdn" || (children.get(k.target)?.length ?? 0) > 0);
-      return nonStatic.length > 0 ? nonStatic : "none";
-    }
-    case "cdn": {
+      break;
+    case "cdn":
       if (cls === "static") return "consume";
-      return accepting.length > 0 ? accepting : "none";
-    }
-    case "appServer": {
-      if (cls === "static") {
-        const g = accepting.filter((k) => kindOf(k) === "objectStorage" || kindOf(k) === "cdn");
-        return g.length > 0 ? g : "consume";
-      }
-      if (cls === "read") {
-        const g = firstNonEmpty(
-          accepting.filter((k) => kindOf(k) === "cache"),
-          accepting.filter((k) => STORE_KINDS.has(kindOf(k))),
-          accepting.filter((k) => COMPUTE_KINDS.has(kindOf(k))),
-        );
-        return g ?? "consume";
-      }
-      const g = firstNonEmpty(
-        accepting.filter((k) => kindOf(k) === "queue"),
-        accepting.filter((k) => DB_KINDS.has(kindOf(k))),
-        accepting.filter((k) => STORE_KINDS.has(kindOf(k))),
-        accepting.filter((k) => kindOf(k) === "cache"),
-        accepting.filter((k) => COMPUTE_KINDS.has(kindOf(k))),
-      );
-      return g ?? "consume";
-    }
-    case "cache": {
+      whenNoDownstream = "none";
+      groups = [accepting];
+      break;
+    case "appServer":
+      whenNoDownstream = "consume";
+      if (cls === "static") groups = [ofKind((k) => k === "objectStorage" || k === "cdn")];
+      else if (cls === "read")
+        groups = [ofKind((k) => k === "cache"), ofKind((k) => STORE_KINDS.has(k)), ofKind((k) => COMPUTE_KINDS.has(k))];
+      else
+        groups = [
+          ofKind((k) => k === "queue"),
+          ofKind((k) => DB_KINDS.has(k)),
+          ofKind((k) => STORE_KINDS.has(k) && !DB_KINDS.has(k)),
+          ofKind((k) => k === "cache"),
+          ofKind((k) => COMPUTE_KINDS.has(k)),
+        ];
+      break;
+    case "cache":
       // Writes: write-through to the backing store if there is one.
-      return accepting.length > 0 ? accepting : "consume";
-    }
+      whenNoDownstream = "consume";
+      groups = [accepting];
+      break;
     default:
-      // Stores, object storage, search, queue (handled earlier), monitoring: terminal.
+      // Stores, object storage, search, monitoring: terminal.
       return "consume";
   }
+
+  const nonEmpty = groups.filter((g) => g.length > 0);
+  if (nonEmpty.length === 0) return whenNoDownstream;
+  for (const g of nonEmpty) {
+    const live = g.filter((k) => !failed.has(k.target));
+    if (live.length > 0) return live;
+  }
+  return "none";
 }
 
 /* ------------------------------------------------------------------ */

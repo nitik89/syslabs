@@ -1,0 +1,57 @@
+{
+  "id": "overloaded-database",
+  "order": 1,
+  "title": "The Overloaded Database",
+  "difficulty": "Easy",
+  "summary": "5,000 reads per second are crushing a database that tops out at 1,000. Take the pressure off without rewriting the app.",
+  "scenario": [
+    "Your product page went viral. Traffic jumped to 5,000 requests per second, and almost all of them are reads of the same popular items.",
+    "The app servers are fine: you already scaled them out. The single SQL database can only handle about 1,000 queries per second, so about four in five requests are failing.",
+    "Get the database back under control. Most of the traffic hits a small set of hot keys, which is a strong clue."
+  ],
+  "objectives": [
+    { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },
+    { "id": "db", "label": "Database load at or below 800 rps (leave 20% headroom)", "metric": "dbLoadRps", "op": "<=", "value": 800 },
+    { "id": "latency", "label": "Average latency at or below 60 ms", "metric": "avgLatencyMs", "op": "<=", "value": 60 },
+    { "id": "cost", "label": "Monthly cost at or below $1,200", "metric": "monthlyCost", "op": "<=", "value": 1200 }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        { "id": "client-1", "kind": "client", "label": "Shoppers", "config": { "capacity": 0, "latencyMs": 20, "replicas": 1, "costPerReplica": 0 } },
+        { "id": "loadBalancer-1", "kind": "loadBalancer", "label": "Load Balancer", "config": { "capacity": 20000, "latencyMs": 1, "replicas": 1, "costPerReplica": 25 } },
+        { "id": "appServer-1", "kind": "appServer", "label": "Catalog API", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 5, "costPerReplica": 70 } },
+        { "id": "sqlDb-1", "kind": "sqlDb", "label": "Products DB", "config": { "capacity": 1000, "latencyMs": 8, "replicas": 1, "costPerReplica": 200 } }
+      ],
+      "edges": [
+        { "id": "e:client-1->loadBalancer-1", "source": "client-1", "target": "loadBalancer-1" },
+        { "id": "e:loadBalancer-1->appServer-1", "source": "loadBalancer-1", "target": "appServer-1" },
+        { "id": "e:appServer-1->sqlDb-1", "source": "appServer-1", "target": "sqlDb-1" }
+      ]
+    },
+    "positions": {
+      "client-1": { "x": 0, "y": 100 },
+      "loadBalancer-1": { "x": 250, "y": 100 },
+      "appServer-1": { "x": 500, "y": 100 },
+      "sqlDb-1": { "x": 750, "y": 100 }
+    }
+  },
+  "traffic": { "rps": 5000, "readRatio": 1, "hotKeyFraction": 0.9, "staticFraction": 0 },
+  "allowedComponents": ["client", "loadBalancer", "appServer", "cache", "sqlDb", "nosqlDb", "monitoring"],
+  "hints": [
+    "Run the simulation first and read the bottleneck list. Which component is red, and how far over capacity is it?",
+    "90% of reads hit hot keys. A component that answers repeated reads from memory would stop most of them from ever reaching the database.",
+    "Connect a Redis Cache to the Catalog API. With an 8 GB cache too many reads still miss, so increase the cache size until database load drops below 800 rps (around 24 GB or more)."
+  ],
+  "scoring": {
+    "weights": { "performance": 0.4, "reliability": 0.2, "cost": 0.2, "architecture": 0.2 },
+    "latencyTargetMs": 50,
+    "costBudget": 1000
+  },
+  "explanation": [
+    "Read-heavy workloads with a skewed key distribution are the classic case for cache-aside. The app checks the cache first and only goes to the database on a miss, then fills the cache.",
+    "Database load becomes reads × (1 − hit ratio). At 5,000 rps and an 87% hit ratio, the database sees about 650 rps, comfortably under its 1,000 rps limit.",
+    "Cache size matters: a small cache can't hold enough of the working set, so the hit ratio plateaus. In real systems you would also think about TTLs, invalidation on writes, and stampede protection when a hot key expires.",
+    "Read replicas are the other lever. They add read capacity but not write capacity, and they cost a full database each. Here a cache is far cheaper per request served. Adding Monitoring and a second cache replica would remove the remaining reliability risks."
+  ]
+}

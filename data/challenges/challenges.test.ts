@@ -40,6 +40,59 @@ const SOLUTIONS: Record<string, SimGraph> = {
     ],
     edges: chain(["client-1", "loadBalancer-1"], ["loadBalancer-1", "appServer-1"], ["appServer-1", "nosqlDb-1"]),
   },
+  "cloud-bill-shock": {
+    nodes: [
+      n("client-1", "client"),
+      n("loadBalancer-1", "loadBalancer", { replicas: 2 }),
+      n("appServer-1", "appServer", { replicas: 2 }),
+      n("sqlDb-1", "sqlDb", { replicas: 2 }),
+      n("monitoring-1", "monitoring"),
+    ],
+    edges: chain(["client-1", "loadBalancer-1"], ["loadBalancer-1", "appServer-1"], ["appServer-1", "sqlDb-1"]),
+  },
+  "flash-sale-checkout": {
+    nodes: [
+      n("client-1", "client"),
+      n("loadBalancer-1", "loadBalancer", { replicas: 2 }),
+      n("appServer-1", "appServer", { replicas: 8 }),
+      n("cache-1", "cache", { replicas: 2, cacheSizeGb: 32 }),
+      n("queue-1", "queue", { replicas: 2 }),
+      n("nosqlDb-1", "nosqlDb", { replicas: 2 }),
+      n("monitoring-1", "monitoring"),
+    ],
+    edges: chain(
+      ["client-1", "loadBalancer-1"],
+      ["loadBalancer-1", "appServer-1"],
+      ["appServer-1", "cache-1"],
+      ["appServer-1", "queue-1"],
+      ["appServer-1", "nosqlDb-1"],
+      ["queue-1", "nosqlDb-1"],
+    ),
+  },
+  "image-heavy-homepage": {
+    nodes: [
+      n("client-1", "client"),
+      n("cdn-1", "cdn"),
+      n("loadBalancer-1", "loadBalancer", { replicas: 2 }),
+      n("appServer-1", "appServer", { replicas: 6 }),
+      n("cache-1", "cache", { replicas: 2, cacheSizeGb: 32 }),
+      n("sqlDb-1", "sqlDb", { replicas: 4 }),
+      n("monitoring-1", "monitoring"),
+    ],
+    edges: chain(["client-1", "cdn-1"], ["client-1", "loadBalancer-1"], ["loadBalancer-1", "appServer-1"], ["appServer-1", "cache-1"], ["appServer-1", "sqlDb-1"]),
+  },
+  "live-scoreboard": {
+    nodes: [
+      n("client-1", "client"),
+      n("cdn-1", "cdn"),
+      n("loadBalancer-1", "loadBalancer", { replicas: 3 }),
+      n("appServer-1", "appServer", { replicas: 40 }),
+      n("cache-1", "cache", { replicas: 2, cacheSizeGb: 32 }),
+      n("nosqlDb-1", "nosqlDb", { replicas: 2 }),
+      n("monitoring-1", "monitoring"),
+    ],
+    edges: chain(["client-1", "cdn-1"], ["client-1", "loadBalancer-1"], ["loadBalancer-1", "appServer-1"], ["appServer-1", "cache-1"], ["appServer-1", "nosqlDb-1"]),
+  },
   "url-shortener": {
     nodes: [
       n("client-1", "client"),
@@ -56,8 +109,18 @@ const SOLUTIONS: Record<string, SimGraph> = {
 /* ------------------------------- tests ------------------------------- */
 
 describe("challenge data", () => {
-  it("ships the three required challenges with unique ids", () => {
-    expect(CHALLENGES.map((c) => c.id)).toEqual(["overloaded-database", "single-point-of-failure", "url-shortener"]);
+  it("ships every challenge in order with unique ids and a reference solution", () => {
+    expect(CHALLENGES.map((c) => c.id)).toEqual([
+      "overloaded-database",
+      "single-point-of-failure",
+      "url-shortener",
+      "cloud-bill-shock",
+      "flash-sale-checkout",
+      "image-heavy-homepage",
+      "live-scoreboard",
+    ]);
+    expect(new Set(CHALLENGES.map((c) => c.order)).size).toBe(CHALLENGES.length);
+    for (const c of CHALLENGES) expect(SOLUTIONS[c.id]).toBeDefined();
   });
 
   for (const ch of CHALLENGES) {
@@ -143,5 +206,58 @@ describe("scoring regressions", () => {
     expect(by.reliability).toBe(0);
     expect(by.cost).toBe(0);
     expect(s.total).toBeLessThan(15);
+  });
+});
+
+describe("new challenges teach what they claim", () => {
+  const scoreboard = (apps: number) => ({
+    nodes: [
+      n("c", "client"),
+      n("cdn", "cdn"),
+      n("lb", "loadBalancer", { replicas: 3 }),
+      n("a", "appServer", { replicas: apps }),
+      n("k", "cache", { replicas: 2, cacheSizeGb: 32 }),
+      n("d", "nosqlDb", { replicas: 2 }),
+      n("m", "monitoring"),
+    ],
+    edges: chain(["c", "cdn"], ["c", "lb"], ["lb", "a"], ["a", "k"], ["a", "d"]),
+  });
+
+  it("scoreboard: the cheapest fleet that fits capacity is too slow", () => {
+    const { s } = run("live-scoreboard", scoreboard(32));
+    expect(s.objectives.find((o) => o.objective.id === "latency")!.met).toBe(false);
+    expect(run("live-scoreboard", scoreboard(40)).s.passed).toBe(true);
+  });
+
+  it("flash sale: a queue in front of Postgres just builds a backlog", () => {
+    const g: SimGraph = {
+      nodes: [
+        n("c", "client"),
+        n("lb", "loadBalancer", { replicas: 2 }),
+        n("a", "appServer", { replicas: 8 }),
+        n("k", "cache", { replicas: 2, cacheSizeGb: 32 }),
+        n("q", "queue", { replicas: 2 }),
+        n("s", "sqlDb", { replicas: 3 }),
+        n("m", "monitoring"),
+      ],
+      edges: chain(["c", "lb"], ["lb", "a"], ["a", "k"], ["a", "q"], ["a", "s"], ["q", "s"]),
+    };
+    const { r, s } = run("flash-sale-checkout", g);
+    expect(r.backlogRps).toBeGreaterThan(2000);
+    expect(s.passed).toBe(false);
+  });
+
+  it("image homepage: a CDN alone moves the bottleneck to the database", () => {
+    const start = getChallenge("image-heavy-homepage")!.startingDesign.graph;
+    const g: SimGraph = { nodes: [...start.nodes, n("cdn-1", "cdn")], edges: [...start.edges, { id: "x", source: "client-1", target: "cdn-1" }] };
+    const { r } = run("image-heavy-homepage", g);
+    expect(r.nodes["appServer-1"].utilization).toBeLessThan(0.8);
+    expect(r.bottlenecks[0]).toMatchObject({ nodeId: "sqlDb-1", severity: "crit" });
+  });
+
+  it("cloud bill: the starting stack works but costs far too much", () => {
+    const { s, r } = run("cloud-bill-shock", getChallenge("cloud-bill-shock")!.startingDesign.graph);
+    expect(r.errorRate).toBe(0);
+    expect(s.objectives.filter((o) => !o.met).map((o) => o.objective.id)).toEqual(["cost"]);
   });
 });

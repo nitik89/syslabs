@@ -1,0 +1,68 @@
+{
+  "id": "cloud-bill-shock",
+  "order": 4,
+  "title": "Cloud Bill Shock",
+  "difficulty": "Easy",
+  "summary": "A $3,800-a-month stack serves just 1,200 requests per second. Cut the bill to under $1,000 without breaking anything.",
+  "scenario": [
+    "Your startup's cloud bill just landed: almost $3,800 for a month. The CFO asks one question: how much traffic do we actually serve?",
+    "The answer is about 1,200 requests per second. Over time, every incident was \"fixed\" by adding more of everything: 20 app servers, a gateway cluster, a NoSQL store nobody remembers adding, and six database replicas.",
+    "Right-size it. Keep it reliable: no single points of failure, and nothing running above 80% utilization."
+  ],
+  "objectives": [
+    { "id": "cost", "label": "Monthly cost at or below $1,000", "metric": "monthlyCost", "op": "<=", "value": 1000 },
+    { "id": "errors", "label": "Error rate at or below 0.5%", "metric": "errorRate", "op": "<=", "value": 0.005 },
+    { "id": "spof", "label": "No single points of failure", "metric": "spofCount", "op": "==", "value": 0 },
+    { "id": "headroom", "label": "Every component at or below 80% utilization", "metric": "maxUtilization", "op": "<=", "value": 0.8 }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        { "id": "client-1", "kind": "client", "label": "Customers", "config": { "capacity": 0, "latencyMs": 20, "replicas": 1, "costPerReplica": 0 } },
+        { "id": "apiGateway-1", "kind": "apiGateway", "label": "Gateway", "config": { "capacity": 10000, "latencyMs": 3, "replicas": 3, "costPerReplica": 50 } },
+        { "id": "loadBalancer-1", "kind": "loadBalancer", "label": "Load Balancer", "config": { "capacity": 20000, "latencyMs": 1, "replicas": 2, "costPerReplica": 25 } },
+        { "id": "appServer-1", "kind": "appServer", "label": "API Fleet", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 20, "costPerReplica": 70 } },
+        { "id": "cache-1", "kind": "cache", "label": "Redis", "config": { "capacity": 50000, "latencyMs": 1, "replicas": 4, "costPerReplica": 60, "cacheSizeGb": 64 } },
+        { "id": "sqlDb-1", "kind": "sqlDb", "label": "Postgres", "config": { "capacity": 1000, "latencyMs": 8, "replicas": 6, "costPerReplica": 200 } },
+        { "id": "nosqlDb-1", "kind": "nosqlDb", "label": "Legacy Store", "config": { "capacity": 5000, "latencyMs": 5, "replicas": 4, "costPerReplica": 180 } },
+        { "id": "monitoring-1", "kind": "monitoring", "label": "Monitoring", "config": { "capacity": 0, "latencyMs": 0, "replicas": 1, "costPerReplica": 30 } }
+      ],
+      "edges": [
+        { "id": "e:client-1->apiGateway-1", "source": "client-1", "target": "apiGateway-1" },
+        { "id": "e:apiGateway-1->loadBalancer-1", "source": "apiGateway-1", "target": "loadBalancer-1" },
+        { "id": "e:loadBalancer-1->appServer-1", "source": "loadBalancer-1", "target": "appServer-1" },
+        { "id": "e:appServer-1->cache-1", "source": "appServer-1", "target": "cache-1" },
+        { "id": "e:appServer-1->sqlDb-1", "source": "appServer-1", "target": "sqlDb-1" },
+        { "id": "e:appServer-1->nosqlDb-1", "source": "appServer-1", "target": "nosqlDb-1" }
+      ]
+    },
+    "positions": {
+      "client-1": { "x": 0, "y": 120 },
+      "apiGateway-1": { "x": 240, "y": 120 },
+      "loadBalancer-1": { "x": 480, "y": 120 },
+      "appServer-1": { "x": 720, "y": 120 },
+      "cache-1": { "x": 980, "y": 0 },
+      "sqlDb-1": { "x": 980, "y": 120 },
+      "nosqlDb-1": { "x": 980, "y": 240 },
+      "monitoring-1": { "x": 720, "y": 300 }
+    }
+  },
+  "traffic": { "rps": 1200, "readRatio": 0.85, "hotKeyFraction": 0.7, "staticFraction": 0 },
+  "allowedComponents": ["client", "loadBalancer", "apiGateway", "appServer", "cache", "sqlDb", "nosqlDb", "monitoring"],
+  "hints": [
+    "Run the simulation and read the Utilization list. Most components sit below 10%: you are paying for capacity you never use.",
+    "Work out what you need. 1,200 rps fits on one app server (1,500 rps), but one is a single point of failure, so two is the floor. Apply the same \"two of each\" logic everywhere, and delete what doesn't earn its cost.",
+    "The API Gateway duplicates the load balancer's job here, and the Legacy Store only adds cost. Try: Load Balancer ×2 → App Server ×2 → Postgres ×2, plus Monitoring. A small cache is optional."
+  ],
+  "scoring": {
+    "weights": { "performance": 0.2, "reliability": 0.3, "cost": 0.35, "architecture": 0.15 },
+    "latencyTargetMs": 60,
+    "costBudget": 800
+  },
+  "explanation": [
+    "Capacity planning starts with arithmetic: peak load ÷ per-instance capacity, plus headroom, plus redundancy (N+1). For 1,200 rps on 1,500-rps servers that's 1 + 1 = 2 app servers at about 40% each.",
+    "Every extra layer costs money and latency without adding value unless it does a distinct job. A gateway in front of a load balancer only makes sense when you need what it offers: auth, rate limits, API composition.",
+    "Over-provisioning hides problems instead of fixing them. Ten times the capacity you need is not resilience; redundancy (no SPOFs) plus sensible headroom (under 70–80%) is.",
+    "In real life you'd right-size with autoscaling and load tests, and keep a little more headroom for daily peaks. The principle is the same: measure, then provision for peak plus margin."
+  ]
+}

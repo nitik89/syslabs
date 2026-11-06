@@ -1,0 +1,58 @@
+{
+  "id": "image-heavy-homepage",
+  "order": 6,
+  "title": "The Image-Heavy Homepage",
+  "difficulty": "Medium",
+  "summary": "20,000 requests per second, and 70% of them are images and scripts your app servers are serving by hand.",
+  "scenario": [
+    "A travel site's homepage is mostly photos. At peak it receives 20,000 requests per second, and 70% are static assets: images, JavaScript and CSS.",
+    "Every one of those requests goes through the load balancer to the app servers, which read files from disk and send them back. The app tier is drowning, and the few dynamic requests that matter (search, prices, bookings) are failing with them.",
+    "Make the homepage fast for everyone, keep at least 15% headroom on every component, and stay within budget."
+  ],
+  "objectives": [
+    { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },
+    { "id": "latency", "label": "Average latency at or below 40 ms", "metric": "avgLatencyMs", "op": "<=", "value": 40 },
+    { "id": "headroom", "label": "Every component at or below 85% utilization", "metric": "maxUtilization", "op": "<=", "value": 0.85 },
+    { "id": "spof", "label": "No single points of failure", "metric": "spofCount", "op": "==", "value": 0 },
+    { "id": "cost", "label": "Monthly cost at or below $2,200", "metric": "monthlyCost", "op": "<=", "value": 2200 }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        { "id": "client-1", "kind": "client", "label": "Travelers", "config": { "capacity": 0, "latencyMs": 20, "replicas": 1, "costPerReplica": 0 } },
+        { "id": "loadBalancer-1", "kind": "loadBalancer", "label": "Load Balancer", "config": { "capacity": 20000, "latencyMs": 1, "replicas": 2, "costPerReplica": 25 } },
+        { "id": "appServer-1", "kind": "appServer", "label": "Web App", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 6, "costPerReplica": 70 } },
+        { "id": "sqlDb-1", "kind": "sqlDb", "label": "Listings DB", "config": { "capacity": 1000, "latencyMs": 8, "replicas": 2, "costPerReplica": 200 } }
+      ],
+      "edges": [
+        { "id": "e:client-1->loadBalancer-1", "source": "client-1", "target": "loadBalancer-1" },
+        { "id": "e:loadBalancer-1->appServer-1", "source": "loadBalancer-1", "target": "appServer-1" },
+        { "id": "e:appServer-1->sqlDb-1", "source": "appServer-1", "target": "sqlDb-1" }
+      ]
+    },
+    "positions": {
+      "client-1": { "x": 0, "y": 140 },
+      "loadBalancer-1": { "x": 250, "y": 140 },
+      "appServer-1": { "x": 500, "y": 140 },
+      "sqlDb-1": { "x": 760, "y": 140 }
+    }
+  },
+  "traffic": { "rps": 20000, "readRatio": 0.9, "hotKeyFraction": 0.85, "staticFraction": 0.7 },
+  "allowedComponents": ["client", "cdn", "loadBalancer", "apiGateway", "appServer", "cache", "sqlDb", "nosqlDb", "objectStorage", "monitoring"],
+  "hints": [
+    "Run it and check where the 14,000 static requests per second end up. Static files don't need your application at all.",
+    "Connect a CDN directly to the Client. Clients send static assets to a CDN when they have one, so the load balancer and app servers only see the 6,000 dynamic requests. Then look at what breaks next.",
+    "With the CDN in place, the database is next: reads need a cache, and the 600 writes per second use 60% of the Postgres primary. Read replicas cover the cache misses. Something like Cache ×2 (32 GB) and Postgres ×4 keeps everything under 85%."
+  ],
+  "scoring": {
+    "weights": { "performance": 0.35, "reliability": 0.25, "cost": 0.2, "architecture": 0.2 },
+    "latencyTargetMs": 35,
+    "costBudget": 1800
+  },
+  "explanation": [
+    "Static content should never touch your application servers. A CDN serves it from edge locations close to users: lower latency, far less origin load, and it's cheap per request.",
+    "Once 70% of traffic is gone, the same app fleet runs at a comfortable ~67%, and average latency drops a lot because most requests are now ~25 ms CDN hits.",
+    "Each fix reveals the next bottleneck: here the database. Caching takes most reads off it, read replicas cover the remaining misses, and the write path still sets a floor on how small the primary can be.",
+    "In production the CDN would pull from object storage (S3-style) rather than app disks, with cache-busting file names and long TTLs. Headroom objectives model the reality that traffic is spiky: running at 95% average means falling over at the first burst."
+  ]
+}

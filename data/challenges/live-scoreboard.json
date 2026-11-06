@@ -1,0 +1,41 @@
+{
+  "id": "live-scoreboard",
+  "order": 7,
+  "title": "Game Day: Live Scoreboard",
+  "difficulty": "Hard",
+  "summary": "The final is tonight. 50,000 requests per second, everyone refreshing the same score. Fast, unbreakable and under $4,000. Blank canvas.",
+  "scenario": [
+    "You run the live scoreboard for a championship final. At kickoff, 50,000 requests per second arrive: 20% are page assets, and almost everything else is fans re-reading the same few live scores.",
+    "Only the scorekeepers write, about 2% of dynamic traffic. Reads are extremely concentrated: 98% hit a handful of hot keys (the live matches).",
+    "Build it from scratch. It has to feel instant, survive any single failure mid-match, keep 20% headroom everywhere, and the sponsor's budget is $4,000 a month."
+  ],
+  "objectives": [
+    { "id": "errors", "label": "Error rate at or below 0.1%", "metric": "errorRate", "op": "<=", "value": 0.001 },
+    { "id": "latency", "label": "Average latency at or below 45 ms", "metric": "avgLatencyMs", "op": "<=", "value": 45 },
+    { "id": "headroom", "label": "Every component at or below 80% utilization", "metric": "maxUtilization", "op": "<=", "value": 0.8 },
+    { "id": "spof", "label": "No single points of failure", "metric": "spofCount", "op": "==", "value": 0 },
+    { "id": "cost", "label": "Monthly cost at or below $4,000", "metric": "monthlyCost", "op": "<=", "value": 4000 }
+  ],
+  "startingDesign": {
+    "graph": { "nodes": [], "edges": [] },
+    "positions": {}
+  },
+  "traffic": { "rps": 50000, "readRatio": 0.98, "hotKeyFraction": 0.98, "staticFraction": 0.2 },
+  "allowedComponents": ["client", "cdn", "loadBalancer", "apiGateway", "appServer", "cache", "sqlDb", "nosqlDb", "queue", "objectStorage", "search", "monitoring"],
+  "hints": [
+    "Do the arithmetic before you drag anything. 20% static means 10,000 rps that a CDN can absorb. That leaves 40,000 dynamic rps; at 1,500 rps per app server, how many do you need at 80% or below?",
+    "A single load balancer replica handles 20,000 rps, so 40,000 needs at least 2, and 3 keeps you at about 67%. With 98% hot keys a cache will hit about 93%. Back it with a NoSQL store for the misses and the 800 writes per second.",
+    "Latency is the hard part: app servers slow down sharply above 50% utilization. Around 40 app servers keeps them near 67%. Try CDN on the Client; Load Balancer ×3 → App ×40 → Cache ×2 (32 GB) + NoSQL ×2; plus Monitoring. Then tune."
+  ],
+  "scoring": {
+    "weights": { "performance": 0.35, "reliability": 0.3, "cost": 0.2, "architecture": 0.15 },
+    "latencyTargetMs": 40,
+    "costBudget": 3600
+  },
+  "explanation": [
+    "Start with back-of-the-envelope math: split the traffic (static vs dynamic, reads vs writes), divide by per-node capacity, then add headroom and N+1 redundancy. Every number in this design follows from that.",
+    "Edge first: the CDN takes 10,000 rps away before they cost you anything. Then horizontal scaling of stateless app servers handles the rest. Utilization drives latency, so the cheapest fleet that meets capacity is often too slow; you buy latency with headroom.",
+    "Extreme read skew is a gift: a modest cache answers about 93% of reads, so the database only sees ~2,700 misses plus 800 writes. A sharded NoSQL store handles that with room to spare.",
+    "Beyond the simulator: real live-score systems push updates (WebSockets or server-sent events) instead of having millions of clients poll, and cache the score JSON at the CDN with a 1–2 second TTL, which would shrink the origin fleet dramatically. That's the next design to sketch."
+  ]
+}

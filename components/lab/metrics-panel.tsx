@@ -1,11 +1,11 @@
 "use client";
 
-import { AlertTriangle, CircleCheck, CircleDashed, FlaskConical, OctagonAlert, Unplug } from "lucide-react";
-import { CATALOG, type Health, type SimResult } from "@/lib/sim";
+import { AlertTriangle, CircleCheck, CircleDashed, FlaskConical, GitBranch, OctagonAlert, Unplug } from "lucide-react";
+import { CATALOG, analyzePipeline, nodeSpec, type Health, type SimResult } from "@/lib/sim";
 import { fmtMs, fmtPct, fmtRps, fmtUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { STATUS_BAR, STATUS_TEXT } from "./kind-style";
-import { nodeName, type SysNode } from "./model";
+import { flowToGraph, nodeName, type FlowEdge, type SysNode } from "./model";
 
 const HEALTH: Record<Health, { label: string; cls: string; icon: typeof CircleCheck }> = {
   idle: { label: "No traffic", cls: "text-muted-foreground bg-secondary", icon: CircleDashed },
@@ -42,11 +42,13 @@ export function MetricsPanel({
   result,
   stale,
   nodes,
+  edges,
   onFocusNode,
 }: {
   result: SimResult | null;
   stale: boolean;
   nodes: SysNode[];
+  edges: FlowEdge[];
   onFocusNode: (id: string) => void;
 }) {
   if (!result) {
@@ -92,6 +94,8 @@ export function MetricsPanel({
         <Stat label="DB load" value={`${fmtRps(result.dbLoadRps)} rps`} sub="SQL + NoSQL" />
         <Stat label="Cache hit" value={result.cacheHitRatio === null ? "n/a" : fmtPct(result.cacheHitRatio, 0)} sub={result.cacheHitRatio === null ? "no cache in path" : "of cache lookups"} />
         <Stat label="Cost" value={fmtUsd(result.monthlyCost)} sub="per month" />
+        {result.aiCallRps > 0 && <Stat label="AI calls" value={`${fmtRps(result.aiCallRps)} rps`} sub="to LLMs" />}
+        {result.unsafeWriteRps > 0 && <Stat label="Unsafe writes" value={`${fmtRps(result.unsafeWriteRps)} rps`} sub="no lock: double bookings" tone="crit" />}
         {result.backlogRps > 0 && <Stat label="Queue backlog" value={`${fmtRps(result.backlogRps)} rps`} sub="writes piling up" tone="warn" />}
       </div>
 
@@ -144,6 +148,31 @@ export function MetricsPanel({
         )}
       </section>
 
+      {result.idle.length > 0 && (
+        <section className="space-y-1.5">
+          <h3 className="text-xs font-semibold">Idle components ({result.idle.length})</h3>
+          <ul className="space-y-1">
+            {result.idle.map((x) => (
+              <li key={x.nodeId}>
+                <button
+                  type="button"
+                  onClick={() => onFocusNode(x.nodeId)}
+                  className="flex w-full gap-2 rounded-md px-2 py-1.5 text-left text-[12px] outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <CircleDashed className="mt-0.5 size-3.5 shrink-0 text-status-warn" aria-hidden="true" />
+                  <span>
+                    <span className="font-medium">{nodes.find((n) => n.id === x.nodeId) ? nodeName(nodes.find((n) => n.id === x.nodeId)!) : x.nodeId}:</span>{" "}
+                    {x.reason}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <PipelineSection nodes={nodes} edges={edges} />
+
       {result.issues.length > 0 && (
         <section className="space-y-1.5">
           <h3 className="text-xs font-semibold">Design issues ({result.issues.length})</h3>
@@ -185,5 +214,41 @@ export function MetricsPanel({
         </section>
       )}
     </div>
+  );
+}
+
+/** Delivery pipeline check (repo → CI → registry → servers). Shown only when the design has delivery components. */
+function PipelineSection({ nodes, edges }: { nodes: SysNode[]; edges: FlowEdge[] }) {
+  const report = analyzePipeline(flowToGraph(nodes, edges), (n) => nodeSpec(n).behavior);
+  if (!report.present) return null;
+  return (
+    <section className="space-y-1.5">
+      <h3 className="flex items-center gap-1.5 text-xs font-semibold">
+        <GitBranch className="size-3.5 text-brand-cyan" aria-hidden="true" />
+        Delivery pipeline
+      </h3>
+      {report.chains.length > 0 ? (
+        <ul className="space-y-1">
+          {report.chains.map((c) => (
+            <li key={c} className="rounded-md border border-status-ok/25 bg-status-ok/5 px-2 py-1.5 text-[12px]">
+              <CircleCheck className="mr-1.5 inline size-3.5 align-[-2px] text-status-ok" aria-hidden="true" />
+              {c}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">No complete path from a repo to your servers yet.</p>
+      )}
+      {report.problems.length > 0 && (
+        <ul className="space-y-1">
+          {report.problems.map((p) => (
+            <li key={p} className="flex gap-2 px-2 text-[12px] text-muted-foreground">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-status-warn" aria-hidden="true" />
+              {p}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

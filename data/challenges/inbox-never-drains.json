@@ -1,0 +1,223 @@
+{
+  "id": "inbox-never-drains",
+  "order": 13,
+  "title": "The Inbox That Never Drains",
+  "difficulty": "Medium",
+  "summary": "Messages are accepted instantly, then arrive hours later. The queue is fine. The worker behind it isn't.",
+  "scenario": [
+    "A messaging app handles 6,000 requests per second, 80% of them sending messages. To keep sends snappy, the API puts each message on a queue and returns immediately.",
+    "One Background Worker pulls messages off the queue and writes them to the database. It can process 2,000 per second.",
+    "Users see \"sent\", but their friends get the messages hours late. The backlog grows every second. Drain it, with headroom to spare."
+  ],
+  "objectives": [
+    {
+      "id": "backlog",
+      "label": "No queue backlog",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "headroom",
+      "label": "No component above 75% utilization",
+      "metric": "maxUtilization",
+      "op": "<=",
+      "value": 0.75
+    },
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,200",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1200
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 20,
+            "replicas": 1,
+            "costPerReplica": 0
+          }
+        },
+        {
+          "id": "loadBalancer-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "appServer-1",
+          "kind": "appServer",
+          "label": "Messaging API",
+          "config": {
+            "capacity": 1500,
+            "latencyMs": 15,
+            "replicas": 6,
+            "costPerReplica": 70
+          }
+        },
+        {
+          "id": "queue-1",
+          "kind": "queue",
+          "label": "Outbox Queue",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 3,
+            "replicas": 2,
+            "costPerReplica": 40
+          }
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Delivery Worker",
+          "config": {
+            "capacity": 2000,
+            "latencyMs": 10,
+            "replicas": 1,
+            "costPerReplica": 60
+          }
+        },
+        {
+          "id": "nosqlDb-1",
+          "kind": "nosqlDb",
+          "label": "Messages Store",
+          "config": {
+            "capacity": 5000,
+            "latencyMs": 5,
+            "replicas": 2,
+            "costPerReplica": 180
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 0,
+            "replicas": 1,
+            "costPerReplica": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->loadBalancer-1",
+          "source": "client-1",
+          "target": "loadBalancer-1"
+        },
+        {
+          "id": "e:loadBalancer-1->appServer-1",
+          "source": "loadBalancer-1",
+          "target": "appServer-1"
+        },
+        {
+          "id": "e:appServer-1->queue-1",
+          "source": "appServer-1",
+          "target": "queue-1"
+        },
+        {
+          "id": "e:queue-1->worker-1",
+          "source": "queue-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->nosqlDb-1",
+          "source": "worker-1",
+          "target": "nosqlDb-1"
+        },
+        {
+          "id": "e:appServer-1->nosqlDb-1",
+          "source": "appServer-1",
+          "target": "nosqlDb-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 100
+      },
+      "loadBalancer-1": {
+        "x": 250,
+        "y": 100
+      },
+      "appServer-1": {
+        "x": 500,
+        "y": 100
+      },
+      "queue-1": {
+        "x": 750,
+        "y": -40
+      },
+      "worker-1": {
+        "x": 1000,
+        "y": -40
+      },
+      "nosqlDb-1": {
+        "x": 1250,
+        "y": 100
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 240
+      }
+    }
+  },
+  "traffic": {
+    "rps": 6000,
+    "readRatio": 0.2,
+    "hotKeyFraction": 0.3,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "loadBalancer",
+    "appServer",
+    "queue",
+    "worker",
+    "nosqlDb",
+    "cache",
+    "monitoring"
+  ],
+  "hints": [
+    "Run it and check the Queue backlog stat and which component is red.",
+    "A queue only moves the problem in time. If producers add 4,800 messages per second and consumers remove 2,000, the backlog grows by 2,800 every second.",
+    "Scale the Delivery Worker. 3 replicas is exactly 80% busy, and the objective asks for 75% or less, so use 4."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.3,
+      "reliability": 0.4,
+      "cost": 0.15,
+      "architecture": 0.15
+    },
+    "latencyTargetMs": 50,
+    "costBudget": 1100
+  },
+  "explanation": [
+    "Queues decouple latency, not throughput. In steady state, consumer capacity must exceed the producer rate, or the lag grows without bound. Little's Law makes it concrete: wait time = backlog / drain rate.",
+    "Monitor consumer lag (messages behind, or age of the oldest message), not just errors. This failure never shows up as an error rate.",
+    "Scale consumers horizontally up to the number of queue partitions, and size for peak, not average. A drained queue at 75% utilization can absorb spikes and catch up after them."
+  ]
+}

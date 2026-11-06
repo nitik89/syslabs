@@ -49,7 +49,7 @@ function checkDesign(d: unknown, i: number): SavedDesign {
   }
   if (!isObj(d.positions)) throw new BackupError(`${where} ("${d.name}") has no node positions.`);
   const t = d.traffic;
-  if (!isObj(t) || !isNum(t.rps) || !isNum(t.readRatio) || !isNum(t.hotKeyFraction) || !isNum(t.staticFraction)) {
+  if (!isObj(t) || !isNum(t.rps) || !isNum(t.readRatio) || !isNum(t.hotKeyFraction) || !isNum(t.staticFraction) || (t.contendedWriteFraction !== undefined && !isNum(t.contendedWriteFraction)) || (t.aiFraction !== undefined && !isNum(t.aiFraction))) {
     throw new BackupError(`${where} ("${d.name}") has an invalid traffic profile.`);
   }
   if (d.challengeId !== undefined && !isStr(d.challengeId)) throw new BackupError(`${where} has an invalid challenge id.`);

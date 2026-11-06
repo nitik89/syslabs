@@ -3,20 +3,142 @@
  * This module (and everything in /lib/sim) is pure TypeScript: no React, no randomness, no I/O.
  */
 
-export const NODE_KINDS = [
+/** Generic building blocks. Each one is a distinct simulator behavior. */
+export const BASE_KINDS = [
   "client",
+  "dns",
   "cdn",
   "loadBalancer",
   "apiGateway",
+  "rateLimiter",
+  "websocketGateway",
   "appServer",
+  "serverless",
   "cache",
   "sqlDb",
   "nosqlDb",
+  "timeseriesDb",
   "queue",
+  "worker",
   "objectStorage",
   "search",
+  "redisLock",
+  "zookeeper",
   "monitoring",
+  "codeRepo",
+  "ciPipeline",
+  "containerRegistry",
+  "llm",
+  "fineTune",
 ] as const;
+
+/**
+ * Named, real-world services. Each one runs as a base behavior (see CATALOG[kind].behavior)
+ * with its own capacity, latency, price and redundancy.
+ */
+export const SERVICE_KINDS = [
+  // Entry
+  "route53",
+  "cloudflare",
+  "cloudfront",
+  "awsAlb",
+  "nginx",
+  "haproxy",
+  "awsApiGateway",
+  "kong",
+  "awsWaf",
+  // Compute
+  "docker",
+  "kubernetes",
+  "ec2",
+  "fargate",
+  "lambda",
+  "cloudRun",
+  "vercel",
+  "cloudflareWorkers",
+  "vercelSandbox",
+  "e2b",
+  "celery",
+  // Messaging
+  "sqs",
+  "sns",
+  "kafka",
+  "rabbitmq",
+  "kinesis",
+  "pubsub",
+  "nats",
+  "redisPubsub",
+  "redisStreams",
+  // Data
+  "postgres",
+  "mysql",
+  "aurora",
+  "cloudSql",
+  "supabase",
+  "neon",
+  "planetscale",
+  "mongodb",
+  "cassandra",
+  "dynamodb",
+  "mongodbAtlas",
+  "firestore",
+  "elasticache",
+  "memcached",
+  "upstash",
+  "s3",
+  "gcs",
+  "elasticsearch",
+  "opensearch",
+  "algolia",
+  "influxdb",
+  "timestream",
+  // AI
+  "openai",
+  "claude",
+  "gemini",
+  "groq",
+  "codex",
+  "vercelAiGateway",
+  "embeddings",
+  "vllm",
+  "huggingface",
+  "huggingfaceHub",
+  "openaiFineTune",
+  "agentService",
+  "mcpServer",
+  "playwright",
+  "pinecone",
+  "pgvector",
+  "weaviate",
+  // Realtime
+  "socketio",
+  "sse",
+  "pusher",
+  // Coordination
+  "etcd",
+  // Delivery
+  "github",
+  "gitlab",
+  "bitbucket",
+  "githubActions",
+  "jenkins",
+  "dockerBuild",
+  "argocd",
+  "dockerHub",
+  "ecr",
+  // Operations
+  "prometheus",
+  "datadog",
+  "sentry",
+  "cloudwatch",
+] as const;
+
+/** A user-defined component: the user names it and picks which base behavior it simulates as. */
+export const CUSTOM_KIND = "custom" as const;
+
+export const NODE_KINDS = [...BASE_KINDS, ...SERVICE_KINDS, CUSTOM_KIND] as const;
+
+export type BaseKind = (typeof BASE_KINDS)[number];
 
 export type NodeKind = (typeof NODE_KINDS)[number];
 
@@ -34,6 +156,8 @@ export interface NodeConfig {
   costPerReplica: number;
   /** Cache only: memory size in GB. Bigger caches hold more of the working set. */
   cacheSizeGb?: number;
+  /** Custom components only: the base behavior to simulate as. */
+  behavior?: BaseKind;
 }
 
 export interface SimNode {
@@ -63,6 +187,16 @@ export interface TrafficProfile {
   hotKeyFraction: number;
   /** Fraction (0..1) of all traffic that is static assets (images, JS, CSS). Absorbed by CDNs. */
   staticFraction: number;
+  /**
+   * Fraction (0..1) of writes that race for the same resource (the same seat, the last item in stock,
+   * a username). Optional; defaults to 0. Without a lock service these writes are unsafe.
+   */
+  contendedWriteFraction?: number;
+  /**
+   * Fraction (0..1) of dynamic requests that call an AI model (chat, summarize, generate code...). Optional; defaults to 0.
+   * App servers, functions and workers connected to an LLM make one model call for each of these.
+   */
+  aiFraction?: number;
 }
 
 export type NodeStatus = "idle" | "ok" | "warn" | "crit";
@@ -104,6 +238,11 @@ export interface SpofResult {
   reason: string;
 }
 
+export interface IdleExplanation {
+  nodeId: string;
+  reason: string;
+}
+
 export interface GraphIssue {
   nodeId?: string;
   edgeId?: string;
@@ -125,6 +264,10 @@ export interface SimResult {
   cacheHitRatio: number | null;
   /** Writes buffered by queues that could not be delivered, per second. */
   backlogRps: number;
+  /** Contended writes that reached storage without taking a lock (double bookings, oversells), per second. */
+  unsafeWriteRps: number;
+  /** Calls per second made to LLM components. */
+  aiCallRps: number;
   monthlyCost: number;
   nodes: Record<string, NodeResult>;
   /** RPS carried by each user-defined edge. */
@@ -132,5 +275,7 @@ export interface SimResult {
   bottlenecks: Bottleneck[];
   spofs: SpofResult[];
   issues: GraphIssue[];
+  /** Components that are wired in but receive no traffic, each with the likely reason. */
+  idle: IdleExplanation[];
   health: Health;
 }

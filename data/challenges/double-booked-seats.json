@@ -1,0 +1,203 @@
+{
+  "id": "double-booked-seats",
+  "order": 8,
+  "title": "Double-Booked Seats",
+  "difficulty": "Medium",
+  "summary": "A movie ticket site sells the same seat to two people. The servers are healthy. The design is wrong.",
+  "scenario": [
+    "Friday night: a blockbuster opens and 2,500 requests per second hit the booking site. Most are people browsing showtimes and seat maps, and 20% are seat bookings.",
+    "Support is drowning in complaints: two customers arrive with tickets for the same seat. Each app server checks \"is seat F7 free?\" and then writes the booking, and two servers can both see the seat as free in that gap.",
+    "Nothing is overloaded and nothing errors. Fix the race without letting one component take the whole booking flow down."
+  ],
+  "objectives": [
+    {
+      "id": "unsafe",
+      "label": "No unsafe contended writes (no double bookings)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,100",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1100
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Moviegoers",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 20,
+            "replicas": 1,
+            "costPerReplica": 0
+          }
+        },
+        {
+          "id": "loadBalancer-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "appServer-1",
+          "kind": "appServer",
+          "label": "Booking API",
+          "config": {
+            "capacity": 1500,
+            "latencyMs": 15,
+            "replicas": 3,
+            "costPerReplica": 70
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Seat Map Cache",
+          "config": {
+            "capacity": 50000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 60,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "sqlDb-1",
+          "kind": "sqlDb",
+          "label": "Bookings DB",
+          "config": {
+            "capacity": 1000,
+            "latencyMs": 8,
+            "replicas": 2,
+            "costPerReplica": 200
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 0,
+            "replicas": 1,
+            "costPerReplica": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->loadBalancer-1",
+          "source": "client-1",
+          "target": "loadBalancer-1"
+        },
+        {
+          "id": "e:loadBalancer-1->appServer-1",
+          "source": "loadBalancer-1",
+          "target": "appServer-1"
+        },
+        {
+          "id": "e:appServer-1->cache-1",
+          "source": "appServer-1",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:appServer-1->sqlDb-1",
+          "source": "appServer-1",
+          "target": "sqlDb-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 100
+      },
+      "loadBalancer-1": {
+        "x": 250,
+        "y": 100
+      },
+      "appServer-1": {
+        "x": 500,
+        "y": 100
+      },
+      "cache-1": {
+        "x": 750,
+        "y": -40
+      },
+      "sqlDb-1": {
+        "x": 750,
+        "y": 240
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 240
+      }
+    }
+  },
+  "traffic": {
+    "rps": 2500,
+    "readRatio": 0.8,
+    "hotKeyFraction": 0.7,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.8
+  },
+  "allowedComponents": [
+    "client",
+    "loadBalancer",
+    "appServer",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "monitoring"
+  ],
+  "hints": [
+    "Run the simulation and read the Bookings API bottleneck. It isn't about capacity. Look at the Unsafe writes metric.",
+    "Booking a seat is check-then-write. Only one server at a time should be able to hold seat F7 while it books it. That's a distributed lock, found under Coordination.",
+    "Connect a Redis Lock (or ZooKeeper) to the Booking API. A single Redis Lock is itself a single point of failure, because bookings fail closed when it's down, so give it 2 replicas."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.25,
+      "reliability": 0.45,
+      "cost": 0.15,
+      "architecture": 0.15
+    },
+    "latencyTargetMs": 50,
+    "costBudget": 1000
+  },
+  "explanation": [
+    "This is a race condition, not a scaling problem. Two requests read the same state, both decide the seat is free, and both write. Adding servers makes it worse, because more requests can interleave.",
+    "A distributed lock serializes the critical section: acquire lock:seat:F7, re-check that the seat is free, write the booking, release. Lock per seat, not per show, so unrelated bookings don't wait on each other.",
+    "Redis locks (SET key NX PX 5000) are fast and cheap, but they are leases. A server that pauses past the expiry can still write. Pair them with a fencing token or a DB constraint (UNIQUE(show_id, seat_id)), which is the real last line of defense.",
+    "Locks fail closed: if the lock service is down you refuse bookings rather than oversell. That makes the lock service critical infrastructure, so it needs redundancy like everything else."
+  ]
+}

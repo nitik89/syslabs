@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG, cacheHitRatio, simulate, type NodeConfig, type NodeKind, type SimGraph, type TrafficProfile } from "./index";
+import { BASE_KINDS, CATALOG, NODE_KINDS, analyzePipeline, cacheHitRatio, nodeSpec, simulate, type NodeConfig, type NodeKind, type SimGraph, type TrafficProfile } from "./index";
 
 /* --------------------------- tiny graph builder --------------------------- */
 
@@ -240,5 +240,234 @@ describe("failure semantics", () => {
     const r = simulate(g, t);
     expect(r.servedRps).toBeCloseTo(500, 6);
     expect(r.errorRps).toBe(0);
+  });
+});
+
+describe("coordination, entry and compute components", () => {
+  const booking: TrafficProfile = { rps: 1000, readRatio: 0.5, hotKeyFraction: 0.5, staticFraction: 0, contendedWriteFraction: 1 };
+  const shop = (extra: ReturnType<typeof node>[] = [], extraEdges: ReturnType<typeof edge>[] = []): SimGraph => ({
+    nodes: [node("c", "client"), node("app", "appServer", { replicas: 2 }), node("db", "nosqlDb", { replicas: 2 }), ...extra],
+    edges: [edge("c", "app"), edge("app", "db"), ...extraEdges],
+  });
+
+  it("contended writes without a lock are unsafe and flagged on the app server", () => {
+    const r = simulate(shop(), booking);
+    expect(r.unsafeWriteRps).toBeCloseTo(500);
+    expect(r.errorRate).toBe(0);
+    expect(r.bottlenecks.some((b) => b.nodeId === "app" && /no lock/.test(b.reason))).toBe(true);
+    expect(r.health).toBe("degraded");
+  });
+
+  it("a lock makes them safe, adds its latency, and carries lock load", () => {
+    const base = simulate(shop(), booking);
+    const r = simulate(shop([node("l", "redisLock", { replicas: 2 })], [edge("app", "l")]), booking);
+    expect(r.unsafeWriteRps).toBe(0);
+    expect(r.nodes.l.load).toBeCloseTo(500);
+    expect(r.avgLatencyMs!).toBeGreaterThan(base.avgLatencyMs!);
+    // Locks never receive user traffic: reads still go to the DB.
+    expect(r.nodes.db.load).toBeCloseTo(1000);
+  });
+
+  it("locks fail closed: a single lock is a SPOF", () => {
+    const r = simulate(shop([node("l", "redisLock")], [edge("app", "l")]), booking);
+    expect(r.spofs.map((s) => s.nodeId)).toEqual(["l"]);
+  });
+
+  it("ZooKeeper needs 3 nodes to survive a failure", () => {
+    const zk = (replicas: number) => simulate(shop([node("z", "zookeeper", { replicas })], [edge("app", "z")]), booking);
+    expect(zk(2).spofs.map((s) => s.nodeId)).toEqual(["z"]);
+    expect(zk(3).spofs).toEqual([]);
+  });
+
+  it("an overloaded lock fails the excess writes", () => {
+    const r = simulate(shop([node("l", "redisLock", { capacity: 250, replicas: 2 })], [edge("app", "l")]), booking);
+    expect(r.nodes.l.utilization).toBeCloseTo(1);
+    const over = simulate(shop([node("l", "redisLock", { capacity: 100, replicas: 2 })], [edge("app", "l")]), booking);
+    expect(over.errorRps).toBeCloseTo(300);
+  });
+
+  it("DNS is a managed pass-through and never a SPOF", () => {
+    const r = simulate(
+      { nodes: [node("c", "client"), node("d", "dns"), node("lb", "loadBalancer", { replicas: 2 }), node("app", "appServer", { replicas: 2 })], edges: [edge("c", "d"), edge("d", "lb"), edge("lb", "app")] },
+      readHeavy,
+    );
+    expect(r.nodes.lb.load).toBeCloseTo(5000);
+    expect(r.spofs.map((s) => s.nodeId)).not.toContain("d");
+  });
+
+  it("a background worker drains a queue at its own capacity", () => {
+    const writes: TrafficProfile = { rps: 3000, readRatio: 0, hotKeyFraction: 0, staticFraction: 0 };
+    const g = (w: number): SimGraph => ({
+      nodes: [node("c", "client"), node("app", "appServer", { replicas: 3 }), node("q", "queue"), node("w", "worker", { replicas: w }), node("db", "nosqlDb")],
+      edges: [edge("c", "app"), edge("app", "q"), edge("q", "w"), edge("w", "db")],
+    });
+    expect(simulate(g(1), writes).backlogRps).toBeCloseTo(1000);
+    expect(simulate(g(2), writes).backlogRps).toBe(0);
+    expect(simulate(g(2), writes).nodes.db.load).toBeCloseTo(3000);
+  });
+
+  it("serverless acts like an app server but is never a SPOF", () => {
+    const r = simulate({ nodes: [node("c", "client"), node("f", "serverless"), node("db", "nosqlDb", { replicas: 2 })], edges: [edge("c", "f"), edge("f", "db")] }, booking);
+    expect(r.nodes.db.load).toBeCloseTo(1000);
+    expect(r.spofs).toEqual([]);
+    expect(r.unsafeWriteRps).toBeCloseTo(500);
+  });
+
+  it("a rate limiter caps what reaches the backend", () => {
+    const r = simulate(
+      { nodes: [node("c", "client"), node("rl", "rateLimiter", { capacity: 4000, replicas: 1 }), node("app", "appServer", { replicas: 3 })], edges: [edge("c", "rl"), edge("rl", "app")] },
+      readHeavy,
+    );
+    expect(r.errorRps).toBeCloseTo(1000);
+    expect(r.nodes.app.load).toBeCloseTo(4000);
+  });
+
+  it("time-series DB counts as database load and scales writes", () => {
+    const writes: TrafficProfile = { rps: 12000, readRatio: 0, hotKeyFraction: 0, staticFraction: 0 };
+    const r = simulate({ nodes: [node("c", "client"), node("app", "appServer", { replicas: 10 }), node("t", "timeseriesDb")], edges: [edge("c", "app"), edge("app", "t")] }, writes);
+    expect(r.dbLoadRps).toBeCloseTo(12000);
+    expect(r.errorRate).toBe(0);
+  });
+});
+
+describe("named services run as their base behavior", () => {
+  const writes: TrafficProfile = { rps: 3000, readRatio: 0.2, hotKeyFraction: 0.5, staticFraction: 0 };
+  const pipeline = (queue: NodeKind, db: NodeKind): SimGraph => ({
+    nodes: [node("c", "client"), node("lb", "awsAlb"), node("app", "kubernetes"), node("q", queue), node("w", "celery", { replicas: 2 }), node("db", db, { replicas: 2 })],
+    edges: [edge("c", "lb"), edge("lb", "app"), edge("app", "q"), edge("q", "w"), edge("w", "db"), edge("app", "db")],
+  });
+
+  it("every service maps to a real base behavior and keeps its own kind in results", () => {
+    for (const k of NODE_KINDS) expect(BASE_KINDS as readonly string[]).toContain(CATALOG[k].behavior);
+    const r = simulate(pipeline("kafka", "cassandra"), writes);
+    expect(r.nodes.q.kind).toBe("kafka");
+    expect(r.nodes.db.kind).toBe("cassandra");
+    expect(r.dbLoadRps).toBeCloseTo(3000);
+    expect(r.backlogRps).toBe(0);
+  });
+
+  it("managed services are never SPOFs; self-hosted ones with one replica are", () => {
+    const sqs = simulate(pipeline("sqs", "dynamodb"), writes).spofs.map((s) => s.nodeId);
+    expect(sqs).not.toContain("lb"); // ALB is managed
+    expect(sqs).not.toContain("db"); // DynamoDB is managed
+    const nginx = simulate({ ...pipeline("rabbitmq", "mongodb"), nodes: pipeline("rabbitmq", "mongodb").nodes.map((n) => (n.id === "lb" ? node("lb", "nginx") : n)) }, writes);
+    expect(nginx.spofs.map((s) => s.nodeId)).toContain("lb");
+  });
+
+  it("SQL-family services keep single-primary writes", () => {
+    const t: TrafficProfile = { rps: 2000, readRatio: 0, hotKeyFraction: 0, staticFraction: 0 };
+    const r = simulate({ nodes: [node("c", "client"), node("app", "ec2", { replicas: 2 }), node("db", "postgres", { replicas: 5 })], edges: [edge("c", "app"), edge("app", "db")] }, t);
+    expect(r.nodes.db.utilization).toBeCloseTo(2000 / 1200);
+  });
+
+  it("etcd behaves like ZooKeeper (quorum of 3)", () => {
+    const t: TrafficProfile = { rps: 1000, readRatio: 0.5, hotKeyFraction: 0.5, staticFraction: 0, contendedWriteFraction: 1 };
+    const g = (replicas: number): SimGraph => ({
+      nodes: [node("c", "client"), node("app", "appServer", { replicas: 2 }), node("db", "dynamodb"), node("e", "etcd", { replicas })],
+      edges: [edge("c", "app"), edge("app", "db"), edge("app", "e")],
+    });
+    expect(simulate(g(3), t).unsafeWriteRps).toBe(0);
+    expect(simulate(g(2), t).spofs.map((s) => s.nodeId)).toEqual(["e"]);
+  });
+});
+
+describe("AI, custom components and delivery", () => {
+  const chat: TrafficProfile = { rps: 400, readRatio: 1, hotKeyFraction: 0.5, staticFraction: 0, aiFraction: 0.5 };
+  const app = (extra: ReturnType<typeof node>[], extraEdges: ReturnType<typeof edge>[]): SimGraph => ({
+    nodes: [node("c", "client"), node("app", "appServer"), node("db", "nosqlDb", { replicas: 2 }), ...extra],
+    edges: [edge("c", "app"), edge("app", "db"), ...extraEdges],
+  });
+
+  it("AI requests make one side call each, add model latency, and never get routed to the model as storage", () => {
+    const base = simulate(app([], []), chat);
+    const r = simulate(app([node("m", "claude")], [edge("app", "m")]), chat);
+    expect(r.aiCallRps).toBeCloseTo(200);
+    expect(r.nodes.m.load).toBeCloseTo(200);
+    expect(r.nodes.db.load).toBeCloseTo(400);
+    expect(r.avgLatencyMs! - base.avgLatencyMs!).toBeCloseTo(0.5 * 800, 0);
+  });
+
+  it("calls over the model's rate limit fail", () => {
+    const r = simulate(app([node("m", "openai", { capacity: 150 })], [edge("app", "m")]), chat);
+    expect(r.errorRps).toBeCloseTo(50);
+  });
+
+  it("a fast model (Groq) beats a slow one on latency", () => {
+    const groq = simulate(app([node("m", "groq")], [edge("app", "m")]), chat).avgLatencyMs!;
+    const gpt = simulate(app([node("m", "openai")], [edge("app", "m")]), chat).avgLatencyMs!;
+    expect(groq).toBeLessThan(gpt - 300);
+  });
+
+  it("custom components simulate as the behavior they picked", () => {
+    const custom = node("x", "custom", { ...CATALOG.nosqlDb.defaults, behavior: "nosqlDb", replicas: 2 });
+    const r = simulate({ nodes: [node("c", "client"), node("app", "appServer", { replicas: 4 }), custom], edges: [edge("c", "app"), edge("app", "x")] }, readHeavy);
+    expect(r.nodes.x.kind).toBe("custom");
+    expect(r.dbLoadRps).toBeCloseTo(5000);
+  });
+
+  it("delivery components carry no traffic and raise no design issues", () => {
+    const g = app(
+      [node("gh", "github"), node("ci", "githubActions"), node("reg", "ecr")],
+      [edge("gh", "ci"), edge("ci", "reg"), edge("reg", "app")],
+    );
+    const r = simulate(g, chat);
+    expect(r.issues).toEqual([]);
+    expect(r.nodes.app.load).toBeCloseTo(400);
+  });
+});
+
+describe("delivery pipeline analysis", () => {
+  const spec = (n: { kind: NodeKind; config: NodeConfig }) => nodeSpec(n).behavior;
+  it("traces repo → CI → registry → servers and flags hand-deployed servers", () => {
+    const g: SimGraph = {
+      nodes: [node("gh", "github"), node("ci", "dockerBuild"), node("reg", "dockerHub"), node("app", "docker"), node("w", "worker")],
+      edges: [edge("gh", "ci"), edge("ci", "reg"), edge("reg", "app")],
+    };
+    const p = analyzePipeline(g, spec);
+    expect(p.chains).toEqual(["GitHub → Docker Build → Docker Hub → Docker Container"]);
+    expect(p.problems.join(" ")).toMatch(/Deployed by hand: Background Worker/);
+  });
+
+  it("catches a repo nobody builds", () => {
+    const p = analyzePipeline({ nodes: [node("gh", "github"), node("app", "appServer")], edges: [] }, spec);
+    expect(p.problems[0]).toMatch(/never built/);
+  });
+
+  it("fine-tuning flows through a model registry to the model server", () => {
+    const g: SimGraph = {
+      nodes: [node("ft", "fineTune"), node("hub", "huggingfaceHub"), node("m", "vllm")],
+      edges: [edge("ft", "hub"), edge("hub", "m")],
+    };
+    const p = analyzePipeline(g, spec);
+    expect(p.chains).toEqual(["Fine-tuning Job → Hugging Face Hub → vLLM on GPUs"]);
+    expect(p.problems).toEqual([]);
+  });
+
+  it("is absent when there are no delivery components", () => {
+    expect(analyzePipeline({ nodes: [node("app", "appServer")], edges: [] }, spec).present).toBe(false);
+  });
+});
+
+describe("idle explanations", () => {
+  const reads: TrafficProfile = { rps: 800, readRatio: 1, hotKeyFraction: 0.5, staticFraction: 0 };
+  const reasons = (g: SimGraph, t: TrafficProfile) => simulate(g, t).idle.map((x) => `${x.nodeId}: ${x.reason}`).join("\n");
+
+  it("a queue with no writes in the traffic says so", () => {
+    const g: SimGraph = { nodes: [node("c", "client"), node("app", "appServer"), node("q", "redisStreams")], edges: [edge("c", "app"), edge("app", "q")] };
+    expect(reasons(g, reads)).toMatch(/q: .*read share is 100%/);
+  });
+
+  it("a link out of a database is called out as reversed", () => {
+    const g: SimGraph = {
+      nodes: [node("c", "client"), node("app", "appServer"), node("db", "postgres"), node("w", "appServer")],
+      edges: [edge("c", "app"), edge("app", "db"), edge("db", "w")],
+    };
+    expect(reasons(g, reads)).toMatch(/w: PostgreSQL → App Server carries nothing.*Reverse the link/);
+  });
+
+  it("a model with AI share at 0% asks for it", () => {
+    const g: SimGraph = { nodes: [node("c", "client"), node("app", "appServer"), node("m", "claude")], edges: [edge("c", "app"), edge("app", "m")] };
+    expect(reasons(g, reads)).toMatch(/m: No requests call a model/);
+    expect(simulate(g, { ...reads, aiFraction: 0.2 }).idle).toEqual([]);
   });
 });

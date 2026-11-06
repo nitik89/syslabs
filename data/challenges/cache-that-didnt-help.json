@@ -1,0 +1,199 @@
+{
+  "id": "cache-that-didnt-help",
+  "order": 12,
+  "title": "The Cache That Didn't Help",
+  "difficulty": "Medium",
+  "summary": "Someone added a 64 GB Redis cache to save an overloaded database. The hit ratio is 33% and the DB is still on fire.",
+  "scenario": [
+    "A document service gets 3,000 requests per second, almost all reads. Users open their own documents, so there are no viral hot keys: every read is for a different key.",
+    "The database was overloaded, so the team added a big Redis cache. It barely helped. Two-thirds of reads still miss and go to the database.",
+    "Make reads reliable and stay within budget. Spending money on things that don't help is a design flaw too."
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "headroom",
+      "label": "No component above 85% utilization",
+      "metric": "maxUtilization",
+      "op": "<=",
+      "value": 0.85
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $900",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 900
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 20,
+            "replicas": 1,
+            "costPerReplica": 0
+          }
+        },
+        {
+          "id": "loadBalancer-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "appServer-1",
+          "kind": "appServer",
+          "label": "Docs API",
+          "config": {
+            "capacity": 1500,
+            "latencyMs": 15,
+            "replicas": 3,
+            "costPerReplica": 70
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Redis Cache",
+          "config": {
+            "capacity": 50000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 60,
+            "cacheSizeGb": 64
+          }
+        },
+        {
+          "id": "sqlDb-1",
+          "kind": "sqlDb",
+          "label": "Docs DB",
+          "config": {
+            "capacity": 1000,
+            "latencyMs": 8,
+            "replicas": 1,
+            "costPerReplica": 200
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 0,
+            "replicas": 1,
+            "costPerReplica": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->loadBalancer-1",
+          "source": "client-1",
+          "target": "loadBalancer-1"
+        },
+        {
+          "id": "e:loadBalancer-1->appServer-1",
+          "source": "loadBalancer-1",
+          "target": "appServer-1"
+        },
+        {
+          "id": "e:appServer-1->cache-1",
+          "source": "appServer-1",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:appServer-1->sqlDb-1",
+          "source": "appServer-1",
+          "target": "sqlDb-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 100
+      },
+      "loadBalancer-1": {
+        "x": 250,
+        "y": 100
+      },
+      "appServer-1": {
+        "x": 500,
+        "y": 100
+      },
+      "cache-1": {
+        "x": 750,
+        "y": -40
+      },
+      "sqlDb-1": {
+        "x": 750,
+        "y": 240
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 240
+      }
+    }
+  },
+  "traffic": {
+    "rps": 3000,
+    "readRatio": 0.95,
+    "hotKeyFraction": 0.05,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "loadBalancer",
+    "appServer",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "monitoring"
+  ],
+  "hints": [
+    "Run it and look at the cache hit ratio. Why is it so low with 64 GB of memory?",
+    "Caches pay off when many requests share a few keys. Here only 5% of reads are hot. You need more database read capacity, and the cache isn't earning its keep.",
+    "Adding SQL read replicas while keeping the cache goes over budget. Replace the SQL DB with a NoSQL store with 2 replicas (10,000 rps of reads and writes) and remove the cache."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.25,
+      "cost": 0.25,
+      "architecture": 0.15
+    },
+    "latencyTargetMs": 50,
+    "costBudget": 800
+  },
+  "explanation": [
+    "Cache effectiveness depends on access skew, not cache size. With a uniform key distribution, the hit ratio is roughly cache size / working set, and a huge working set means a low ratio no matter how much memory you add.",
+    "Measure before you cache: if the top 1% of keys don't account for a big share of reads, a cache will mostly add latency on misses and cost.",
+    "When reads are spread out, scale the data tier itself: read replicas, or a partitioned store that spreads keys across shards.",
+    "Removing components is a valid design move. Every component costs money, adds a failure mode, and needs someone on call for it."
+  ]
+}

@@ -1,0 +1,198 @@
+{
+  "id": "lost-quorum",
+  "order": 9,
+  "title": "The Lock That Lost Quorum",
+  "difficulty": "Medium",
+  "summary": "A ride-hailing app uses ZooKeeper so no driver gets two riders. Someone ran it with 2 nodes to save money.",
+  "scenario": [
+    "6,000 requests per second: riders polling for cars, and drivers accepting trips. Each acceptance takes a ZooKeeper lock on the driver so they can't be assigned twice.",
+    "To cut costs, the ZooKeeper ensemble was shrunk to 2 nodes. \"We still have a spare,\" the reasoning went.",
+    "Last night one ZooKeeper node restarted and every trip assignment in the city failed until it came back. Make coordination survive a node failure, within budget."
+  ],
+  "objectives": [
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "unsafe",
+      "label": "No unsafe contended writes (no double bookings)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,150",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1150
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Riders & Drivers",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 20,
+            "replicas": 1,
+            "costPerReplica": 0
+          }
+        },
+        {
+          "id": "loadBalancer-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "appServer-1",
+          "kind": "appServer",
+          "label": "Dispatch API",
+          "config": {
+            "capacity": 1500,
+            "latencyMs": 15,
+            "replicas": 6,
+            "costPerReplica": 70
+          }
+        },
+        {
+          "id": "nosqlDb-1",
+          "kind": "nosqlDb",
+          "label": "Trips Store",
+          "config": {
+            "capacity": 5000,
+            "latencyMs": 5,
+            "replicas": 2,
+            "costPerReplica": 180
+          }
+        },
+        {
+          "id": "zookeeper-1",
+          "kind": "zookeeper",
+          "label": "Driver Locks",
+          "config": {
+            "capacity": 8000,
+            "latencyMs": 6,
+            "replicas": 2,
+            "costPerReplica": 90
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 0,
+            "replicas": 1,
+            "costPerReplica": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->loadBalancer-1",
+          "source": "client-1",
+          "target": "loadBalancer-1"
+        },
+        {
+          "id": "e:loadBalancer-1->appServer-1",
+          "source": "loadBalancer-1",
+          "target": "appServer-1"
+        },
+        {
+          "id": "e:appServer-1->nosqlDb-1",
+          "source": "appServer-1",
+          "target": "nosqlDb-1"
+        },
+        {
+          "id": "e:appServer-1->zookeeper-1",
+          "source": "appServer-1",
+          "target": "zookeeper-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 100
+      },
+      "loadBalancer-1": {
+        "x": 250,
+        "y": 100
+      },
+      "appServer-1": {
+        "x": 500,
+        "y": 100
+      },
+      "nosqlDb-1": {
+        "x": 750,
+        "y": 100
+      },
+      "zookeeper-1": {
+        "x": 750,
+        "y": 240
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 240
+      }
+    }
+  },
+  "traffic": {
+    "rps": 6000,
+    "readRatio": 0.6,
+    "hotKeyFraction": 0.5,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.7
+  },
+  "allowedComponents": [
+    "client",
+    "loadBalancer",
+    "appServer",
+    "nosqlDb",
+    "zookeeper",
+    "monitoring"
+  ],
+  "hints": [
+    "Run the simulation and open Single points of failure. Why is a component with 2 replicas listed?",
+    "ZooKeeper only works while a majority of its nodes agree. With 2 nodes, the majority is 2, so losing either one stops it.",
+    "Majority of 3 is 2, so a 3-node ensemble survives one failure. 4 nodes still only survives one (majority is 3), so it costs more for nothing. Set ZooKeeper to 3 replicas."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.2,
+      "reliability": 0.5,
+      "cost": 0.15,
+      "architecture": 0.15
+    },
+    "latencyTargetMs": 55,
+    "costBudget": 1100
+  },
+  "explanation": [
+    "Consensus systems (ZooKeeper, etcd, Consul) need a strict majority, a quorum, to make progress. That rule is what prevents split-brain, where two halves of a cluster each think they are in charge.",
+    "Fault tolerance is floor((n \u2212 1) / 2): 1 node tolerates 0 failures, 2 tolerate 0, 3 tolerate 1, 4 tolerate 1, 5 tolerate 2. That's why ensembles are always odd-sized.",
+    "A 2-node ensemble is strictly worse than 1: twice the cost, twice the chance that some node is down, and the same zero fault tolerance.",
+    "ZooKeeper locks use ephemeral sequential znodes. If the holder's session dies, its znode vanishes and the next waiter is notified. That makes them safer than lease-based Redis locks for long critical sections, at the cost of latency."
+  ]
+}

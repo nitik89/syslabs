@@ -1,0 +1,56 @@
+{
+  "app": "syslab",
+  "version": 1,
+  "exportedAt": "2026-11-07T12:00:00.000Z",
+  "designs": [
+    {
+      "id": "fixed-ai-pipeline-1",
+      "name": "AI pipeline (fixed)",
+      "createdAt": "2026-11-07T12:00:00.000Z",
+      "updatedAt": "2026-11-07T12:00:00.000Z",
+      "traffic": { "rps": 800, "readRatio": 0.8, "hotKeyFraction": 0.5, "staticFraction": 0, "contendedWriteFraction": 0, "aiFraction": 0.3 },
+      "graph": {
+        "nodes": [
+          { "id": "c", "kind": "client", "label": "Users", "config": { "capacity": 0, "latencyMs": 20, "replicas": 1, "costPerReplica": 0 } },
+          { "id": "lb", "kind": "loadBalancer", "label": "Load Balancer", "config": { "capacity": 20000, "latencyMs": 1, "replicas": 1, "costPerReplica": 25 } },
+          { "id": "a3", "kind": "appServer", "label": "App Server 3", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 1, "costPerReplica": 70 } },
+          { "id": "ai", "kind": "appServer", "label": "AI server", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 1, "costPerReplica": 70 } },
+          { "id": "a", "kind": "appServer", "label": "App Server", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 1, "costPerReplica": 70 } },
+          { "id": "rc", "kind": "cache", "label": "Redis Cache", "config": { "capacity": 50000, "latencyMs": 1, "replicas": 1, "costPerReplica": 60, "cacheSizeGb": 8 } },
+          { "id": "pg", "kind": "sqlDb", "label": "Postgres", "config": { "capacity": 1000, "latencyMs": 8, "replicas": 1, "costPerReplica": 200 } },
+          { "id": "rs", "kind": "redisStreams", "label": "Redis Streams", "config": { "capacity": 60000, "latencyMs": 2, "replicas": 1, "costPerReplica": 70 } },
+          { "id": "dk", "kind": "docker", "label": "Docker Container", "config": { "capacity": 1200, "latencyMs": 15, "replicas": 2, "costPerReplica": 40 } },
+          { "id": "cl", "kind": "claude", "label": "Anthropic Claude", "config": { "capacity": 500, "latencyMs": 800, "replicas": 1, "costPerReplica": 500 } }
+        ],
+        "edges": [
+          { "id": "e:c->lb", "source": "c", "target": "lb" },
+          { "id": "e:lb->a3", "source": "lb", "target": "a3" },
+          { "id": "e:lb->ai", "source": "lb", "target": "ai" },
+          { "id": "e:lb->a", "source": "lb", "target": "a" },
+          { "id": "e:a->rc", "source": "a", "target": "rc" },
+          { "id": "e:a->pg", "source": "a", "target": "pg" },
+          { "id": "e:a3->rc", "source": "a3", "target": "rc" },
+          { "id": "e:a3->pg", "source": "a3", "target": "pg" },
+          { "id": "e:ai->rs", "source": "ai", "target": "rs" },
+          { "id": "e:ai->pg", "source": "ai", "target": "pg" },
+          { "id": "e:rs->dk", "source": "rs", "target": "dk" },
+          { "id": "e:dk->cl", "source": "dk", "target": "cl" },
+          { "id": "e:dk->pg", "source": "dk", "target": "pg" }
+        ]
+      },
+      "positions": {
+        "c": { "x": 0, "y": 260 },
+        "lb": { "x": 260, "y": 260 },
+        "a3": { "x": 520, "y": 60 },
+        "ai": { "x": 520, "y": 260 },
+        "a": { "x": 520, "y": 460 },
+        "rs": { "x": 800, "y": 160 },
+        "dk": { "x": 1060, "y": 160 },
+        "cl": { "x": 1320, "y": 60 },
+        "rc": { "x": 800, "y": 560 },
+        "pg": { "x": 1060, "y": 400 }
+      }
+    }
+  ],
+  "progress": { "challenges": {}, "xp": 0, "activeDays": [] }
+}

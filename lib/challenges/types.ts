@@ -10,7 +10,8 @@ export type ObjectiveMetric =
   | "servedRps"
   | "cacheHitRatio"
   | "maxUtilization"
-  | "backlogRps";
+  | "backlogRps"
+  | "unsafeWriteRps";
 
 export type ObjectiveOp = "<=" | ">=" | "==";
 

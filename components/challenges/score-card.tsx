@@ -27,6 +27,8 @@ export function formatMetric(metric: ObjectiveMetric, v: number | null): string 
       return fmtUsd(v);
     case "spofCount":
       return String(v);
+    case "unsafeWriteRps":
+      return v === 0 ? "0 (safe)" : `${fmtRps(v)} rps unsafe`;
     default:
       return `${fmtRps(v)} rps`;
   }

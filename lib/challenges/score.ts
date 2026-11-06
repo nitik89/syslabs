@@ -1,4 +1,4 @@
-import { CATALOG, type SimGraph, type SimResult } from "@/lib/sim";
+import { CATALOG, NO_TRAFFIC_KINDS, isNodeAllowed, nodeSpec, type SimGraph, type SimResult } from "@/lib/sim";
 import type { Challenge, Objective, ObjectiveMetric, ScoreCategory } from "./types";
 
 export interface CategoryScore {
@@ -45,6 +45,8 @@ export function metricValue(metric: ObjectiveMetric, r: SimResult): number | nul
       return Math.max(0, ...Object.values(r.nodes).filter((n) => n.capacity !== null).map((n) => n.utilization));
     case "backlogRps":
       return r.backlogRps;
+    case "unsafeWriteRps":
+      return r.offeredRps > 0 ? r.unsafeWriteRps : null;
   }
 }
 
@@ -89,6 +91,10 @@ export function scoreChallenge(ch: Challenge, r: SimResult, graph: SimGraph): Ch
       reliability -= 35 * r.spofs.length;
       relNotes.push(`${r.spofs.length} single point${r.spofs.length > 1 ? "s" : ""} of failure.`);
     }
+    if (r.unsafeWriteRps > 0) {
+      reliability -= 40;
+      relNotes.push(`${Math.round(r.unsafeWriteRps)} rps of contended writes run without a lock, so items can be double-booked or oversold.`);
+    }
     if (r.backlogRps > 0) {
       reliability -= 30;
       relNotes.push("Queued writes are piling up faster than they are processed.");
@@ -125,18 +131,19 @@ export function scoreChallenge(ch: Challenge, r: SimResult, graph: SimGraph): Ch
       architecture -= 15 * unrouted;
       archNotes.push("Some traffic has no path to a component that can serve it.");
     }
-    if (!graph.nodes.some((n) => n.kind === "monitoring")) {
+    if (!graph.nodes.some((n) => nodeSpec(n).behavior === "monitoring")) {
       architecture -= 20;
       archNotes.push("No monitoring: you would not know when something breaks.");
     }
     const allowed = new Set(ch.allowedComponents);
-    const disallowed = graph.nodes.filter((n) => !allowed.has(n.kind));
+    // Delivery tooling is always welcome: it never changes how traffic flows.
+    const disallowed = graph.nodes.filter((n) => !isNodeAllowed(n, allowed) && !NO_TRAFFIC_KINDS.has(nodeSpec(n).behavior));
     if (disallowed.length > 0) {
       architecture -= 10 * disallowed.length;
       archNotes.push(`Uses components not allowed here: ${[...new Set(disallowed.map((n) => CATALOG[n.kind].label))].join(", ")}.`);
     }
     const idle = graph.nodes.filter(
-      (n) => n.kind !== "monitoring" && n.kind !== "client" && (r.nodes[n.id]?.load ?? 0) <= 0 && !r.issues.some((i) => i.nodeId === n.id),
+      (n) => !NO_TRAFFIC_KINDS.has(nodeSpec(n).behavior) && nodeSpec(n).behavior !== "client" && (r.nodes[n.id]?.load ?? 0) <= 0 && !r.issues.some((i) => i.nodeId === n.id),
     );
     if (idle.length > 0) {
       architecture -= 10 * idle.length;

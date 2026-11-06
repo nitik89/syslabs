@@ -24,6 +24,27 @@ function FlowEdgeView({ id, sourceX, sourceY, targetX, targetY, sourcePosition, 
   const active = rps !== undefined && rps > 0.0001;
   const color = STATUS_STROKE[data?.targetStatus ?? "idle"];
 
+  if (data?.deploy) {
+    return (
+      <>
+        <BaseEdge
+          id={id}
+          path={path}
+          markerEnd={markerEnd}
+          style={{ stroke: selected ? "var(--ring)" : "var(--brand-violet)", strokeWidth: selected ? 2 : 1.5, strokeDasharray: "6 5", opacity: 0.8 }}
+        />
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan pointer-events-none absolute rounded-md border border-brand-violet/30 bg-background/90 px-1.5 py-0.5 text-[10px] text-brand-violet"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          >
+            deploy
+          </div>
+        </EdgeLabelRenderer>
+      </>
+    );
+  }
+
   return (
     <>
       <BaseEdge

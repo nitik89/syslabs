@@ -2,14 +2,13 @@
 
 import { useId, useState } from "react";
 import { ArrowRight, Link2, Trash2, X } from "lucide-react";
-import { CATALOG, cacheHitRatio, type NodeConfig, type TrafficProfile } from "@/lib/sim";
+import { CATALOG, CUSTOM_BEHAVIORS, cacheHitRatio, nodeSpec, type BaseKind, type NodeConfig, type TrafficProfile } from "@/lib/sim";
 import { fmtPct, fmtUsd } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { KIND_ACCENT, KIND_ICON } from "./kind-style";
+import { KindIcon } from "./kind-icon";
 import { connectionProblem, nodeName, type FlowEdge, type SysNode } from "./model";
 import { FractionField, NumberField } from "./number-field";
 
@@ -36,11 +35,11 @@ export function NodeInspector({
   onRemoveEdge: (edgeId: string) => void;
   onSelect: (id: string) => void;
 }) {
-  const spec = CATALOG[node.data.kind];
-  const Icon = KIND_ICON[node.data.kind];
+  const spec = nodeSpec({ kind: node.data.kind, config: node.data.config });
   const cfg = node.data.config;
   const labelId = useId();
   const connectId = useId();
+  const behaviorId = useId();
   const [connectTarget, setConnectTarget] = useState("");
 
   const nameOf = (id: string) => {
@@ -55,9 +54,7 @@ export function NodeInspector({
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
-        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", KIND_ACCENT[node.data.kind])}>
-          <Icon className="size-4" aria-hidden="true" />
-        </span>
+        <KindIcon kind={node.data.kind} size="xl" />
         <div className="min-w-0">
           <p className="text-sm font-semibold">{spec.label}</p>
           <p className="text-xs text-muted-foreground">{spec.description}</p>
@@ -75,6 +72,31 @@ export function NodeInspector({
         <Input id={labelId} value={node.data.label} maxLength={40} onChange={(e) => onChangeLabel(e.target.value)} className="h-8 text-[13px]" />
       </div>
 
+      {node.data.kind === "custom" && (
+        <div className="space-y-1">
+          <Label htmlFor={behaviorId} className="text-xs text-muted-foreground">
+            Behaves like
+          </Label>
+          <select
+            id={behaviorId}
+            value={spec.behavior}
+            onChange={(e) => {
+              const b = e.target.value as BaseKind;
+              // Start from that block's defaults so capacity, latency and cost make sense for it.
+              onChangeConfig({ ...CATALOG[b].defaults, behavior: b });
+            }}
+            className="h-8 w-full rounded-lg border border-input bg-input/30 px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {CUSTOM_BEHAVIORS.map((b) => (
+              <option key={b} value={b}>
+                {CATALOG[b].label} ({CATALOG[b].short})
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground">Resets capacity, latency and cost to that block&apos;s defaults. Tune them after.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         {hasCapacity && (
           <NumberField label="Capacity / replica" suffix="rps" value={cfg.capacity} min={0} max={10_000_000} integer onCommit={(v) => onChangeConfig({ capacity: v })} />
@@ -82,7 +104,7 @@ export function NodeInspector({
         <NumberField label="Base latency" suffix="ms" value={cfg.latencyMs} min={0} max={10_000} step={0.5} onCommit={(v) => onChangeConfig({ latencyMs: v })} />
         {node.data.kind !== "client" && (
           <NumberField
-            label={node.data.kind === "sqlDb" ? "Replicas (read)" : "Replicas"}
+            label={spec.behavior === "sqlDb" ? "Replicas (read)" : "Replicas"}
             value={cfg.replicas}
             min={1}
             max={100}
@@ -93,7 +115,7 @@ export function NodeInspector({
         {node.data.kind !== "client" && (
           <NumberField label="Cost / replica" suffix="$/mo" value={cfg.costPerReplica} min={0} max={1_000_000} integer onCommit={(v) => onChangeConfig({ costPerReplica: v })} />
         )}
-        {node.data.kind === "cache" && (
+        {spec.behavior === "cache" && (
           <NumberField
             label="Cache size"
             suffix="GB"
@@ -241,6 +263,20 @@ export function TrafficEditor({
         disabled={locked}
         onChange={(v) => onChange({ ...traffic, staticFraction: v })}
         hint="Images, JS and CSS. A CDN absorbs these."
+      />
+      <FractionField
+        label="Contended write share"
+        value={traffic.contendedWriteFraction ?? 0}
+        disabled={locked}
+        onChange={(v) => onChange({ ...traffic, contendedWriteFraction: v })}
+        hint="Writes racing for the same item (a seat, the last unit in stock). Needs a Redis Lock or ZooKeeper."
+      />
+      <FractionField
+        label="AI request share"
+        value={traffic.aiFraction ?? 0}
+        disabled={locked}
+        onChange={(v) => onChange({ ...traffic, aiFraction: v })}
+        hint="Requests that call a model. Servers connected to an LLM make one call each."
       />
     </div>
   );

@@ -1,17 +1,23 @@
 "use client";
 
-import { memo } from "react";
+import { createContext, memo, useContext, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { CATALOG } from "@/lib/sim";
+import { CATALOG, nodeSpec } from "@/lib/sim";
 import { fmtRps } from "@/lib/format";
 import type { SysNode } from "./model";
-import { KIND_ACCENT, KIND_ICON, STATUS_BAR, STATUS_LABEL, STATUS_RING, STATUS_TEXT } from "./kind-style";
+import { KindIcon } from "./kind-icon";
+import { STATUS_BAR, STATUS_LABEL, STATUS_RING, STATUS_TEXT } from "./kind-style";
 
-function SysNodeView({ data, selected }: NodeProps<SysNode>) {
+/** Lets a node rename itself (double-click on the canvas). Provided by the designer so it goes through undo. */
+export const RenameNodeContext = createContext<(id: string, label: string) => void>(() => {});
+
+function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
   const spec = CATALOG[data.kind];
   const name = data.label.trim() || spec.label;
-  const Icon = KIND_ICON[data.kind];
+  const rename = useContext(RenameNodeContext);
+  const [editing, setEditing] = useState(false);
+  const subtitle = data.kind === "custom" ? `Custom · ${CATALOG[nodeSpec(data).behavior].label}` : spec.label;
   const r = data.result;
   const status = r?.status;
   const isSource = data.kind === "client";
@@ -27,15 +33,33 @@ function SysNodeView({ data, selected }: NodeProps<SysNode>) {
       aria-label={`${name} (${spec.label})${status ? `, ${STATUS_LABEL[status]}` : ""}`}
     >
       {!isSource && (
-        <Handle type="target" position={Position.Left} className="!size-2.5 !border-2 !border-background !bg-brand-blue" />
+        <Handle type="target" position={Position.Left} className="!size-3.5 !border-2 !border-background !bg-brand-blue transition-transform hover:!scale-125" />
       )}
       <div className="flex items-center gap-2.5">
-        <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", KIND_ACCENT[data.kind])}>
-          <Icon className="size-4" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium leading-tight">{name}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{spec.label}</p>
+        <KindIcon kind={data.kind} size="lg" />
+        <div className="min-w-0 flex-1" onDoubleClick={() => setEditing(true)} title="Double-click to rename">
+          {editing ? (
+            <input
+              autoFocus
+              aria-label="Component name"
+              defaultValue={name}
+              maxLength={40}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={(e) => {
+                rename(id, e.currentTarget.value);
+                setEditing(false);
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              className="nodrag nopan w-full rounded border border-ring bg-background px-1 text-[13px] font-medium leading-tight outline-none"
+            />
+          ) : (
+            <p className="truncate text-[13px] font-medium leading-tight">{name}</p>
+          )}
+          <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
         </div>
         {data.config.replicas > 1 && (
           <span className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-secondary-foreground">
@@ -62,7 +86,7 @@ function SysNodeView({ data, selected }: NodeProps<SysNode>) {
         <p className="mt-2 font-mono text-[10px] text-muted-foreground">{fmtRps(r.load)} rps out</p>
       )}
 
-      <Handle type="source" position={Position.Right} className="!size-2.5 !border-2 !border-background !bg-brand-violet" />
+      <Handle type="source" position={Position.Right} className="!size-3.5 !border-2 !border-background !bg-brand-violet transition-transform hover:!scale-125" />
     </div>
   );
 }

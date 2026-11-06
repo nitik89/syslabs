@@ -1,0 +1,205 @@
+{
+  "id": "photo-sharing-launch",
+  "order": 14,
+  "title": "Photo Sharing Launch",
+  "difficulty": "Hard",
+  "summary": "A photo app launches publicly at 12,000 rps. 60% of traffic is images, and it's all going through app servers into one SQL database.",
+  "scenario": [
+    "A photo-sharing app leaves beta. Traffic: 12,000 requests per second, 60% of it image and asset downloads.",
+    "The current design routes everything through the app servers. Images come from object storage via the app tier, and feed reads and photo uploads all hit a SQL database.",
+    "Both the app tier and the database are overloaded. Redesign it for launch: fast, reliable, and under budget."
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 50 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 50
+    },
+    {
+      "id": "backlog",
+      "label": "No queue backlog",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,400",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1400
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 20,
+            "replicas": 1,
+            "costPerReplica": 0
+          }
+        },
+        {
+          "id": "loadBalancer-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "appServer-1",
+          "kind": "appServer",
+          "label": "Photo API",
+          "config": {
+            "capacity": 1500,
+            "latencyMs": 15,
+            "replicas": 6,
+            "costPerReplica": 70
+          }
+        },
+        {
+          "id": "objectStorage-1",
+          "kind": "objectStorage",
+          "label": "Image Bucket",
+          "config": {
+            "capacity": 10000,
+            "latencyMs": 30,
+            "replicas": 1,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "sqlDb-1",
+          "kind": "sqlDb",
+          "label": "Photos DB",
+          "config": {
+            "capacity": 1000,
+            "latencyMs": 8,
+            "replicas": 2,
+            "costPerReplica": 200
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 0,
+            "replicas": 1,
+            "costPerReplica": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->loadBalancer-1",
+          "source": "client-1",
+          "target": "loadBalancer-1"
+        },
+        {
+          "id": "e:loadBalancer-1->appServer-1",
+          "source": "loadBalancer-1",
+          "target": "appServer-1"
+        },
+        {
+          "id": "e:appServer-1->objectStorage-1",
+          "source": "appServer-1",
+          "target": "objectStorage-1"
+        },
+        {
+          "id": "e:appServer-1->sqlDb-1",
+          "source": "appServer-1",
+          "target": "sqlDb-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 100
+      },
+      "loadBalancer-1": {
+        "x": 250,
+        "y": 100
+      },
+      "appServer-1": {
+        "x": 500,
+        "y": 100
+      },
+      "objectStorage-1": {
+        "x": 750,
+        "y": -40
+      },
+      "sqlDb-1": {
+        "x": 750,
+        "y": 240
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 240
+      }
+    }
+  },
+  "traffic": {
+    "rps": 12000,
+    "readRatio": 0.7,
+    "hotKeyFraction": 0.7,
+    "staticFraction": 0.6
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "appServer",
+    "serverless",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "queue",
+    "worker",
+    "objectStorage",
+    "monitoring"
+  ],
+  "hints": [
+    "Three problems: images shouldn't touch app servers at all, feed reads repeat a lot, and the SQL primary can't absorb the uploads.",
+    "Put a CDN in front for static traffic. Add a cache for feed reads. Move photo metadata to a store that scales writes.",
+    "Client \u2192 CDN, and Client \u2192 Load Balancer \u2192 Photo API. From the API, connect a Redis Cache (2 \u00d7 32 GB), a Message Queue (2 replicas) \u2192 NoSQL (2 replicas), and the API \u2192 NoSQL directly too. Drop the SQL DB."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.25,
+      "cost": 0.2,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 1300
+  },
+  "explanation": [
+    "Separate the paths by traffic type. Static bytes go CDN \u2192 object storage and never touch your servers. Dynamic reads go cache-first. Writes go async where users don't need to wait.",
+    "A CDN is usually the single biggest win for media apps: it absorbs most of the bandwidth at the edge, close to users, and it's cheaper per byte than serving from your own origin.",
+    "Uploads in a real system go straight to object storage with a pre-signed URL. The API only records metadata, and a worker generates thumbnails off the queue.",
+    "Notice how one change moves the bottleneck: fix images and the DB becomes the bottleneck, fix reads and writes become the bottleneck. Design is about clearing each in order."
+  ]
+}

@@ -16,13 +16,15 @@ import {
   useNodesState,
   useReactFlow,
   type Connection,
+  type OnConnectEnd,
   type EdgeChange,
   type NodeChange,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
-import { Boxes, Play, Redo2, Undo2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Boxes, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Redo2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { NODE_KINDS, simulate, type NodeConfig, type NodeKind, type SimResult, type TrafficProfile } from "@/lib/sim";
+import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, nodeSpec, simulate, type NodeConfig, type NodeKind, type SimResult, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc } from "@/lib/storage";
 import { checkpoint, emptyHistory, redo as redoHistory, undo as undoHistory, type History } from "@/lib/history";
 import { Button } from "@/components/ui/button";
@@ -32,7 +34,7 @@ import { NodeInspector, TrafficEditor } from "./inspector";
 import { MetricsPanel } from "./metrics-panel";
 import { connectionProblem, docToFlow, edgeId, flowToDoc, makeNode, type FlowEdge, type SysNode } from "./model";
 import { DRAG_MIME, Palette } from "./palette";
-import { SysNodeComponent } from "./sys-node";
+import { RenameNodeContext, SysNodeComponent } from "./sys-node";
 
 const nodeTypes = { sys: SysNodeComponent };
 const edgeTypes = { flow: FlowEdgeComponent };
@@ -103,6 +105,20 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"inspect" | "results">("inspect");
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Canvas space: either side panel can be hidden, or the whole designer can go full screen.
+  const [showPalette, setShowPalette] = useState(true);
+  const [showPanel, setShowPanel] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setFullscreen(document.fullscreenElement === rootRef.current);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void rootRef.current?.requestFullscreen?.();
+  }, []);
   const rf = useReactFlow<SysNode, FlowEdge>();
 
   const allowed = useMemo(() => new Set<NodeKind>(allowedKinds ?? NODE_KINDS), [allowedKinds]);
@@ -181,6 +197,24 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
 
   const onConnect = useCallback((c: Connection) => connect(c.source, c.target), [connect]);
 
+  /**
+   * Hand-drawn connections: React Flow only connects when you release exactly on a handle. If you release
+   * anywhere else on a node, connect to that node instead (in the direction the drag started).
+   */
+  const onConnectEnd = useCallback<OnConnectEnd>(
+    (event, state) => {
+      if (state.isValid || !state.fromNode || !state.fromHandle) return;
+      const point = "changedTouches" in event ? event.changedTouches[0] : event;
+      if (!point) return;
+      const el = document.elementFromPoint(point.clientX, point.clientY);
+      const targetId = el?.closest(".react-flow__node")?.getAttribute("data-id") ?? state.toNode?.id;
+      if (!targetId || targetId === state.fromNode.id) return;
+      if (state.fromHandle.type === "source") connect(state.fromNode.id, targetId);
+      else connect(targetId, state.fromNode.id);
+    },
+    [connect],
+  );
+
   const selectOnly = useCallback(
     (id: string | null) => {
       setNodes((ns) => ns.map((n) => (n.selected === (n.id === id) ? n : { ...n, selected: n.id === id })));
@@ -191,7 +225,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
 
   const addNode = useCallback(
     (kind: NodeKind, position: { x: number; y: number }) => {
-      if (!allowed.has(kind)) return;
+      if (!isKindAllowed(kind, allowed)) return;
       const node = makeNode(kind, position, nodes);
       record();
       setNodes((ns) => [...ns.map((n) => (n.selected ? { ...n, selected: false } : n)), { ...node, selected: true }]);
@@ -315,6 +349,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     try {
       const r = simulate(doc.graph, doc.traffic);
       setResult(r);
+      setShowPanel(true); // results live in the right panel
       setStale(false);
       setTab("results");
       onRun?.(r, doc);
@@ -369,32 +404,39 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     () => (showResults ? nodes.map((n) => ({ ...n, data: { ...n.data, result: result.nodes[n.id] } })) : nodes),
     [nodes, result, showResults],
   );
-  const displayEdges = useMemo(
-    () =>
-      showResults
-        ? edges.map((e) => ({ ...e, data: { rps: result.edgeFlows[e.id] ?? 0, targetStatus: result.nodes[e.target]?.status } }))
-        : edges,
-    [edges, result, showResults],
-  );
+  const displayEdges = useMemo(() => {
+    const delivery = new Set(
+      nodes.filter((n) => NO_TRAFFIC_KINDS.has(nodeSpec({ kind: n.data.kind, config: n.data.config }).behavior)).map((n) => n.id),
+    );
+    return edges.map((e) => {
+      if (delivery.has(e.source) || delivery.has(e.target)) return { ...e, data: { deploy: true } };
+      return showResults ? { ...e, data: { rps: result.edgeFlows[e.id] ?? 0, targetStatus: result.nodes[e.target]?.status } } : e;
+    });
+  }, [nodes, edges, result, showResults]);
+
+  const renameNode = useCallback((id: string, label: string) => updateNode(id, { label }), [updateNode]);
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
   const ctx: DesignerContext = { getDoc, loadDoc, result, stale };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+    <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background lg:flex-row", fullscreen && "h-screen")}>
       {/* Palette */}
-      <aside className="max-h-60 shrink-0 overflow-y-auto border-b border-border bg-sidebar/60 p-3 lg:max-h-none lg:w-60 lg:border-b-0 lg:border-r">
+      <aside hidden={!showPalette} className="h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[288px] lg:border-b-0 lg:border-r">
         <Palette allowed={allowedKinds} onAdd={addAtCenter} />
       </aside>
 
       {/* Canvas */}
       <div ref={wrapperRef} className="relative h-[62vh] min-h-[420px] flex-1 lg:h-auto" onDragOver={onDragOver} onDrop={onDrop}>
+        <RenameNodeContext.Provider value={renameNode}>
         <ReactFlow<SysNode, FlowEdge>
           nodes={displayNodes}
           edges={displayEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onConnectEnd={onConnectEnd}
+          connectionRadius={40}
           onSelectionChange={onSelectionChange}
           isValidConnection={isValidConnection}
           nodeTypes={nodeTypes}
@@ -426,7 +468,41 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
               {actions && <Slot render={actions} ctx={ctx} />}
             </div>
           </Panel>
+          <Panel position="top-right" className="!m-3">
+            <div className="flex items-center gap-0.5 rounded-xl border border-border bg-background/85 p-1 backdrop-blur" role="group" aria-label="Canvas layout">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowPalette((v) => !v)}
+                aria-pressed={!showPalette}
+                aria-label={showPalette ? "Hide components panel" : "Show components panel"}
+                title={showPalette ? "Hide components panel" : "Show components panel"}
+              >
+                {showPalette ? <PanelLeftClose /> : <PanelLeftOpen />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowPanel((v) => !v)}
+                aria-pressed={!showPanel}
+                aria-label={showPanel ? "Hide side panel" : "Show side panel"}
+                title={showPanel ? "Hide traffic and results panel" : "Show traffic and results panel"}
+              >
+                {showPanel ? <PanelRightClose /> : <PanelRightOpen />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={toggleFullscreen}
+                aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+                title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
+              >
+                {fullscreen ? <Minimize2 /> : <Maximize2 />}
+              </Button>
+            </div>
+          </Panel>
         </ReactFlow>
+        </RenameNodeContext.Provider>
 
         {nodes.length === 0 && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
@@ -442,7 +518,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
       </div>
 
       {/* Inspector / results */}
-      <aside className="shrink-0 overflow-y-auto border-t border-border bg-sidebar/60 lg:w-80 lg:border-l lg:border-t-0">
+      <aside hidden={!showPanel} className="shrink-0 overflow-y-auto border-t border-border bg-sidebar/60 lg:w-80 lg:border-l lg:border-t-0">
         <Tabs value={tab} onValueChange={(v) => setTab(v as "inspect" | "results")} className="gap-0">
           <div className="sticky top-0 z-10 border-b border-border bg-sidebar/95 p-2 backdrop-blur">
             <TabsList className="w-full">
@@ -479,7 +555,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
           </TabsContent>
           <TabsContent value="results" className="space-y-4 p-4">
             {resultsExtra && <Slot render={resultsExtra} ctx={ctx} />}
-            <MetricsPanel result={result} stale={stale} nodes={nodes} onFocusNode={focusNode} />
+            <MetricsPanel result={result} stale={stale} nodes={nodes} edges={edges} onFocusNode={focusNode} />
           </TabsContent>
         </Tabs>
       </aside>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
-import { FolderOpen, Loader2, RotateCcw, Save, Trash2 } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { FolderOpen, Loader2, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { getRepo, type DesignDoc, type SavedDesign } from "@/lib/storage";
+import { getRepo, parseBackup, type DesignDoc, type SavedDesign } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -120,6 +120,35 @@ export function LoadDesignButton({
     }
   };
 
+  /**
+   * Import a SysLab file (backup or shared design) without leaving the Lab. Merges with what's saved, never
+   * replaces. If the file holds exactly one design, open it straight away.
+   */
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const importFile = async (file: File | undefined) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const backup = parseBackup(await file.text());
+      await getRepo().importBackup(backup, "merge");
+      const visible = filter ? backup.designs.filter(filter) : backup.designs;
+      if (visible.length === 1) {
+        onLoad(visible[0]);
+        setOpen(false);
+        toast.success(`Imported and opened "${visible[0].name}"`);
+      } else {
+        toast.success(`Imported ${backup.designs.length} design${backup.designs.length === 1 ? "" : "s"}`);
+        await refresh();
+      }
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
   const remove = async (d: SavedDesign) => {
     try {
       await getRepo().deleteDesign(d.id);
@@ -216,6 +245,13 @@ export function LoadDesignButton({
             </ul>
           )}
         </div>
+        <DialogFooter className="items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">Have a SysLab .json file? Import it here.</p>
+          <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" aria-label="Design file" onChange={(e) => void importFile(e.target.files?.[0])} />
+          <Button size="sm" variant="outline" disabled={importing} onClick={() => fileRef.current?.click()}>
+            {importing ? <Loader2 className="animate-spin" /> : <Upload />} Import file
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

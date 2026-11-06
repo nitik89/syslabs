@@ -1,0 +1,214 @@
+{
+  "id": "concert-ticket-drop",
+  "order": 15,
+  "title": "Concert Ticket Drop",
+  "difficulty": "Hard",
+  "summary": "30,000 fans hit refresh at 10:00. Every write is a race for the same seats, and the latency budget is razor-thin.",
+  "scenario": [
+    "A stadium tour goes on sale. 30,000 requests per second: 70% checking availability, 30% trying to buy. 90% of those buys fight over the same front sections.",
+    "The current stack is undersized, has no locking (so it oversells), and puts every purchase on a single SQL primary.",
+    "Build a design that doesn't oversell, doesn't drop fans, and keeps average latency at 47 ms or less. Pick your coordination service carefully, because they aren't equally fast."
+  ],
+  "objectives": [
+    {
+      "id": "unsafe",
+      "label": "No unsafe contended writes (no double bookings)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 47 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 47
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,400",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3400
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Fans",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 20,
+            "replicas": 1,
+            "costPerReplica": 0
+          }
+        },
+        {
+          "id": "loadBalancer-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "appServer-1",
+          "kind": "appServer",
+          "label": "Tickets API",
+          "config": {
+            "capacity": 1500,
+            "latencyMs": 15,
+            "replicas": 20,
+            "costPerReplica": 70
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Availability Cache",
+          "config": {
+            "capacity": 50000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 60,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "sqlDb-1",
+          "kind": "sqlDb",
+          "label": "Orders DB",
+          "config": {
+            "capacity": 1000,
+            "latencyMs": 8,
+            "replicas": 3,
+            "costPerReplica": 200
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 0,
+            "replicas": 1,
+            "costPerReplica": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->loadBalancer-1",
+          "source": "client-1",
+          "target": "loadBalancer-1"
+        },
+        {
+          "id": "e:loadBalancer-1->appServer-1",
+          "source": "loadBalancer-1",
+          "target": "appServer-1"
+        },
+        {
+          "id": "e:appServer-1->cache-1",
+          "source": "appServer-1",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:appServer-1->sqlDb-1",
+          "source": "appServer-1",
+          "target": "sqlDb-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 100
+      },
+      "loadBalancer-1": {
+        "x": 250,
+        "y": 100
+      },
+      "appServer-1": {
+        "x": 500,
+        "y": 100
+      },
+      "cache-1": {
+        "x": 750,
+        "y": -40
+      },
+      "sqlDb-1": {
+        "x": 750,
+        "y": 240
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 240
+      }
+    }
+  },
+  "traffic": {
+    "rps": 30000,
+    "readRatio": 0.7,
+    "hotKeyFraction": 0.85,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.9
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appServer",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "queue",
+    "worker",
+    "redisLock",
+    "zookeeper",
+    "monitoring"
+  ],
+  "hints": [
+    "Work through it in order: capacity first (which components are red?), then correctness (Unsafe writes), then latency.",
+    "9,000 writes per second can't go to one SQL primary. Use NoSQL with enough shards (4 replicas). Scale the API to about 30 replicas so it runs under 70%.",
+    "Add a lock service for the 8,100 contended writes/s. ZooKeeper adds about 6 ms to each and misses the latency target. A Redis Lock with 2 replicas (about 2 ms) fits. Use 3 LB replicas too."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.35,
+      "cost": 0.15,
+      "architecture": 0.15
+    },
+    "latencyTargetMs": 45,
+    "costBudget": 3200
+  },
+  "explanation": [
+    "Correctness, capacity and latency pull against each other. Locks add a hop to every contended write, so at high volume the lock's own latency becomes a design constraint.",
+    "Redis locks are the pragmatic choice for short, high-volume critical sections like seat holds. Back them with a database uniqueness constraint so that a lock lost to a GC pause can never oversell.",
+    "ZooKeeper gives stronger guarantees (sessions, ordering, no clock assumptions) and is better for leader election and long-held locks, but every acquire is a quorum write.",
+    "Real ticketing systems go further: a virtual waiting room in front, rate limiting per user, and short seat holds (reserve for 5 minutes, then confirm payment) to cut contention."
+  ]
+}

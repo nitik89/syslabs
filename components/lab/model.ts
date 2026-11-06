@@ -16,6 +16,8 @@ export type FlowEdgeData = {
   rps?: number;
   /** Status of the target node, used to tint the flow. */
   targetStatus?: NodeResult["status"];
+  /** A delivery link (repo → CI → registry → servers): drawn dashed, carries no traffic. */
+  deploy?: boolean;
 };
 export type FlowEdge = Edge<FlowEdgeData, "flow">;
 

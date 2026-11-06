@@ -118,6 +118,8 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
         <p className="font-mono text-[12px]">
           {challenge.traffic.rps.toLocaleString()} rps · {Math.round(challenge.traffic.readRatio * 100)}% reads · {Math.round(challenge.traffic.hotKeyFraction * 100)}% hot keys
           {challenge.traffic.staticFraction > 0 && ` · ${Math.round(challenge.traffic.staticFraction * 100)}% static`}
+          {(challenge.traffic.contendedWriteFraction ?? 0) > 0 &&
+            ` · ${Math.round(challenge.traffic.contendedWriteFraction! * 100)}% of writes contended`}
         </p>
       </section>
       <section className="space-y-2">

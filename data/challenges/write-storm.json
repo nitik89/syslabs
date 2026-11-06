@@ -1,0 +1,181 @@
+{
+  "id": "write-storm",
+  "order": 10,
+  "title": "Write Storm",
+  "difficulty": "Medium",
+  "summary": "A fleet of IoT sensors writes 3,600 readings per second into a SQL database. Adding read replicas didn't help.",
+  "scenario": [
+    "A smart-thermostat company has 4,000 requests per second, and 90% of them are devices writing sensor readings.",
+    "The team saw the database overloaded and added read replicas, three of them. The error rate barely moved, and the bill went up.",
+    "Handle the write load reliably and keep at least 20% headroom everywhere."
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "headroom",
+      "label": "No component above 80% utilization",
+      "metric": "maxUtilization",
+      "op": "<=",
+      "value": 0.8
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1000
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Thermostats",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 20,
+            "replicas": 1,
+            "costPerReplica": 0
+          }
+        },
+        {
+          "id": "loadBalancer-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "capacity": 20000,
+            "latencyMs": 1,
+            "replicas": 2,
+            "costPerReplica": 25
+          }
+        },
+        {
+          "id": "appServer-1",
+          "kind": "appServer",
+          "label": "Ingest API",
+          "config": {
+            "capacity": 1500,
+            "latencyMs": 15,
+            "replicas": 4,
+            "costPerReplica": 70
+          }
+        },
+        {
+          "id": "sqlDb-1",
+          "kind": "sqlDb",
+          "label": "Readings DB",
+          "config": {
+            "capacity": 1000,
+            "latencyMs": 8,
+            "replicas": 3,
+            "costPerReplica": 200
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {
+            "capacity": 0,
+            "latencyMs": 0,
+            "replicas": 1,
+            "costPerReplica": 30
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->loadBalancer-1",
+          "source": "client-1",
+          "target": "loadBalancer-1"
+        },
+        {
+          "id": "e:loadBalancer-1->appServer-1",
+          "source": "loadBalancer-1",
+          "target": "appServer-1"
+        },
+        {
+          "id": "e:appServer-1->sqlDb-1",
+          "source": "appServer-1",
+          "target": "sqlDb-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 100
+      },
+      "loadBalancer-1": {
+        "x": 250,
+        "y": 100
+      },
+      "appServer-1": {
+        "x": 500,
+        "y": 100
+      },
+      "sqlDb-1": {
+        "x": 750,
+        "y": 100
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 240
+      }
+    }
+  },
+  "traffic": {
+    "rps": 4000,
+    "readRatio": 0.1,
+    "hotKeyFraction": 0.2,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "loadBalancer",
+    "appServer",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "queue",
+    "worker",
+    "cache",
+    "monitoring"
+  ],
+  "hints": [
+    "Run the simulation. The SQL database is overloaded, but look at what kind of traffic it gets: reads or writes?",
+    "SQL read replicas copy data from one primary. Every write still lands on that single primary, so replicas add zero write capacity.",
+    "Swap the SQL database for a store whose replicas are shards that split writes: NoSQL with 2 replicas, or a Time-Series DB with 2 replicas. A queue in front of SQL only builds a backlog."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.2,
+      "architecture": 0.15
+    },
+    "latencyTargetMs": 50,
+    "costBudget": 900
+  },
+  "explanation": [
+    "Single-leader SQL scales reads with replicas, but writes are bounded by one machine. For write-heavy workloads you need partitioning, where each shard owns a slice of the keys and takes its share of writes.",
+    "Sensor data is a textbook fit for a time-series or wide-column store: append-only, keyed by device and time, read back in ranges.",
+    "A queue smooths bursts, but it can't fix a sustained rate higher than the consumer can absorb. The backlog just grows forever.",
+    "Retire the replicas you no longer need. They were costing $600 a month and doing nothing for this workload."
+  ]
+}

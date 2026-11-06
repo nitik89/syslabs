@@ -1,15 +1,23 @@
 import type { Metadata } from "next";
-import { FlaskConical } from "lucide-react";
-import { PageHeader } from "@/components/shell/page-header";
-import { ComingUp } from "@/components/shell/coming-up";
+import { Suspense } from "react";
+import { LabClient } from "@/components/lab/lab-client";
+import { SimulatedTag } from "@/components/lab/metrics-panel";
 
 export const metadata: Metadata = { title: "Lab" };
 
 export default function LabPage() {
   return (
-    <>
-      <PageHeader eyebrow="Lab" title="Lab" description="A free-form canvas to build any architecture and run the simulator on it." />
-      <ComingUp icon={FlaskConical} title="The canvas is not ready yet" body="This section is under construction." />
-    </>
+    <div className="flex flex-1 flex-col lg:h-dvh">
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 md:px-6">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight">Lab</h1>
+          <p className="truncate text-xs text-muted-foreground">Free-form canvas. Build any architecture and stress it with the simulator.</p>
+        </div>
+        <SimulatedTag />
+      </div>
+      <Suspense fallback={<div className="flex-1" />}>
+        <LabClient />
+      </Suspense>
+    </div>
   );
 }

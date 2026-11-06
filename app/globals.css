@@ -140,3 +140,50 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- React Flow (dark, branded) ---------- */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-node-border-radius: 12px;
+  --xy-edge-stroke: oklch(1 0 0 / 22%);
+  --xy-connectionline-stroke: var(--brand-blue);
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--accent);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-border-color: var(--border);
+  --xy-minimap-background-color: var(--card);
+  --xy-minimap-mask-background-color: oklch(0 0 0 / 55%);
+  --xy-attribution-background-color: transparent;
+}
+.react-flow .react-flow__node-sys {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.react-flow .react-flow__node:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+.react-flow .react-flow__edge:focus-visible path {
+  stroke: var(--ring) !important;
+}
+.react-flow .react-flow__controls {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+@keyframes syslab-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+.syslab-flow {
+  stroke-width: 2.5;
+  stroke-dasharray: 3 21;
+  stroke-linecap: round;
+  animation: syslab-flow var(--flow-speed, 1s) linear infinite;
+  filter: drop-shadow(0 0 3px currentColor);
+}

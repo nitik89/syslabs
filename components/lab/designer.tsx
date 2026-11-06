@@ -20,10 +20,11 @@ import {
   type NodeChange,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
-import { Boxes, Play } from "lucide-react";
+import { Boxes, Play, Redo2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { NODE_KINDS, simulate, type NodeConfig, type NodeKind, type SimResult, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc } from "@/lib/storage";
+import { checkpoint, emptyHistory, redo as redoHistory, undo as undoHistory, type History } from "@/lib/history";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlowEdgeComponent } from "./flow-edge";
@@ -51,11 +52,22 @@ function freeSpot(start: { x: number; y: number }, nodes: SysNode[]): { x: numbe
   return start;
 }
 
+type Snapshot = { nodes: SysNode[]; edges: FlowEdge[]; traffic: TrafficProfile };
+
+function isTextEntry(t: EventTarget | null): boolean {
+  return t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
+}
+
 export interface DesignerContext {
   getDoc: () => DesignDoc;
   loadDoc: (doc: DesignDoc) => void;
   result: SimResult | null;
   stale: boolean;
+}
+
+/** Renders a caller-supplied render prop as its own component (keeps handlers out of the parent's render). */
+function Slot({ render, ctx }: { render: (ctx: DesignerContext) => ReactNode; ctx: DesignerContext }) {
+  return <>{render(ctx)}</>;
 }
 
 export interface DesignerProps {
@@ -96,23 +108,51 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
   const allowed = useMemo(() => new Set<NodeKind>(allowedKinds ?? NODE_KINDS), [allowedKinds]);
   const markDirty = useCallback(() => setStale(true), []);
 
+  /* ------------------------------ undo / redo ----------------------------- */
+
+  const live = useRef<Snapshot>({ nodes, edges, traffic });
+  useEffect(() => {
+    live.current = { nodes, edges, traffic };
+  }, [nodes, edges, traffic]);
+  const history = useRef<History<Snapshot>>(emptyHistory());
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const snapshot = (): Snapshot => ({
+    nodes: live.current.nodes.map((n) => ({ ...n, selected: false, dragging: false })),
+    edges: live.current.edges.map((e) => ({ ...e, selected: false })),
+    traffic: live.current.traffic,
+  });
+  const syncHistoryFlags = () => {
+    setCanUndo(history.current.past.length > 0);
+    setCanRedo(history.current.future.length > 0);
+  };
+  /** Call BEFORE a change. Same-key changes in quick succession become one undo step. */
+  const record = useCallback((key: string | null = null) => {
+    history.current = checkpoint(history.current, snapshot(), key, Date.now());
+    syncHistoryFlags();
+  }, []);
+
   /* --------------------------- change handlers --------------------------- */
 
   const onNodesChange = useCallback(
     (changes: NodeChange<SysNode>[]) => {
+      if (changes.some((c) => c.type === "remove")) record("remove");
+      else if (changes.some((c) => c.type === "position" && c.position)) record("move");
       onNodesChangeBase(changes);
       if (changes.some((c) => c.type === "add" || c.type === "remove" || c.type === "replace")) markDirty();
       if (changes.some((c) => c.type === "remove" && c.id === selectedId)) setSelectedId(null);
     },
-    [onNodesChangeBase, markDirty, selectedId],
+    [onNodesChangeBase, markDirty, selectedId, record],
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange<FlowEdge>[]) => {
+      if (changes.some((c) => c.type === "remove")) record("remove");
       onEdgesChangeBase(changes);
       if (changes.some((c) => c.type === "add" || c.type === "remove" || c.type === "replace")) markDirty();
     },
-    [onEdgesChangeBase, markDirty],
+    [onEdgesChangeBase, markDirty, record],
   );
 
   const onSelectionChange = useCallback(({ nodes: sel }: OnSelectionChangeParams<SysNode, FlowEdge>) => {
@@ -132,10 +172,11 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
         toast.error(problem);
         return;
       }
+      record();
       setEdges((es) => [...es, { id: edgeId(source, target), source, target, type: "flow" }]);
       markDirty();
     },
-    [nodes, edges, setEdges, markDirty],
+    [nodes, edges, setEdges, markDirty, record],
   );
 
   const onConnect = useCallback((c: Connection) => connect(c.source, c.target), [connect]);
@@ -152,12 +193,13 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     (kind: NodeKind, position: { x: number; y: number }) => {
       if (!allowed.has(kind)) return;
       const node = makeNode(kind, position, nodes);
+      record();
       setNodes((ns) => [...ns.map((n) => (n.selected ? { ...n, selected: false } : n)), { ...node, selected: true }]);
       setSelectedId(node.id);
       setTab("inspect");
       markDirty();
     },
-    [allowed, nodes, setNodes, markDirty],
+    [allowed, nodes, setNodes, markDirty, record],
   );
 
   const addAtCenter = useCallback(
@@ -191,6 +233,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
 
   const updateNode = useCallback(
     (id: string, patch: { label?: string; config?: Partial<NodeConfig> }) => {
+      record(patch.config ? `cfg:${id}:${Object.keys(patch.config).join(",")}` : `label:${id}`);
       setNodes((ns) =>
         ns.map((n) =>
           n.id === id
@@ -200,33 +243,36 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
       );
       if (patch.config) markDirty();
     },
-    [setNodes, markDirty],
+    [setNodes, markDirty, record],
   );
 
   const deleteNode = useCallback(
     (id: string) => {
+      record();
       setNodes((ns) => ns.filter((n) => n.id !== id));
       setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
       setSelectedId(null);
       markDirty();
     },
-    [setNodes, setEdges, markDirty],
+    [setNodes, setEdges, markDirty, record],
   );
 
   const removeEdge = useCallback(
     (id: string) => {
+      record();
       setEdges((es) => es.filter((e) => e.id !== id));
       markDirty();
     },
-    [setEdges, markDirty],
+    [setEdges, markDirty, record],
   );
 
   const changeTraffic = useCallback(
     (t: TrafficProfile) => {
+      record("traffic");
       setTraffic(t);
       markDirty();
     },
-    [markDirty],
+    [markDirty, record],
   );
 
   /* ------------------------------ doc + run ------------------------------ */
@@ -235,6 +281,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
 
   const loadDoc = useCallback(
     (doc: DesignDoc) => {
+      record(); // Reset and Load are undoable.
       const f = docToFlow(doc);
       setNodes(f.nodes);
       setEdges(f.edges);
@@ -245,7 +292,22 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
       setTab("inspect");
       requestAnimationFrame(() => void rf.fitView({ padding: 0.2, duration: 250 }));
     },
-    [setNodes, setEdges, rf],
+    [setNodes, setEdges, rf, record],
+  );
+
+  const restore = useCallback(
+    (direction: "undo" | "redo") => {
+      const step = (direction === "undo" ? undoHistory : redoHistory)(history.current, snapshot());
+      if (!step) return;
+      history.current = step.history;
+      syncHistoryFlags();
+      setNodes(step.state.nodes);
+      setEdges(step.state.edges);
+      setTraffic(step.state.traffic);
+      setSelectedId(null);
+      markDirty();
+    },
+    [setNodes, setEdges, markDirty],
   );
 
   const run = useCallback(() => {
@@ -266,14 +328,23 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     const onKey = (e: KeyboardEvent) => {
       // Don't fire behind an open dialog or sheet (e.g. while naming a design).
       const inOverlay = e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]');
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !inOverlay) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === "Enter" && !inOverlay) {
         e.preventDefault();
         run();
+        return;
+      }
+      // Leave native undo to text fields and dialogs.
+      if (!mod || inOverlay || isTextEntry(e.target)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" || k === "y") {
+        e.preventDefault();
+        restore(k === "y" || e.shiftKey ? "redo" : "undo");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [run]);
+  }, [run, restore]);
 
   // Debounced autosave hook for drafts.
   useEffect(() => {
@@ -346,7 +417,13 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
                 <Play /> Run simulation
                 <kbd className="ml-1 hidden rounded bg-white/15 px-1 font-mono text-[10px] sm:inline">⌘↵</kbd>
               </Button>
-              {actions?.(ctx)}
+              <Button variant="ghost" size="icon-sm" onClick={() => restore("undo")} disabled={!canUndo} aria-label="Undo" title="Undo (⌘Z)">
+                <Undo2 />
+              </Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => restore("redo")} disabled={!canRedo} aria-label="Redo" title="Redo (⇧⌘Z)">
+                <Redo2 />
+              </Button>
+              {actions && <Slot render={actions} ctx={ctx} />}
             </div>
           </Panel>
         </ReactFlow>
@@ -401,7 +478,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
             )}
           </TabsContent>
           <TabsContent value="results" className="space-y-4 p-4">
-            {resultsExtra?.(ctx)}
+            {resultsExtra && <Slot render={resultsExtra} ctx={ctx} />}
             <MetricsPanel result={result} stale={stale} nodes={nodes} onFocusNode={focusNode} />
           </TabsContent>
         </Tabs>

@@ -9,5 +9,7 @@ export {
   WARN_UTILIZATION,
   SPOF_THRESHOLD,
   NO_TRAFFIC_KINDS,
+  INDEXABLE_KINDS,
+  INDEX_EFFECT,
 } from "./engine";
 export { analyzePipeline, type PipelineReport } from "./pipeline";

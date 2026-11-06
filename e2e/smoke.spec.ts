@@ -23,7 +23,7 @@ test("every page renders with honest empty states", async ({ page }) => {
   await page.goto("/progress");
   await expect(page.getByText("No progress yet")).toBeVisible();
   await page.goto("/challenges");
-  await expect(page.locator("main li a")).toHaveCount(15);
+  await expect(page.locator("main li a")).toHaveCount(16);
   await page.goto("/challenges/does-not-exist");
   await expect(page.getByText("No route to this page")).toBeVisible();
   expect(errors.filter((e) => !e.includes("404"))).toEqual([]);
@@ -81,7 +81,7 @@ test("challenge: fix the overloaded database and pass", async ({ page }) => {
   await expect(panel(page)).toContainText("Passed");
 
   await page.goto("/progress");
-  await expect(page.getByText("1 / 15")).toBeVisible();
+  await expect(page.getByText("1 / 16")).toBeVisible();
   expect(errors).toEqual([]);
 });
 

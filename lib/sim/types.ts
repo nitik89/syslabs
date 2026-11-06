@@ -158,7 +158,14 @@ export interface NodeConfig {
   cacheSizeGb?: number;
   /** Custom components only: the base behavior to simulate as. */
   behavior?: BaseKind;
+  /**
+   * Databases and search only. "standard" (the default when unset) is the baseline. "none" means reads are
+   * full table scans; "heavy" (many or covering indexes) speeds reads up but makes every write maintain them.
+   */
+  indexes?: IndexLevel;
 }
+
+export type IndexLevel = "none" | "standard" | "heavy";
 
 export interface SimNode {
   id: string;

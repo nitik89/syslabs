@@ -14,6 +14,7 @@ import cacheThatDidntHelp from "./cache-that-didnt-help.json";
 import inboxNeverDrains from "./inbox-never-drains.json";
 import photoSharingLaunch from "./photo-sharing-launch.json";
 import concertTicketDrop from "./concert-ticket-drop.json";
+import missingIndex from "./missing-index.json";
 
 /**
  * Challenges are plain JSON so new ones can be added without code changes:
@@ -35,6 +36,7 @@ export const CHALLENGES: Challenge[] = ([
   inboxNeverDrains,
   photoSharingLaunch,
   concertTicketDrop,
+  missingIndex,
 ] as unknown as Challenge[]).sort(
   (a, b) => a.order - b.order,
 );

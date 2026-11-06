@@ -207,6 +207,16 @@ const SOLUTIONS: Record<string, SimGraph> = {
     ),
   },
   "concert-ticket-drop": concert("redisLock", 2),
+  "missing-index": {
+    nodes: [
+      n("client-1", "client"),
+      n("loadBalancer-1", "loadBalancer", { replicas: 2 }),
+      n("appServer-1", "appServer", { replicas: 2 }),
+      n("sqlDb-1", "sqlDb", { replicas: 3, indexes: "standard" }),
+      n("monitoring-1", "monitoring"),
+    ],
+    edges: chain(["client-1", "loadBalancer-1"], ["loadBalancer-1", "appServer-1"], ["appServer-1", "sqlDb-1"]),
+  },
 };
 
 /* ------------------------------- tests ------------------------------- */
@@ -229,6 +239,7 @@ describe("challenge data", () => {
       "inbox-never-drains",
       "photo-sharing-launch",
       "concert-ticket-drop",
+      "missing-index",
     ]);
     expect(new Set(CHALLENGES.map((c) => c.order)).size).toBe(CHALLENGES.length);
     for (const c of CHALLENGES) expect(SOLUTIONS[c.id]).toBeDefined();
@@ -446,5 +457,32 @@ describe("named services in challenges", () => {
     const { s } = run("inbox-never-drains", g);
     expect(s.categories.find((c) => c.category === "architecture")!.notes).toEqual([]);
     expect(s.passed).toBe(true);
+  });
+});
+
+describe("missing index", () => {
+  const unmet = (s: ReturnType<typeof run>["s"]) => s.objectives.filter((o) => !o.met).map((o) => o.objective.id);
+  it("the start overloads the DB, and the bottleneck says to add an index", () => {
+    const { r } = run("missing-index", getChallenge("missing-index")!.startingDesign.graph);
+    expect(r.errorRate).toBeGreaterThan(0.3);
+    expect(r.bottlenecks[0].reason).toMatch(/full table scans: add an index/);
+  });
+  it("throwing replicas at full scans blows the budget; a cache alone isn't enough", () => {
+    const g = structuredClone(SOLUTIONS["missing-index"]);
+    const db = g.nodes.find((x) => x.id === "sqlDb-1")!.config;
+    db.indexes = "none";
+    db.replicas = 14;
+    expect(unmet(run("missing-index", g).s)).toContain("cost");
+    const cached = structuredClone(getChallenge("missing-index")!.startingDesign.graph);
+    cached.nodes.push(n("cache-1", "cache", { replicas: 2, cacheSizeGb: 64 }));
+    cached.edges.push({ id: "x", source: "appServer-1", target: "cache-1" });
+    expect(run("missing-index", cached).s.passed).toBe(false);
+  });
+  it("heavy indexes pass too, but cost write capacity", () => {
+    const g = structuredClone(SOLUTIONS["missing-index"]);
+    g.nodes.find((x) => x.id === "sqlDb-1")!.config.indexes = "heavy";
+    const { r, s } = run("missing-index", g);
+    expect(s.passed).toBe(true);
+    expect(r.nodes["sqlDb-1"].utilization).toBeLessThan(run("missing-index", SOLUTIONS["missing-index"]).r.nodes["sqlDb-1"].utilization);
   });
 });

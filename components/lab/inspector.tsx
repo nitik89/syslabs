@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { ArrowRight, Link2, Trash2, X } from "lucide-react";
-import { CATALOG, CUSTOM_BEHAVIORS, cacheHitRatio, nodeSpec, type BaseKind, type NodeConfig, type TrafficProfile } from "@/lib/sim";
+import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatio, nodeSpec, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
 import { fmtPct, fmtUsd } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,8 @@ export function NodeInspector({
   const labelId = useId();
   const connectId = useId();
   const behaviorId = useId();
+  const indexId = useId();
+  const indexLevel: IndexLevel = cfg.indexes ?? "standard";
   const [connectTarget, setConnectTarget] = useState("");
 
   const nameOf = (id: string) => {
@@ -94,6 +96,28 @@ export function NodeInspector({
             ))}
           </select>
           <p className="text-[11px] text-muted-foreground">Resets capacity, latency and cost to that block&apos;s defaults. Tune them after.</p>
+        </div>
+      )}
+
+      {INDEXABLE_KINDS.has(spec.behavior) && (
+        <div className="space-y-1">
+          <Label htmlFor={indexId} className="text-xs text-muted-foreground">
+            Indexes
+          </Label>
+          <select
+            id={indexId}
+            value={indexLevel}
+            onChange={(e) => onChangeConfig({ indexes: e.target.value as IndexLevel })}
+            className="h-8 w-full rounded-lg border border-input bg-input/30 px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="none">None: every read scans the whole table</option>
+            <option value="standard">Standard: indexes on the columns you query</option>
+            <option value="heavy">Heavy: many / covering indexes</option>
+          </select>
+          <p className="text-[11px] text-muted-foreground">
+            {INDEX_HINT[indexLevel]} Reads {fmtMultiplier(INDEX_EFFECT[indexLevel].read)} capacity · writes {fmtMultiplier(INDEX_EFFECT[indexLevel].write)} · latency{" "}
+            {fmtMultiplier(INDEX_EFFECT[indexLevel].latency)}.
+          </p>
         </div>
       )}
 
@@ -280,4 +304,14 @@ export function TrafficEditor({
       />
     </div>
   );
+}
+
+const INDEX_HINT: Record<IndexLevel, string> = {
+  none: "Fine for tiny tables, a disaster at scale.",
+  standard: "The sensible default.",
+  heavy: "Faster reads, but every write must update every index.",
+};
+
+function fmtMultiplier(x: number): string {
+  return `×${Number.isInteger(x) ? x : x.toFixed(1)}`;
 }

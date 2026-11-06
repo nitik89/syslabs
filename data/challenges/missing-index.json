@@ -1,0 +1,59 @@
+{
+  "id": "missing-index",
+  "order": 16,
+  "title": "The Missing Index",
+  "difficulty": "Easy",
+  "summary": "Order history pages time out. The database has three replicas and is still on fire, because every query scans the whole table.",
+  "scenario": [
+    "An online store serves 2,000 requests per second, 90% of them customers opening \"My orders\". The query is SELECT * FROM orders WHERE customer_id = ?.",
+    "The orders table has 80 million rows and no index on customer_id, so every request reads the entire table. The team already added two read replicas. It barely helped.",
+    "Make order pages fast and reliable without blowing the budget."
+  ],
+  "objectives": [
+    { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },
+    { "id": "headroom", "label": "No component above 85% utilization", "metric": "maxUtilization", "op": "<=", "value": 0.85 },
+    { "id": "latency", "label": "Average latency at or below 65 ms", "metric": "avgLatencyMs", "op": "<=", "value": 65 },
+    { "id": "cost", "label": "Monthly cost at or below $1,000", "metric": "monthlyCost", "op": "<=", "value": 1000 }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        { "id": "client-1", "kind": "client", "label": "Shoppers", "config": { "capacity": 0, "latencyMs": 20, "replicas": 1, "costPerReplica": 0 } },
+        { "id": "loadBalancer-1", "kind": "loadBalancer", "label": "Load Balancer", "config": { "capacity": 20000, "latencyMs": 1, "replicas": 2, "costPerReplica": 25 } },
+        { "id": "appServer-1", "kind": "appServer", "label": "Orders API", "config": { "capacity": 1500, "latencyMs": 15, "replicas": 2, "costPerReplica": 70 } },
+        { "id": "sqlDb-1", "kind": "sqlDb", "label": "Orders DB", "config": { "capacity": 1000, "latencyMs": 8, "replicas": 3, "costPerReplica": 200, "indexes": "none" } },
+        { "id": "monitoring-1", "kind": "monitoring", "label": "Monitoring", "config": { "capacity": 0, "latencyMs": 0, "replicas": 1, "costPerReplica": 30 } }
+      ],
+      "edges": [
+        { "id": "e:client-1->loadBalancer-1", "source": "client-1", "target": "loadBalancer-1" },
+        { "id": "e:loadBalancer-1->appServer-1", "source": "loadBalancer-1", "target": "appServer-1" },
+        { "id": "e:appServer-1->sqlDb-1", "source": "appServer-1", "target": "sqlDb-1" }
+      ]
+    },
+    "positions": {
+      "client-1": { "x": 0, "y": 100 },
+      "loadBalancer-1": { "x": 250, "y": 100 },
+      "appServer-1": { "x": 500, "y": 100 },
+      "sqlDb-1": { "x": 750, "y": 100 },
+      "monitoring-1": { "x": 0, "y": 240 }
+    }
+  },
+  "traffic": { "rps": 2000, "readRatio": 0.9, "hotKeyFraction": 0.2, "staticFraction": 0 },
+  "allowedComponents": ["client", "loadBalancer", "appServer", "cache", "sqlDb", "nosqlDb", "monitoring"],
+  "hints": [
+    "Run it and select the Orders DB. Notice the \"no index\" badge and what the bottleneck message says about how reads are served.",
+    "Without an index, finding one customer's orders means reading all 80 million rows. More replicas just means more machines doing full scans. A cache won't save you either: only 20% of reads hit popular keys.",
+    "Select the Orders DB and set Indexes to Standard. Read capacity jumps 5× and latency drops 4×. One setting, no extra cost."
+  ],
+  "scoring": {
+    "weights": { "performance": 0.4, "reliability": 0.25, "cost": 0.2, "architecture": 0.15 },
+    "latencyTargetMs": 50,
+    "costBudget": 900
+  },
+  "explanation": [
+    "An index is a sorted lookup structure (usually a B-tree) on one or more columns. With an index on customer_id, the database jumps straight to that customer's rows: O(log n) instead of scanning all n rows.",
+    "Missing indexes are one of the most common causes of production database outages, and they hide well: on a small dev database the full scan is instant, and the problem only appears at real data sizes.",
+    "Scaling hardware around a missing index is expensive and only linear: here you would need about 14 replicas of full scans to match what one index does for free.",
+    "Indexes aren't free either. Every INSERT and UPDATE must also update every index, and they take disk space. Index the columns you filter and sort on, and check slow-query logs (EXPLAIN shows a \"Seq Scan\" when an index is missing)."
+  ]
+}

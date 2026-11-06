@@ -3,7 +3,7 @@
 import { createContext, memo, useContext, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { CATALOG, nodeSpec } from "@/lib/sim";
+import { CATALOG, INDEXABLE_KINDS, nodeSpec } from "@/lib/sim";
 import { fmtRps } from "@/lib/format";
 import type { SysNode } from "./model";
 import { KindIcon } from "./kind-icon";
@@ -61,6 +61,11 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
           )}
           <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
         </div>
+        {data.config.indexes === "none" && INDEXABLE_KINDS.has(nodeSpec(data).behavior) && (
+          <span className="rounded-md bg-status-warn/15 px-1.5 py-0.5 text-[10px] font-medium text-status-warn" title="No indexes: reads scan the whole table">
+            no index
+          </span>
+        )}
         {data.config.replicas > 1 && (
           <span className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-secondary-foreground">
             ×{data.config.replicas}

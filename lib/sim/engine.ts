@@ -6,6 +6,7 @@ import {
   type GraphIssue,
   type Health,
   type IdleExplanation,
+  type IndexLevel,
   type NodeConfig,
   type NodeKind,
   type NodeResult,
@@ -21,6 +22,19 @@ import {
 /* ------------------------------------------------------------------ */
 /* Tunable model constants (deterministic, documented)                 */
 /* ------------------------------------------------------------------ */
+
+/** Components that store data and can be indexed. */
+export const INDEXABLE_KINDS: ReadonlySet<NodeKind> = new Set(["sqlDb", "nosqlDb", "timeseriesDb", "search"]);
+
+/**
+ * Index trade-off, as multipliers on read capacity, write capacity and base latency.
+ * none: reads scan the whole table. heavy: reads hit covering indexes, but every write updates them all.
+ */
+export const INDEX_EFFECT: Record<IndexLevel, { read: number; write: number; latency: number }> = {
+  none: { read: 0.2, write: 1, latency: 4 },
+  standard: { read: 1, write: 1, latency: 1 },
+  heavy: { read: 1.5, write: 0.6, latency: 0.7 },
+};
 
 /** Utilization at or above which a node is "running hot". */
 export const WARN_UTILIZATION = 0.8;
@@ -359,19 +373,21 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     if (SIDE_KINDS.has(node.kind)) loadByClass.write += lockLoad.get(id) ?? 0;
     const load = loadByClass.read + loadByClass.write + loadByClass.static;
 
-    // Utilization: Σ load_c / capacity_c. SQL writes are limited to the primary.
+    // Utilization: Σ load_c / capacity_c. SQL writes are limited to the primary. Indexes scale read/write capacity.
+    const idx = INDEXABLE_KINDS.has(node.kind) ? INDEX_EFFECT[cfg.indexes ?? "standard"] : INDEX_EFFECT.standard;
     let utilization = 0;
     let totalCapacity: number | null = null;
     if (!spec.unlimited) {
       totalCapacity = cfg.capacity * cfg.replicas;
       for (const cls of TRAFFIC_CLASSES) {
-        const cap = node.kind === "sqlDb" && cls === "write" ? cfg.capacity : totalCapacity;
+        const raw = node.kind === "sqlDb" && cls === "write" ? cfg.capacity : totalCapacity;
+        const cap = raw * (cls === "read" ? idx.read : cls === "write" ? idx.write : 1);
         if (loadByClass[cls] > 0) utilization += cap > 0 ? loadByClass[cls] / cap : Infinity;
       }
     }
     const isFailed = failed.has(id);
     const serveFrac = isFailed ? 0 : utilization <= 1 ? 1 : 1 / utilization;
-    const latency = cfg.latencyMs * queueingFactor(utilization);
+    const latency = cfg.latencyMs * idx.latency * queueingFactor(utilization);
 
     let dropped = 0;
     let hitRatio: number | undefined;
@@ -669,17 +685,19 @@ function findBottlenecks(core: CoreOutcome, graph: SimGraph): Bottleneck[] {
   for (const n of graph.nodes) {
     const r = core.nodes[n.id];
     if (!r || r.capacity === null || r.load <= 0) continue;
+    const unindexed = INDEXABLE_KINDS.has(n.kind) && n.config.indexes === "none" && r.loadByClass.read > 0;
+    const indexHint = unindexed ? " Reads are full table scans: add an index (Indexes → Standard)." : "";
     if (r.utilization > 1) {
       list.push({
         nodeId: n.id,
         severity: "crit",
-        reason: `${nameOf(n.id)} is overloaded: ${fmt(r.load)} rps offered vs ${fmt(effectiveCapacity(r))} capacity, dropping ${fmt(r.droppedRps)} rps.`,
+        reason: `${nameOf(n.id)} is overloaded: ${fmt(r.load)} rps offered vs ${fmt(effectiveCapacity(r))} capacity, dropping ${fmt(r.droppedRps)} rps.${indexHint}`,
       });
     } else if (r.utilization >= WARN_UTILIZATION) {
       list.push({
         nodeId: n.id,
         severity: "warn",
-        reason: `${nameOf(n.id)} is running hot at ${Math.round(r.utilization * 100)}% utilization, with little headroom for spikes.`,
+        reason: `${nameOf(n.id)} is running hot at ${Math.round(r.utilization * 100)}% utilization, with little headroom for spikes.${indexHint}`,
       });
     }
     if (n.kind === "queue" && (r.backlogRps ?? 0) > 0) {
@@ -832,6 +850,7 @@ export function sanitizeConfig(c: NodeConfig): NodeConfig {
     replicas: Math.max(1, Math.floor(nonNeg(c.replicas, 1))),
     costPerReplica: nonNeg(c.costPerReplica),
     ...(c.cacheSizeGb !== undefined ? { cacheSizeGb: nonNeg(c.cacheSizeGb) } : {}),
+    ...(c.indexes === "none" || c.indexes === "heavy" || c.indexes === "standard" ? { indexes: c.indexes } : {}),
   };
 }
 

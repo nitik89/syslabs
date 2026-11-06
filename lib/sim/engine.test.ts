@@ -471,3 +471,17 @@ describe("idle explanations", () => {
     expect(simulate(g, { ...reads, aiFraction: 0.2 }).idle).toEqual([]);
   });
 });
+
+describe("contended writes through a queue", () => {
+  it("are counted once, at the server that handled the request, not again at the queue consumer", () => {
+    const t: TrafficProfile = { rps: 1000, readRatio: 0.5, hotKeyFraction: 0.5, staticFraction: 0, contendedWriteFraction: 0.2 };
+    const g = (lockOnApi: boolean): SimGraph => ({
+      nodes: [node("c", "client"), node("api", "appServer"), node("q", "redisStreams"), node("dk", "docker"), node("db", "postgres", { replicas: 2 }), ...(lockOnApi ? [node("l", "redisLock", { replicas: 2 })] : [])],
+      edges: [edge("c", "api"), edge("api", "q"), edge("q", "dk"), edge("dk", "db"), edge("api", "db"), ...(lockOnApi ? [edge("api", "l")] : [])],
+    });
+    const without = simulate(g(false), t);
+    expect(without.unsafeWriteRps).toBeCloseTo(100); // 500 writes × 20%, once
+    expect(without.bottlenecks.filter((b) => /no lock/.test(b.reason)).map((b) => b.nodeId)).toEqual(["api"]);
+    expect(simulate(g(true), t).unsafeWriteRps).toBe(0); // locking at the API is enough
+  });
+});

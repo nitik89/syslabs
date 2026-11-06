@@ -393,7 +393,9 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
         let f: Flow = { rps: servedRps, latSum: inFlow.latSum * serveFrac + servedRps * latency };
 
         // Contended writes: take a lock first (side call), or run unsafely when no lock service is wired in.
-        if (cls === "write" && LOCK_TAKERS.has(node.kind) && traffic.contendedWriteFraction! > 0) {
+        // Only the server handling the user's request (sync) does this, before it writes or enqueues. Writes
+        // arriving later from a queue were already decided upstream, so they aren't counted a second time.
+        if (mode === "sync" && cls === "write" && LOCK_TAKERS.has(node.kind) && traffic.contendedWriteFraction! > 0) {
           const contended = f.rps * traffic.contendedWriteFraction!;
           const locks = allKids.filter((k) => LOCK_KINDS.has(nodeById.get(k.target)!.kind));
           const live = locks.filter((k) => !failed.has(k.target));

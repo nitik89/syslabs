@@ -10,15 +10,15 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b border-border/60 px-6 py-6 sm:flex-row sm:items-end sm:justify-between md:px-8">
-      <div className="space-y-1.5">
-        {eyebrow && (
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-brand-cyan">{eyebrow}</p>
-        )}
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description && <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>}
+    <div className="bg-aurora relative">
+      <div className="flex flex-col gap-5 px-6 pb-6 pt-9 sm:flex-row sm:items-end sm:justify-between md:px-10">
+        <div className="space-y-2">
+          {eyebrow && <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-blue">{eyebrow}</p>}
+          <h1 className="text-balance text-3xl font-semibold tracking-[-0.02em]">{title}</h1>
+          {description && <p className="max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">{description}</p>}
+        </div>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   );
 }

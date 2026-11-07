@@ -19,7 +19,8 @@ async function DesignLoader({ params }: { params: PageProps<"/build/[id]">["para
   const { id } = await params;
   const design = getDesign(id);
   if (!design) notFound();
-  return <ChallengeClient challenge={design} />;
+  const next = DESIGNS[DESIGNS.indexOf(design) + 1];
+  return <ChallengeClient challenge={design} next={next && { id: next.id, title: next.title }} />;
 }
 
 export default function BuildProblemPage({ params }: PageProps<"/build/[id]">) {

@@ -7,7 +7,7 @@ import { CATALOG, INDEXABLE_KINDS, nodeSpec } from "@/lib/sim";
 import { fmtRps } from "@/lib/format";
 import type { SysNode } from "./model";
 import { KindIcon } from "./kind-icon";
-import { STATUS_BAR, STATUS_LABEL, STATUS_RING, STATUS_TEXT } from "./kind-style";
+import { KIND_ACCENT, STATUS_BAR, STATUS_LABEL, STATUS_RING, STATUS_TEXT } from "./kind-style";
 
 /** Lets a node rename itself (double-click on the canvas). Provided by the designer so it goes through undo. */
 export const RenameNodeContext = createContext<(id: string, label: string) => void>(() => {});
@@ -26,17 +26,22 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
   return (
     <div
       className={cn(
-        "w-[188px] rounded-xl border bg-card/95 px-3 py-2.5 text-card-foreground backdrop-blur transition-[border-color,box-shadow]",
+        "relative w-[204px] rounded-2xl border bg-card/95 px-3 py-2.5 shadow-[0_10px_30px_-14px_black] text-card-foreground backdrop-blur transition-[border-color,box-shadow]",
         status ? STATUS_RING[status] : "border-border",
         selected && "outline-2 outline-offset-2 outline-ring",
       )}
       aria-label={`${name} (${spec.label})${status ? `, ${STATUS_LABEL[status]}` : ""}`}
     >
+      <span
+        aria-hidden="true"
+        className={cn("pointer-events-none absolute inset-0 rounded-2xl opacity-60 [mask-image:linear-gradient(to_bottom,black,transparent_75%)]", KIND_ACCENT[data.kind])}
+      />
+      <span aria-hidden="true" className={cn("pointer-events-none absolute inset-x-4 top-0 h-px bg-current opacity-60", KIND_ACCENT[data.kind])} />
       {!isSource && (
         <Handle type="target" position={Position.Left} className="!size-3.5 !border-2 !border-background !bg-brand-blue transition-transform hover:!scale-125" />
       )}
-      <div className="flex items-center gap-2.5">
-        <KindIcon kind={data.kind} size="lg" />
+      <div className="relative flex items-center gap-2.5">
+        <KindIcon kind={data.kind} size="xl" />
         <div className="min-w-0 flex-1" onDoubleClick={() => setEditing(true)} title="Double-click to rename">
           {editing ? (
             <input
@@ -54,12 +59,12 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
                 if (e.key === "Enter") e.currentTarget.blur();
                 if (e.key === "Escape") setEditing(false);
               }}
-              className="nodrag nopan w-full rounded border border-ring bg-background px-1 text-[13px] font-medium leading-tight outline-none"
+              className="nodrag nopan w-full rounded border border-ring bg-background px-1 text-[14px] font-semibold leading-tight outline-none"
             />
           ) : (
-            <p className="truncate text-[13px] font-medium leading-tight">{name}</p>
+            <p className="truncate text-[14px] font-semibold leading-tight">{name}</p>
           )}
-          <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
+          <p className="truncate text-[11.5px] text-muted-foreground">{subtitle}</p>
         </div>
         {data.config.indexes === "none" && INDEXABLE_KINDS.has(nodeSpec(data).behavior) && (
           <span className="rounded-md bg-status-warn/15 px-1.5 py-0.5 text-[10px] font-medium text-status-warn" title="No indexes: reads scan the whole table">

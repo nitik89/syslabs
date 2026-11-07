@@ -1,4 +1,5 @@
 import type { Challenge } from "@/lib/challenges/types";
+import { solutionFor } from "./solutions";
 import overloadedDatabase from "./overloaded-database.json";
 import singlePointOfFailure from "./single-point-of-failure.json";
 import urlShortener from "./url-shortener.json";
@@ -37,9 +38,9 @@ export const CHALLENGES: Challenge[] = ([
   photoSharingLaunch,
   concertTicketDrop,
   missingIndex,
-] as unknown as Challenge[]).sort(
-  (a, b) => a.order - b.order,
-);
+] as unknown as Challenge[])
+  .map((c) => ({ ...c, reference: c.reference ?? solutionFor(c.id) }))
+  .sort((a, b) => a.order - b.order);
 
 export function getChallenge(id: string): Challenge | undefined {
   return CHALLENGES.find((c) => c.id === id);

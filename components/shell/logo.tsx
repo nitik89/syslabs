@@ -21,7 +21,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
             <stop offset="1" stopColor="var(--brand-violet)" />
           </linearGradient>
         </defs>
-        <rect x="1" y="1" width="30" height="30" rx="8" fill="oklch(0.18 0.02 270)" stroke={`url(#${gid})`} strokeWidth="1.5" />
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="var(--card)" stroke={`url(#${gid})`} strokeWidth="1.5" />
         <path d="M9 10.5 L16 16 L23 10.5 M16 16 V22.5" stroke={`url(#${gid})`} strokeWidth="1.6" fill="none" strokeLinecap="round" />
         <circle cx="9" cy="10.5" r="2.6" fill="var(--brand-cyan)" />
         <circle cx="23" cy="10.5" r="2.6" fill="var(--brand-violet)" />

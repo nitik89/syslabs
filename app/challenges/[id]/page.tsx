@@ -18,7 +18,8 @@ async function ChallengeLoader({ params }: { params: PageProps<"/challenges/[id]
   const { id } = await params;
   const challenge = getChallenge(id);
   if (!challenge) notFound();
-  return <ChallengeClient challenge={challenge} />;
+  const next = CHALLENGES[CHALLENGES.indexOf(challenge) + 1];
+  return <ChallengeClient challenge={challenge} next={next && { id: next.id, title: next.title }} />;
 }
 
 export default function ChallengePage({ params }: PageProps<"/challenges/[id]">) {

@@ -422,7 +422,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
   return (
     <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background lg:flex-row", fullscreen && "h-screen")}>
       {/* Palette */}
-      <aside hidden={!showPalette} className="h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[288px] lg:border-b-0 lg:border-r">
+      <aside hidden={!showPalette} className="h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[256px] lg:border-b-0 lg:border-r">
         <Palette allowed={allowedKinds} onAdd={addAtCenter} />
       </aside>
 
@@ -445,17 +445,17 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
           deleteKeyCode={["Backspace", "Delete"]}
           colorMode="dark"
           fitView
-          fitViewOptions={{ padding: 0.2, maxZoom: 1.1 }}
+          fitViewOptions={{ padding: 0.06, maxZoom: 1, minZoom: 0.72 }}
           minZoom={0.25}
           maxZoom={2}
           ariaLabelConfig={{ "node.a11yDescription.default": "Press Enter or Space to select. Use arrow keys to move. Press Delete to remove." }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="oklch(1 0 0 / 10%)" />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1.3} color="oklch(1 0 0 / 11%)" />
           <Controls showInteractive={false} position="bottom-left" />
-          <MiniMap pannable zoomable position="bottom-right" className="!hidden md:!block" nodeColor="oklch(0.5 0.12 265)" maskColor="oklch(0 0 0 / 55%)" />
-          <Panel position="top-left" className="!m-3">
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/85 p-1.5 backdrop-blur">
-              <Button size="sm" onClick={run} className="bg-gradient-to-r from-brand-blue to-brand-violet text-white hover:opacity-90">
+          <MiniMap pannable zoomable position="bottom-right" className="!hidden md:!block" nodeColor="color-mix(in oklch, var(--brand-blue) 55%, var(--card))" maskColor="oklch(0 0 0 / 55%)" />
+          <Panel position="top-left" className="!m-3 max-w-[calc(100%-11rem)]">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_black] backdrop-blur-md">
+              <Button size="sm" onClick={run} className="bg-brand-gradient shadow-brand border-0 hover:opacity-90">
                 <Play /> Run simulation
                 <kbd className="ml-1 hidden rounded bg-white/15 px-1 font-mono text-[10px] sm:inline">⌘↵</kbd>
               </Button>
@@ -469,7 +469,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
             </div>
           </Panel>
           <Panel position="top-right" className="!m-3">
-            <div className="flex items-center gap-0.5 rounded-xl border border-border bg-background/85 p-1 backdrop-blur" role="group" aria-label="Canvas layout">
+            <div className="flex items-center gap-0.5 rounded-2xl border border-border bg-popover/90 p-1 shadow-[0_12px_32px_-12px_black] backdrop-blur-md" role="group" aria-label="Canvas layout">
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -518,7 +518,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
       </div>
 
       {/* Inspector / results */}
-      <aside hidden={!showPanel} className="shrink-0 overflow-y-auto border-t border-border bg-sidebar/60 lg:w-80 lg:border-l lg:border-t-0">
+      <aside hidden={!showPanel} className="shrink-0 overflow-y-auto border-t border-border bg-sidebar/60 lg:w-[300px] lg:border-l lg:border-t-0">
         <Tabs value={tab} onValueChange={(v) => setTab(v as "inspect" | "results")} className="gap-0">
           <div className="sticky top-0 z-10 border-b border-border bg-sidebar/95 p-2 backdrop-blur">
             <TabsList className="w-full">

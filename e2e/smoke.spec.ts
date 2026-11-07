@@ -19,7 +19,7 @@ const category = (page: Page, name: string) =>
 test("every page renders with honest empty states", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/");
-  await expect(page.getByText("Get started")).toBeVisible();
+  await expect(page.getByText(/Start here/)).toBeVisible();
   await page.goto("/progress");
   await expect(page.getByText("No progress yet")).toBeVisible();
   await page.goto("/challenges");
@@ -79,6 +79,11 @@ test("challenge: fix the overloaded database and pass", async ({ page }) => {
   await expect(page.getByText("How to think about it")).toBeVisible(); // explanation opens on first pass
   await page.keyboard.press("Escape");
   await expect(panel(page)).toContainText("Passed");
+  await expect(page.getByText("Solved", { exact: true }).first()).toBeVisible();
+
+  // Move on to the next challenge.
+  await page.getByRole("link", { name: "Next challenge" }).click();
+  await expect(page).toHaveURL(/\/challenges\/single-point-of-failure/);
 
   await page.goto("/progress");
   await expect(page.getByText("1 / 16")).toBeVisible();
@@ -222,11 +227,11 @@ test("build: product problems with requirements and a reference architecture", a
   await page.keyboard.press("Escape");
 
   // The unchanged reference passes but earns nothing.
-  await page.getByRole("button", { name: "Reference", exact: true }).click();
-  await page.getByRole("button", { name: "Load reference" }).click();
+  await page.getByRole("button", { name: "Reveal solution", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Reveal solution" }).click();
   await expect(nodes(page)).toHaveCount(11);
   await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(page.getByText(/That's the reference design, unchanged/)).toBeVisible();
+  await expect(page.getByText(/That's the revealed solution, unchanged/)).toBeVisible();
 
   // Make it yours (add a third LB replica) and it counts.
   await page.locator(".react-flow__node", { hasText: "Load Balancer" }).click();
@@ -234,6 +239,16 @@ test("build: product problems with requirements and a reference architecture", a
   await replicas.fill("3");
   await replicas.press("Enter");
   await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(page.getByText(/Design accepted! Score/)).toBeVisible();
+  await expect(page.getByText(/Solved! Score/)).toBeVisible();
+  await page.goto("/build");
+  await expect(page.locator("main li a", { hasText: "Shopping App" })).toContainText("Solved");
   expect(errors).toEqual([]);
+});
+
+test("challenges can reveal their solution", async ({ page }) => {
+  await page.goto("/challenges/missing-index");
+  await page.getByRole("button", { name: "Reveal solution", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Reveal solution" }).click();
+  await page.getByRole("button", { name: /Run simulation/ }).click();
+  await expect(panel(page)).toContainText("Passed");
 });

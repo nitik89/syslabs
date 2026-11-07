@@ -211,3 +211,14 @@ export function longestStreak(activeDays: string[]): number {
 function newId(ts: string, n: number): string {
   return `d_${ts.replace(/\D/g, "")}_${n}`;
 }
+
+/** Levels: every level needs 250 XP. */
+export const XP_PER_LEVEL = 250;
+export function levelOf(xp: number): { level: number; into: number; toNext: number } {
+  const level = Math.floor(xp / XP_PER_LEVEL) + 1;
+  const into = xp % XP_PER_LEVEL;
+  return { level, into, toNext: XP_PER_LEVEL - into };
+}
+
+/** Fired on window after progress changes, so the shell can refresh its counts. */
+export const PROGRESS_EVENT = "syslab:progress";

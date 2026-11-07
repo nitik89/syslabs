@@ -55,38 +55,38 @@
 }
 
 :root {
-  /* SysLab is dark-only: near-black canvas with electric accents. */
+  /* SysLab is dark-only. Neutral graphite surfaces; one brand gradient: aqua → iris → orchid. */
   color-scheme: dark;
   --radius: 0.625rem;
 
-  --background: oklch(0.13 0.008 270);
-  --foreground: oklch(0.96 0.005 270);
-  --card: oklch(0.17 0.012 270);
-  --card-foreground: oklch(0.96 0.005 270);
-  --popover: oklch(0.18 0.014 270);
-  --popover-foreground: oklch(0.96 0.005 270);
-  --primary: oklch(0.66 0.2 258);
+  --background: oklch(0.118 0.004 265);
+  --foreground: oklch(0.965 0.003 265);
+  --card: oklch(0.158 0.005 265);
+  --card-foreground: oklch(0.965 0.003 265);
+  --popover: oklch(0.175 0.006 265);
+  --popover-foreground: oklch(0.965 0.003 265);
+  --primary: oklch(0.68 0.18 272);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.23 0.016 270);
-  --secondary-foreground: oklch(0.94 0.005 270);
-  --muted: oklch(0.22 0.012 270);
-  --muted-foreground: oklch(0.7 0.015 270);
-  --accent: oklch(0.25 0.03 275);
-  --accent-foreground: oklch(0.97 0.005 270);
-  --destructive: oklch(0.66 0.21 22);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 13%);
-  --ring: oklch(0.66 0.2 258);
+  --secondary: oklch(0.215 0.006 265);
+  --secondary-foreground: oklch(0.94 0.004 265);
+  --muted: oklch(0.205 0.005 265);
+  --muted-foreground: oklch(0.69 0.01 265);
+  --accent: oklch(0.235 0.012 272);
+  --accent-foreground: oklch(0.97 0.004 265);
+  --destructive: oklch(0.67 0.2 20);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.68 0.18 272);
 
-  /* Brand accents */
-  --brand-blue: oklch(0.66 0.2 258);
-  --brand-violet: oklch(0.64 0.22 295);
-  --brand-cyan: oklch(0.8 0.14 210);
+  /* Brand: names kept for compatibility (blue = iris, violet = orchid, cyan = aqua). */
+  --brand-blue: oklch(0.68 0.18 272);
+  --brand-violet: oklch(0.7 0.19 318);
+  --brand-cyan: oklch(0.84 0.13 188);
 
   /* Health status (used by sim UI) */
-  --status-ok: oklch(0.76 0.17 155);
-  --status-warn: oklch(0.82 0.16 80);
-  --status-crit: oklch(0.66 0.21 22);
+  --status-ok: oklch(0.78 0.16 158);
+  --status-warn: oklch(0.83 0.15 78);
+  --status-crit: oklch(0.67 0.2 20);
 
   --chart-1: var(--brand-blue);
   --chart-2: var(--brand-violet);
@@ -94,13 +94,13 @@
   --chart-4: var(--status-ok);
   --chart-5: var(--status-warn);
 
-  --sidebar: oklch(0.15 0.01 270);
-  --sidebar-foreground: oklch(0.9 0.008 270);
+  --sidebar: oklch(0.135 0.004 265);
+  --sidebar-foreground: oklch(0.9 0.005 265);
   --sidebar-primary: var(--brand-blue);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.22 0.025 275);
-  --sidebar-accent-foreground: oklch(0.97 0.005 270);
-  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-accent: color-mix(in oklch, var(--brand-blue) 14%, transparent);
+  --sidebar-accent-foreground: oklch(0.97 0.004 265);
+  --sidebar-border: oklch(1 0 0 / 7%);
   --sidebar-ring: var(--brand-blue);
 }
 
@@ -110,6 +110,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(900px 500px at 100% -10%, color-mix(in oklch, var(--brand-violet) 7%, transparent), transparent 70%),
+      radial-gradient(800px 500px at 0% 110%, color-mix(in oklch, var(--brand-cyan) 5%, transparent), transparent 70%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
@@ -129,8 +133,39 @@
       linear-gradient(to bottom, oklch(1 0 0 / 4%) 1px, transparent 1px);
     background-size: 28px 28px;
   }
+  .bg-dots {
+    background-image: radial-gradient(oklch(1 0 0 / 9%) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+  /* Soft brand light behind page headers. */
+  .bg-aurora {
+    background:
+      radial-gradient(700px 260px at 85% -20%, color-mix(in oklch, var(--brand-violet) 14%, transparent), transparent 70%),
+      radial-gradient(600px 240px at 10% -30%, color-mix(in oklch, var(--brand-cyan) 8%, transparent), transparent 70%);
+  }
+  /* Raised card: hairline border with a lighter top edge. */
+  .surface {
+    background: linear-gradient(180deg, oklch(1 0 0 / 2.5%), transparent 40%), var(--card);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 4%), 0 1px 2px oklch(0 0 0 / 30%);
+  }
+  .surface-hover {
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  }
+  .surface-hover:hover {
+    border-color: color-mix(in oklch, var(--brand-blue) 45%, transparent);
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 5%), 0 14px 36px -14px color-mix(in oklch, var(--brand-violet) 40%, transparent);
+  }
+  .bg-brand-gradient {
+    background-image: linear-gradient(90deg, var(--brand-blue), var(--brand-violet));
+    color: white;
+  }
+  .shadow-brand {
+    box-shadow: 0 8px 24px -10px color-mix(in oklch, var(--brand-violet) 65%, transparent);
+  }
   .glow-brand {
-    box-shadow: 0 0 0 1px oklch(0.66 0.2 258 / 35%), 0 8px 32px -8px oklch(0.64 0.22 295 / 45%);
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--brand-blue) 35%, transparent), 0 8px 32px -8px color-mix(in oklch, var(--brand-violet) 40%, transparent);
   }
 }
 

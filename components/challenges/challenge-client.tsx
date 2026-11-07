@@ -3,18 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, BookOpen, Lightbulb, Loader2, ScrollText } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Eye, Lightbulb, Loader2, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
 import { CATALOG, simulate, type SimGraph, type SimResult } from "@/lib/sim";
-import { getRepo, type ChallengeRecord, type DesignDoc } from "@/lib/storage";
+import { PROGRESS_EVENT, getRepo, type ChallengeRecord, type DesignDoc } from "@/lib/storage";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Designer } from "@/components/lab/designer";
 import { LoadDesignButton, ResetButton, SaveDesignButton, type CurrentDesign } from "@/components/lab/design-actions";
 import { ObjectiveList, ScoreCard } from "./score-card";
+import { DifficultyPill } from "./challenge-list";
+import { cn } from "@/lib/utils";
 
 type Phase = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; doc: DesignDoc; key: number };
 
@@ -37,7 +39,7 @@ function startingDoc(ch: Challenge): DesignDoc {
   return { ...structuredClone(ch.startingDesign), traffic: { ...ch.traffic } };
 }
 
-export function ChallengeClient({ challenge }: { challenge: Challenge }) {
+export function ChallengeClient({ challenge, next }: { challenge: Challenge; next?: { id: string; title: string } }) {
   const isBuild = challenge.mode === "build";
   const basePath = isBuild ? "/build" : "/challenges";
   const noun = isBuild ? "problem" : "challenge";
@@ -50,6 +52,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
   const [explanationOpen, setExplanationOpen] = useState(false);
   const draftWarned = useRef(false);
   const router = useRouter();
+  const nextHref = next ? `${basePath}/${next.id}` : null;
   const params = useSearchParams();
   // Read ?design= once: clearing it from the URL afterwards must not reload the draft over it.
   const [designParam] = useState(() => params.get("design"));
@@ -102,7 +105,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
       const s = scoreChallenge(challenge, result, doc.graph);
       // The reference design, run unchanged, is a worked example: score it, but don't record it or award XP.
       if (challenge.reference && sameGraph(doc.graph, challenge.reference.graph)) {
-        toast.info("That's the reference design, unchanged. Change something to make it yours and earn XP.");
+        toast.info("That's the revealed solution, unchanged. Change something to make it yours and mark it solved.");
         return;
       }
       try {
@@ -110,15 +113,20 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
         const rec = progress.challenges[challenge.id];
         const firstPass = s.passed && rec.firstPassedAt === rec.lastAttemptAt;
         setRecord(rec);
+        window.dispatchEvent(new Event(PROGRESS_EVENT));
         if (firstPass) {
-          toast.success(`${isBuild ? "Design accepted" : "Challenge passed"}! Score ${s.total}. +${xpGained} XP`);
+          toast.success(`Solved! Score ${s.total}. +${xpGained} XP`, {
+            description: next ? `Up next: ${next.title}` : `That was the last ${noun}. Nice work!`,
+            ...(nextHref ? { action: { label: "Next →", onClick: () => router.push(nextHref) } } : {}),
+            duration: 8000,
+          });
           setExplanationOpen(true);
         } else if (xpGained > 0) toast.success(`New best: ${s.total}. +${xpGained} XP`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not record your attempt.");
       }
     },
-    [challenge, isBuild],
+    [challenge, next, nextHref, noun, router],
   );
 
   const pendingObjectives = useMemo(() => {
@@ -211,12 +219,12 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
           ))}
         </ul>
       </section>}
-      {isBuild && challenge.reference && (
+      {challenge.reference && (
         <section className="space-y-1.5">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reference architecture</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solution</h3>
           <p className="text-[12px] text-muted-foreground">
-            Really stuck? Use <span className="font-medium text-foreground">Reference</span> in the canvas toolbar to load a design that meets every objective, then
-            study or improve it.
+            Really stuck? Use <span className="font-medium text-foreground">Reveal solution</span> in the canvas toolbar to load a design that meets every objective,
+            then study it. Change it and run it to mark the {noun} solved.
           </p>
         </section>
       )}
@@ -234,19 +242,25 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
   );
 
   return (
-    <div className="flex flex-1 flex-col lg:h-dvh">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border/60 px-4 py-3 md:px-6">
+    <div className="flex flex-1 flex-col lg:h-[calc(100dvh-3rem)]">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border bg-sidebar/60 px-4 py-2.5 md:px-5">
         <Link href={basePath} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label={isBuild ? "Back to build problems" : "Back to challenges"}>
           <ArrowLeft />
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="truncate text-lg font-semibold tracking-tight">{challenge.title}</h1>
-            {challenge.category && <Badge variant="secondary">{challenge.category}</Badge>}
-            <Badge variant="outline">{challenge.difficulty}</Badge>
-            {record?.passed && <Badge className="bg-status-ok/15 text-status-ok">Passed</Badge>}
+            <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+              {isBuild ? challenge.category : `#${String(challenge.order).padStart(2, "0")}`} /
+            </span>
+            <h1 className="truncate text-[15px] font-semibold tracking-tight">{challenge.title}</h1>
+            <DifficultyPill difficulty={challenge.difficulty} />
+            {record?.passed && (
+              <span className="flex items-center gap-1 rounded-full bg-status-ok/12 px-2 py-0.5 text-[11px] font-medium text-status-ok">
+                <CheckCircle2 className="size-3" aria-hidden="true" /> Solved
+              </span>
+            )}
           </div>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="truncate text-[11.5px] text-muted-foreground">
             {record ? `Best score ${record.bestScore} · ${record.attempts} attempt${record.attempts === 1 ? "" : "s"}` : challenge.summary}
           </p>
         </div>
@@ -276,6 +290,18 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
             <div className="px-4 pb-6">{explanation}</div>
           </SheetContent>
         </Sheet>
+        {nextHref && (
+          <Link
+            href={nextHref}
+            className={cn(
+              buttonVariants({ variant: record?.passed ? "default" : "ghost", size: "sm" }),
+              record?.passed && "bg-brand-gradient shadow-brand border-0 hover:opacity-90",
+            )}
+            title={`Next ${noun}: ${next!.title}`}
+          >
+            Next <ArrowRight />
+          </Link>
+        )}
       </div>
 
       {state.phase === "loading" && (
@@ -311,7 +337,22 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
           onRun={(r, d) => void onRun(r, d)}
           resultsExtra={({ getDoc, result, stale }) =>
             result ? (
-              <ScoreCard score={scoreChallenge(challenge, result, getDoc().graph)} stale={stale} />
+              <>
+                {record?.passed && (
+                  <section className="flex items-center gap-2 rounded-xl border border-status-ok/30 bg-status-ok/10 p-3 text-xs">
+                    <CheckCircle2 className="size-4 shrink-0 text-status-ok" aria-hidden="true" />
+                    <span className="flex-1">
+                      <span className="font-semibold">Solved</span> · best {record.bestScore}
+                    </span>
+                    {nextHref && (
+                      <Link href={nextHref} className={buttonVariants({ size: "xs" })}>
+                        Next {noun} <ArrowRight />
+                      </Link>
+                    )}
+                  </section>
+                )}
+                <ScoreCard score={scoreChallenge(challenge, result, getDoc().graph)} stale={stale} />
+              </>
             ) : (
               <section className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
                 <h3 className="text-xs font-semibold">Objectives</h3>
@@ -337,16 +378,16 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
               />
               {challenge.reference && (
                 <ResetButton
-                  title="Load the reference architecture?"
-                  description="Replaces the canvas with a design that meets every objective. Undo brings yours back, and you can still earn full XP by improving it."
+                  title="Reveal the solution?"
+                  description="Replaces the canvas with a design that meets every objective. Undo brings yours back. Running it unchanged scores it but doesn't mark the problem solved; change something to make it yours."
                   trigger={
                     <>
-                      <BookOpen /> Reference
+                      <Eye /> Reveal solution
                     </>
                   }
                   options={[
                     {
-                      label: "Load reference",
+                      label: "Reveal solution",
                       onSelect: () => {
                         loadDoc({ ...structuredClone(challenge.reference!), traffic: { ...challenge.traffic } });
                         setCurrent(null);

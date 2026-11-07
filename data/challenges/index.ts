@@ -44,3 +44,8 @@ export const CHALLENGES: Challenge[] = ([
 export function getChallenge(id: string): Challenge | undefined {
   return CHALLENGES.find((c) => c.id === id);
 }
+
+/** Where a challenge or build problem lives in the app. */
+export function problemPath(c: { id: string; mode?: "fix" | "build" }): string {
+  return c.mode === "build" ? `/build/${c.id}` : `/challenges/${c.id}`;
+}

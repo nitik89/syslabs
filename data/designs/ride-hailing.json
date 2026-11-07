@@ -1,0 +1,266 @@
+{
+  "id": "ride-hailing",
+  "order": 5,
+  "title": "Ride-Hailing App",
+  "difficulty": "Hard",
+  "summary": "Design an Uber-style dispatch system: live driver locations and matching without double-assigning drivers.",
+  "scenario": [
+    "Drivers send their location every few seconds. Riders request trips, and the system assigns the nearest free driver.",
+    "Two riders must never get the same driver, even when they request at the same moment."
+  ],
+  "mode": "build",
+  "category": "Mobility",
+  "requirements": {
+    "functional": [
+      "Drivers stream live locations",
+      "Riders see nearby cars",
+      "Match a rider to one free driver",
+      "Track the trip"
+    ],
+    "nonFunctional": [
+      "Matching and updates under 55 ms on average",
+      "A driver is never assigned twice",
+      "No single point of failure"
+    ]
+  },
+  "estimates": [
+    "2M active drivers + riders \u2248 15,000 requests/s at peak",
+    "40% of requests are writes (locations, trip updates)",
+    "40% of writes race for the same driver"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 55 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 55
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "unsafe",
+      "label": "No double bookings (contended writes are locked)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,600",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2600
+    },
+    {
+      "id": "uses-ws",
+      "label": "Locations stream over WebSockets",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "websocketGateway"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "ws-1",
+          "kind": "websocketGateway",
+          "label": "Location Gateway",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "dispatch",
+          "kind": "appServer",
+          "label": "Dispatch Service",
+          "config": {
+            "replicas": 15
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Nearby Drivers Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Trips & Locations",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "zk-1",
+          "kind": "zookeeper",
+          "label": "Driver Locks",
+          "config": {}
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->ws-1",
+          "source": "client-1",
+          "target": "ws-1"
+        },
+        {
+          "id": "e:ws-1->dispatch",
+          "source": "ws-1",
+          "target": "dispatch"
+        },
+        {
+          "id": "e:dispatch->cache-1",
+          "source": "dispatch",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:dispatch->db-1",
+          "source": "dispatch",
+          "target": "db-1"
+        },
+        {
+          "id": "e:dispatch->zk-1",
+          "source": "dispatch",
+          "target": "zk-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "ws-1": {
+        "x": 250,
+        "y": 60
+      },
+      "dispatch": {
+        "x": 500,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 750,
+        "y": 60
+      },
+      "db-1": {
+        "x": 750,
+        "y": 190
+      },
+      "zk-1": {
+        "x": 750,
+        "y": 320
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 15000,
+    "readRatio": 0.6,
+    "hotKeyFraction": 0.5,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.4
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Millions of phones sending updates every few seconds need persistent connections. Which component holds them?",
+    "Assigning a driver is check-then-write: \"is this driver free?\" followed by \"assign\". What stops two requests from doing that at once?",
+    "WebSocket Gateway (3) \u2192 Dispatch (15) \u2192 Cache (2) + NoSQL (3), and Dispatch \u2192 ZooKeeper (3 nodes) for driver locks."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 50,
+    "costBudget": 2400
+  },
+  "explanation": [
+    "Location updates are a firehose of small writes. A partitioned NoSQL store spreads them across shards, and a cache serves \"drivers near me\" lookups.",
+    "Driver assignment is a distributed race. A lock (ZooKeeper or Redis) per driver makes the check-then-assign atomic across all dispatch servers.",
+    "ZooKeeper needs a quorum, so run 3 nodes: one can fail without losing locking.",
+    "Real systems index locations geospatially (geohash or H3 cells) so \"nearby\" becomes a key lookup instead of a distance calculation over every driver."
+  ]
+}

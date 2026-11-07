@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Flame, FlaskConical, FolderOpen, Sparkles, Target, Trophy } from "lucide-react";
 import { CHALLENGES } from "@/data/challenges";
+import { getDesign } from "@/data/designs";
 import { currentStreak } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { buttonVariants } from "@/components/ui/button";
@@ -100,7 +101,11 @@ export function DashboardView() {
                 {designs.slice(0, 3).map((d) => (
                   <li key={d.id}>
                     <Link
-                      href={d.challengeId ? `/challenges/${d.challengeId}?design=${encodeURIComponent(d.id)}` : `/lab?design=${encodeURIComponent(d.id)}`}
+                      href={
+                        d.challengeId
+                          ? `${getDesign(d.challengeId) ? `/build/${d.challengeId}` : `/challenges/${d.challengeId}`}?design=${encodeURIComponent(d.id)}`
+                          : `/lab?design=${encodeURIComponent(d.id)}`
+                      }
                       className="block rounded-2xl border border-border bg-card p-4 outline-none transition-colors hover:border-brand-blue/50 focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <p className="truncate text-sm font-medium">{d.name}</p>

@@ -15,6 +15,7 @@ const DIFF_TONE: Record<Challenge["difficulty"], string> = {
 };
 
 export function ChallengeList({ challenges }: { challenges: Challenge[] }) {
+  const pathOf = (c: Challenge) => (c.mode === "build" ? `/build/${c.id}` : `/challenges/${c.id}`);
   // null = still loading progress; the cards render immediately either way.
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [failed, setFailed] = useState(false);
@@ -51,7 +52,7 @@ export function ChallengeList({ challenges }: { challenges: Challenge[] }) {
           return (
             <li key={c.id}>
               <Link
-                href={`/challenges/${c.id}`}
+                href={pathOf(c)}
                 className={cn(
                   "group flex h-full flex-col gap-3 rounded-2xl border bg-card p-5 outline-none transition-all",
                   "hover:border-brand-blue/50 hover:shadow-[0_8px_32px_-12px_var(--brand-violet)] focus-visible:ring-2 focus-visible:ring-ring",
@@ -59,7 +60,9 @@ export function ChallengeList({ challenges }: { challenges: Challenge[] }) {
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">#{String(c.order).padStart(2, "0")}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {c.mode === "build" ? c.category : `#${String(c.order).padStart(2, "0")}`}
+                  </span>
                   <div className="flex items-center gap-1.5">
                     {rec?.passed && (
                       <Badge className="bg-status-ok/15 text-status-ok">
@@ -77,7 +80,7 @@ export function ChallengeList({ challenges }: { challenges: Challenge[] }) {
                 </div>
                 <div className="mt-auto flex items-center justify-between border-t border-border pt-3 text-xs">
                   <span className="text-muted-foreground">
-                    {c.objectives.length} objectives ·{" "}
+                    {c.mode === "build" ? `${c.requirements?.functional.length ?? 0} requirements` : `${c.objectives.length} objectives`} ·{" "}
                     {progress === null ? (
                       <span className="inline-block h-3 w-16 animate-pulse rounded bg-secondary align-middle" aria-label="Loading score" />
                     ) : rec ? (

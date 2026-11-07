@@ -1,0 +1,294 @@
+{
+  "id": "collaborative-docs",
+  "order": 9,
+  "title": "Collaborative Docs",
+  "difficulty": "Hard",
+  "summary": "Design a Google Docs-style editor: many people typing in the same document, live, without overwriting each other.",
+  "scenario": [
+    "Users open documents and edit them together, seeing each other's cursors and changes live.",
+    "Two people often edit the same paragraph at the same moment; edits must not be lost."
+  ],
+  "mode": "build",
+  "category": "Productivity",
+  "requirements": {
+    "functional": [
+      "Open and edit documents",
+      "See collaborators' edits live",
+      "Never lose concurrent edits",
+      "Load the editor app quickly"
+    ],
+    "nonFunctional": [
+      "Edits apply in under 50 ms on average",
+      "No lost edits",
+      "No single point of failure",
+      "Cost under $1,600 / month"
+    ]
+  },
+  "estimates": [
+    "8,000 requests/s at peak, 20% of them editor assets (JS, fonts)",
+    "Half of API calls are edits",
+    "60% of edits collide with someone else's"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 50 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 50
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "unsafe",
+      "label": "No double bookings (contended writes are locked)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,600",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1600
+    },
+    {
+      "id": "uses-ws",
+      "label": "Edits sync live over WebSockets",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "websocketGateway"
+      ]
+    },
+    {
+      "id": "uses-cdn",
+      "label": "The editor app loads from a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cdn",
+          "label": "App CDN",
+          "config": {}
+        },
+        {
+          "id": "ws-1",
+          "kind": "websocketGateway",
+          "label": "Collab Gateway",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "doc",
+          "kind": "appServer",
+          "label": "Document Service",
+          "config": {
+            "replicas": 6
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Open Docs Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "lock-1",
+          "kind": "redisLock",
+          "label": "Section Locks",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Documents",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:client-1->ws-1",
+          "source": "client-1",
+          "target": "ws-1"
+        },
+        {
+          "id": "e:ws-1->doc",
+          "source": "ws-1",
+          "target": "doc"
+        },
+        {
+          "id": "e:doc->cache-1",
+          "source": "doc",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:doc->lock-1",
+          "source": "doc",
+          "target": "lock-1"
+        },
+        {
+          "id": "e:doc->db-1",
+          "source": "doc",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 250,
+        "y": 60
+      },
+      "ws-1": {
+        "x": 250,
+        "y": 190
+      },
+      "doc": {
+        "x": 500,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 750,
+        "y": 60
+      },
+      "lock-1": {
+        "x": 750,
+        "y": 190
+      },
+      "db-1": {
+        "x": 750,
+        "y": 320
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 8000,
+    "readRatio": 0.5,
+    "hotKeyFraction": 0.6,
+    "staticFraction": 0.2,
+    "contendedWriteFraction": 0.6
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Live collaboration needs the server to push other people's changes. Which component does that?",
+    "Concurrent edits to the same section need coordination. In this simulator that's a lock service; real editors use OT or CRDTs.",
+    "Client \u2192 CDN, and Client \u2192 WebSocket Gateway (2) \u2192 Document Service (6) \u2192 Cache (2) + Redis Lock (2) + NoSQL (2)."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 45,
+    "costBudget": 1400
+  },
+  "explanation": [
+    "Each open document lives on one document server, and every client is connected to it over a WebSocket, so edits are broadcast instantly.",
+    "Real editors resolve conflicts with Operational Transformation (Google Docs) or CRDTs (Figma, many newer editors). Both let concurrent edits merge instead of overwrite.",
+    "The lock here stands in for that coordination: without it, two writers silently clobber each other.",
+    "Snapshots plus an operation log make documents durable, and let you rebuild any version."
+  ]
+}

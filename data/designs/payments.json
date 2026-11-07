@@ -1,0 +1,261 @@
+{
+  "id": "payments",
+  "order": 6,
+  "title": "Payments System",
+  "difficulty": "Hard",
+  "summary": "Design a Stripe-style payments API: correct balances, no double charges, and no downtime.",
+  "scenario": [
+    "Merchants call your API to charge cards and check balances. Every payment updates an account ledger.",
+    "Retries and concurrent requests on the same account are common, and a double charge is unacceptable."
+  ],
+  "mode": "build",
+  "category": "Fintech",
+  "requirements": {
+    "functional": [
+      "Create charges",
+      "Check balances and payment status",
+      "Update the ledger exactly once per payment",
+      "Authenticate and rate-limit API clients"
+    ],
+    "nonFunctional": [
+      "Strongly consistent ledger",
+      "No double charges",
+      "No single point of failure",
+      "Cost under $1,200 / month"
+    ]
+  },
+  "estimates": [
+    "1,500 API requests/s at peak",
+    "40% are writes (charges, refunds)",
+    "Half of writes touch an account that's busy at that moment"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "unsafe",
+      "label": "No double bookings (contended writes are locked)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,200",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1200
+    },
+    {
+      "id": "uses-sql",
+      "label": "The ledger lives in a strongly consistent SQL database",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "sqlDb"
+      ]
+    },
+    {
+      "id": "uses-gateway",
+      "label": "Requests pass through an API gateway (auth, rate limits)",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "apiGateway"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "gw-1",
+          "kind": "apiGateway",
+          "label": "API Gateway",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "pay",
+          "kind": "appServer",
+          "label": "Payments Service",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "lock-1",
+          "kind": "redisLock",
+          "label": "Account Locks",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "postgres",
+          "label": "Ledger DB",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->gw-1",
+          "source": "client-1",
+          "target": "gw-1"
+        },
+        {
+          "id": "e:gw-1->pay",
+          "source": "gw-1",
+          "target": "pay"
+        },
+        {
+          "id": "e:pay->lock-1",
+          "source": "pay",
+          "target": "lock-1"
+        },
+        {
+          "id": "e:pay->db-1",
+          "source": "pay",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "gw-1": {
+        "x": 250,
+        "y": 60
+      },
+      "pay": {
+        "x": 500,
+        "y": 60
+      },
+      "lock-1": {
+        "x": 750,
+        "y": 60
+      },
+      "db-1": {
+        "x": 750,
+        "y": 190
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 1500,
+    "readRatio": 0.6,
+    "hotKeyFraction": 0.3,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.5
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Money needs transactions and constraints. Which database family gives you that?",
+    "Concurrent charges on the same account must be serialized. Clients also retry, so writes need to be idempotent.",
+    "API Gateway (2) \u2192 Payments Service (2) \u2192 Redis Lock (2) and Postgres (3 replicas: writes on the primary, balance reads on replicas)."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 50,
+    "costBudget": 1000
+  },
+  "explanation": [
+    "A ledger is append-only: every payment writes balanced debit and credit entries in one SQL transaction, and the balance is derived from them.",
+    "Idempotency keys make retries safe: the API stores the key with the result, and a repeated request returns the stored result instead of charging again.",
+    "Per-account locks (or SELECT \u2026 FOR UPDATE) stop two concurrent charges from both passing a balance check.",
+    "The API gateway handles authentication and per-merchant rate limits before requests reach the payments service."
+  ]
+}

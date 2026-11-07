@@ -1,0 +1,323 @@
+{
+  "id": "social-feed",
+  "order": 3,
+  "title": "Social Media Feed",
+  "difficulty": "Hard",
+  "summary": "Design an Instagram-style feed: photos, a home timeline, and celebrity posts seen by millions.",
+  "scenario": [
+    "Users post photos and scroll a home feed of posts from people they follow. Celebrities have tens of millions of followers.",
+    "Most traffic is people scrolling feeds and loading images; posting is comparatively rare."
+  ],
+  "mode": "build",
+  "category": "Social",
+  "requirements": {
+    "functional": [
+      "Upload and view photos",
+      "Home feed of followed accounts",
+      "Like and comment",
+      "Fan out new posts to followers' feeds"
+    ],
+    "nonFunctional": [
+      "Feed loads in under 50 ms on average",
+      "No single point of failure",
+      "Fan-out keeps up (no backlog)",
+      "Cost under $2,200 / month"
+    ]
+  },
+  "estimates": [
+    "100M daily users \u2248 30,000 requests/s at peak",
+    "60% of requests are images",
+    "90% of API calls are reads; celebrity posts make keys very hot"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 45 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 45
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,200",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2200
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Photos are served by a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Feeds are served from a cache",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "New posts fan out asynchronously",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cdn",
+          "label": "Image CDN",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "feed",
+          "kind": "appServer",
+          "label": "Feed Service",
+          "config": {
+            "replicas": 12
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Feed Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "queue-1",
+          "kind": "sqs",
+          "label": "Fan-out Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Fan-out Workers",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Posts & Timelines",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->feed",
+          "source": "lb-1",
+          "target": "feed"
+        },
+        {
+          "id": "e:feed->cache-1",
+          "source": "feed",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:feed->queue-1",
+          "source": "feed",
+          "target": "queue-1"
+        },
+        {
+          "id": "e:queue-1->worker-1",
+          "source": "queue-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:feed->db-1",
+          "source": "feed",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 250,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 250,
+        "y": 190
+      },
+      "feed": {
+        "x": 500,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 750,
+        "y": 60
+      },
+      "queue-1": {
+        "x": 750,
+        "y": 190
+      },
+      "worker-1": {
+        "x": 1000,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1250,
+        "y": 60
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 30000,
+    "readRatio": 0.9,
+    "hotKeyFraction": 0.8,
+    "staticFraction": 0.6
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "18,000 rps of the traffic are images. Don't let them touch your servers.",
+    "Feeds are read far more than written and celebrity posts are extremely hot: cache feeds. Posting should only enqueue a fan-out job.",
+    "Client \u2192 CDN, and Client \u2192 LB (3) \u2192 Feed Service (12) \u2192 Cache (2 \u00d7 32 GB) and NoSQL (2). Feed Service \u2192 Queue \u2192 Fan-out Workers (2) \u2192 NoSQL."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2000
+  },
+  "explanation": [
+    "Fan-out on write: when someone posts, workers push the post id into each follower's precomputed timeline, so reading a feed is a single cheap lookup.",
+    "Celebrities break fan-out on write (writing to 50M timelines per post), so real systems mix strategies: fan out for normal users, and merge celebrity posts in at read time.",
+    "Images are by far the most bytes. A CDN serves them from the edge, and the originals live in object storage.",
+    "A feed cache with high hot-key affinity absorbs most reads, which lets a modest NoSQL cluster handle the rest."
+  ]
+}

@@ -1,0 +1,272 @@
+{
+  "id": "notification-system",
+  "order": 8,
+  "title": "Notification System",
+  "difficulty": "Medium",
+  "summary": "Design a system that sends push, email and SMS notifications at scale without falling behind.",
+  "scenario": [
+    "Every product event (a like, a message, a shipped order) can trigger notifications to users through push, email or SMS.",
+    "Delivery providers are slow, so sending must happen in the background, and nothing may pile up."
+  ],
+  "mode": "build",
+  "category": "Messaging",
+  "requirements": {
+    "functional": [
+      "Accept notification requests from other services",
+      "Deliver push, email and SMS",
+      "Store notification history",
+      "Retry failed deliveries"
+    ],
+    "nonFunctional": [
+      "Accept requests instantly",
+      "Delivery keeps up (no backlog)",
+      "Every component under 80% utilization",
+      "Cost under $2,400 / month"
+    ]
+  },
+  "estimates": [
+    "10,000 notification requests/s at peak",
+    "90% are sends (writes)",
+    "Users occasionally open their notification inbox (reads)"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "headroom",
+      "label": "No component above 80% utilization",
+      "metric": "maxUtilization",
+      "op": "<=",
+      "value": 0.8
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,400",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2400
+    },
+    {
+      "id": "uses-queue",
+      "label": "Requests are queued",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Workers deliver notifications in the background",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Notification API",
+          "config": {
+            "replicas": 10
+          }
+        },
+        {
+          "id": "kafka-1",
+          "kind": "kafka",
+          "label": "Notification Log",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Delivery Workers",
+          "config": {
+            "replicas": 6
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Notification History",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->kafka-1",
+          "source": "api",
+          "target": "kafka-1"
+        },
+        {
+          "id": "e:kafka-1->worker-1",
+          "source": "kafka-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->db-1",
+          "source": "api",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 250,
+        "y": 60
+      },
+      "api": {
+        "x": 500,
+        "y": 60
+      },
+      "kafka-1": {
+        "x": 750,
+        "y": 60
+      },
+      "worker-1": {
+        "x": 1000,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1250,
+        "y": 60
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 10000,
+    "readRatio": 0.1,
+    "hotKeyFraction": 0.2,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "The API should only accept and enqueue. Who does the slow delivery?",
+    "Producers add 9,000 jobs/s. Workers must remove at least that many, with headroom.",
+    "LB (2) \u2192 API (10) \u2192 Kafka \u2192 Delivery Workers (6) \u2192 NoSQL (3), plus API \u2192 NoSQL for inbox reads."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2200
+  },
+  "explanation": [
+    "Accept fast, deliver later: the API validates and appends to a durable log, and returns. Workers consume at their own pace and retry failures with backoff.",
+    "Consumer capacity must exceed the producer rate, or lag grows forever. Size workers for the peak with headroom.",
+    "Real systems add per-user preferences and rate limits (don't send 50 pushes a minute), and dead-letter queues for messages that keep failing."
+  ]
+}

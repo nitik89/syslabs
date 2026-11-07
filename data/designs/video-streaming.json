@@ -1,0 +1,335 @@
+{
+  "id": "video-streaming",
+  "order": 4,
+  "title": "Video Streaming",
+  "difficulty": "Medium",
+  "summary": "Design a YouTube-style platform: smooth playback for millions and background processing for uploads.",
+  "scenario": [
+    "Viewers stream videos as small segments. Creators upload videos that must be transcoded into multiple resolutions before they can be watched.",
+    "Almost all bytes are video segments; the API handles metadata, recommendations and view counts."
+  ],
+  "mode": "build",
+  "category": "Media",
+  "requirements": {
+    "functional": [
+      "Stream videos smoothly",
+      "Browse video pages and metadata",
+      "Upload videos",
+      "Transcode uploads into multiple resolutions"
+    ],
+    "nonFunctional": [
+      "Playback starts fast (low average latency)",
+      "No single point of failure",
+      "Transcoding keeps up with uploads",
+      "Cost under $1,800 / month"
+    ]
+  },
+  "estimates": [
+    "50,000 requests/s at peak, 90% of them video segments",
+    "95% of API calls are reads, popular videos dominate",
+    "Uploads are rare but heavy"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 35 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 35
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,800",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1800
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Video segments are served by a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    },
+    {
+      "id": "uses-storage",
+      "label": "Videos are stored in object storage",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "objectStorage"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Uploads are transcoded in the background",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cdn",
+          "label": "Video CDN",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Video API",
+          "config": {
+            "replicas": 5
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Metadata Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "queue-1",
+          "kind": "sqs",
+          "label": "Upload Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Transcoders",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "s3-1",
+          "kind": "s3",
+          "label": "Video Storage",
+          "config": {}
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Video Metadata",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:api->queue-1",
+          "source": "api",
+          "target": "queue-1"
+        },
+        {
+          "id": "e:queue-1->worker-1",
+          "source": "queue-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->s3-1",
+          "source": "worker-1",
+          "target": "s3-1"
+        },
+        {
+          "id": "e:api->db-1",
+          "source": "api",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 250,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 250,
+        "y": 190
+      },
+      "api": {
+        "x": 500,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 750,
+        "y": 60
+      },
+      "queue-1": {
+        "x": 750,
+        "y": 190
+      },
+      "worker-1": {
+        "x": 1000,
+        "y": 60
+      },
+      "s3-1": {
+        "x": 1250,
+        "y": 60
+      },
+      "db-1": {
+        "x": 750,
+        "y": 320
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 50000,
+    "readRatio": 0.95,
+    "hotKeyFraction": 0.85,
+    "staticFraction": 0.9
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "90% of traffic is video. Where should it be served from?",
+    "Uploads shouldn't block the API: put each upload on a queue for Transcoder workers, which write the results to object storage.",
+    "Client \u2192 CDN (2) and Client \u2192 LB (2) \u2192 Video API (5) \u2192 Metadata Cache + NoSQL. API \u2192 Queue \u2192 Transcoders (2) \u2192 S3."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 30,
+    "costBudget": 1600
+  },
+  "explanation": [
+    "Video is streamed as small segments (HLS/DASH) so the CDN can cache them and players can switch resolution mid-stream.",
+    "Transcoding is slow and CPU-heavy, so it runs as background jobs. The upload request just stores the original and enqueues work.",
+    "Object storage is the durable home for every rendition. The CDN pulls segments from it on a cache miss.",
+    "The API itself is small and read-heavy: a metadata cache and a NoSQL store handle titles, views and recommendations."
+  ]
+}

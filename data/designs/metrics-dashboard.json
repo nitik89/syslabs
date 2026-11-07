@@ -1,0 +1,253 @@
+{
+  "id": "metrics-dashboard",
+  "order": 11,
+  "title": "Metrics & Analytics",
+  "difficulty": "Medium",
+  "summary": "Design a Datadog-style metrics pipeline: ingest a firehose of data points and power dashboards.",
+  "scenario": [
+    "Thousands of servers send metrics every few seconds. Users open dashboards that chart them over time.",
+    "Ingestion is relentless and must never fall behind."
+  ],
+  "mode": "build",
+  "category": "Data",
+  "requirements": {
+    "functional": [
+      "Ingest metric data points",
+      "Store them by time",
+      "Query ranges for dashboards"
+    ],
+    "nonFunctional": [
+      "Ingestion keeps up (no backlog)",
+      "No single point of failure",
+      "Cost under $2,400 / month"
+    ]
+  },
+  "estimates": [
+    "20,000 requests/s at peak",
+    "95% are writes (data points)",
+    "Dashboards read recent time ranges"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,400",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2400
+    },
+    {
+      "id": "uses-tsdb",
+      "label": "Metrics are stored in a time-series database",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "timeseriesDb"
+      ]
+    },
+    {
+      "id": "uses-stream",
+      "label": "Ingestion is buffered by a stream or queue",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "ingest",
+          "kind": "appServer",
+          "label": "Ingest API",
+          "config": {
+            "replicas": 20
+          }
+        },
+        {
+          "id": "stream-1",
+          "kind": "kinesis",
+          "label": "Metrics Stream",
+          "config": {}
+        },
+        {
+          "id": "tsdb-1",
+          "kind": "timeseriesDb",
+          "label": "Metrics DB",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->ingest",
+          "source": "lb-1",
+          "target": "ingest"
+        },
+        {
+          "id": "e:ingest->stream-1",
+          "source": "ingest",
+          "target": "stream-1"
+        },
+        {
+          "id": "e:stream-1->tsdb-1",
+          "source": "stream-1",
+          "target": "tsdb-1"
+        },
+        {
+          "id": "e:ingest->tsdb-1",
+          "source": "ingest",
+          "target": "tsdb-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 250,
+        "y": 60
+      },
+      "ingest": {
+        "x": 500,
+        "y": 60
+      },
+      "stream-1": {
+        "x": 750,
+        "y": 60
+      },
+      "tsdb-1": {
+        "x": 1000,
+        "y": 60
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 20000,
+    "readRatio": 0.05,
+    "hotKeyFraction": 0.3,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Almost everything is a write of a timestamped number. Which database is built for that?",
+    "Buffer ingestion in a stream so a slow database never makes senders fail.",
+    "LB (2) \u2192 Ingest API (20) \u2192 Kinesis \u2192 Time-Series DB (2), plus Ingest \u2192 Time-Series DB for dashboard reads."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2200
+  },
+  "explanation": [
+    "Time-series databases store data sorted by series and time, compress it heavily, and answer range queries fast.",
+    "A stream (Kinesis, Kafka) absorbs bursts and lets several consumers (storage, alerting, anomaly detection) read the same data.",
+    "Downsampling (keep 1-second data for a day, 1-minute for a month) keeps storage and dashboard queries cheap."
+  ]
+}

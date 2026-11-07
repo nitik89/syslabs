@@ -205,3 +205,35 @@ test("lab: import a design file straight from Load", async ({ page }) => {
   await expect(panel(page)).not.toContainText("Idle components");
   expect(errors).toEqual([]);
 });
+
+test("build: product problems with requirements and a reference architecture", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/build");
+  await expect(page.getByRole("heading", { name: "Design real products from scratch" })).toBeVisible();
+  await expect(page.locator("main li a")).toHaveCount(12);
+
+  await page.getByRole("link", { name: /Shopping App/ }).click();
+  await expect(page).toHaveURL(/\/build\/shopping-app/);
+  await expect(nodes(page)).toHaveCount(1); // blank canvas: just the users
+
+  await page.getByRole("button", { name: /Requirements & hints/ }).click();
+  await expect(page.getByText("Place orders without overselling stock")).toBeVisible();
+  await expect(page.getByText(/Back-of-envelope/i)).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // The unchanged reference passes but earns nothing.
+  await page.getByRole("button", { name: "Reference", exact: true }).click();
+  await page.getByRole("button", { name: "Load reference" }).click();
+  await expect(nodes(page)).toHaveCount(11);
+  await page.getByRole("button", { name: /Run simulation/ }).click();
+  await expect(page.getByText(/That's the reference design, unchanged/)).toBeVisible();
+
+  // Make it yours (add a third LB replica) and it counts.
+  await page.locator(".react-flow__node", { hasText: "Load Balancer" }).click();
+  const replicas = page.getByLabel("Replicas", { exact: true });
+  await replicas.fill("3");
+  await replicas.press("Enter");
+  await page.getByRole("button", { name: /Run simulation/ }).click();
+  await expect(page.getByText(/Design accepted! Score/)).toBeVisible();
+  expect(errors).toEqual([]);
+});

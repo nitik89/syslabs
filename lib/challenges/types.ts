@@ -1,4 +1,4 @@
-import type { NodeKind, TrafficProfile } from "@/lib/sim";
+import type { BaseKind, NodeKind, TrafficProfile } from "@/lib/sim";
 import type { DesignDoc } from "@/lib/storage";
 
 export type ObjectiveMetric =
@@ -11,7 +11,8 @@ export type ObjectiveMetric =
   | "cacheHitRatio"
   | "maxUtilization"
   | "backlogRps"
-  | "unsafeWriteRps";
+  | "unsafeWriteRps"
+  | "componentLoad";
 
 export type ObjectiveOp = "<=" | ">=" | "==";
 
@@ -21,6 +22,8 @@ export interface Objective {
   metric: ObjectiveMetric;
   op: ObjectiveOp;
   value: number;
+  /** componentLoad only: total rps through components that behave like any of these (a requirement check). */
+  kinds?: BaseKind[];
 }
 
 export type ScoreCategory = "performance" | "reliability" | "cost" | "architecture";
@@ -47,4 +50,14 @@ export interface Challenge {
   hints: [string, string, string];
   scoring: ScoringConfig;
   explanation: string[];
+  /** "fix" (default): repair a broken design. "build": design a product from a blank canvas. */
+  mode?: "fix" | "build";
+  /** Build problems: product area, e.g. "E-commerce". */
+  category?: string;
+  /** Build problems: what the product must do, and how well. */
+  requirements?: { functional: string[]; nonFunctional: string[] };
+  /** Build problems: back-of-envelope numbers that lead to the traffic profile. */
+  estimates?: string[];
+  /** Build problems: a design that meets every objective, loadable onto the canvas. */
+  reference?: Omit<DesignDoc, "traffic">;
 }

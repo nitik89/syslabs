@@ -1,0 +1,373 @@
+{
+  "id": "shopping-app",
+  "order": 1,
+  "title": "Shopping App",
+  "difficulty": "Medium",
+  "summary": "Design an online store: fast product pages, product search, images, and a checkout that never oversells.",
+  "scenario": [
+    "You're building the backend for a mid-size online store (think a smaller Amazon). Shoppers browse the catalog, search for products, look at lots of images and occasionally check out.",
+    "Popular items get most of the views. During sales, many shoppers try to buy the last few units of the same item at once."
+  ],
+  "mode": "build",
+  "category": "E-commerce",
+  "requirements": {
+    "functional": [
+      "Browse product pages and categories",
+      "Search products by keyword",
+      "Show product images",
+      "Place orders without overselling stock",
+      "Send order confirmation emails"
+    ],
+    "nonFunctional": [
+      "Product pages load in well under 100 ms",
+      "Survives the loss of any single component",
+      "Monthly cost under $2,000"
+    ]
+  },
+  "estimates": [
+    "10M daily users \u00d7 ~50 requests each \u2248 6,000 requests/s at peak",
+    "Half of all requests are images, JS and CSS",
+    "85% of API calls are reads; 30% of writes fight over the same stock"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "unsafe",
+      "label": "No double bookings (contended writes are locked)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2000
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Product images are served by a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Product pages are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-search",
+      "label": "Product search runs on a search engine",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "search"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Order confirmations are processed asynchronously",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cloudfront",
+          "label": "CDN",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "catalog",
+          "kind": "appServer",
+          "label": "Catalog & Orders API",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "searchsvc",
+          "kind": "appServer",
+          "label": "Search Service",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Product Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "queue-1",
+          "kind": "sqs",
+          "label": "Order Events",
+          "config": {}
+        },
+        {
+          "id": "db-1",
+          "kind": "postgres",
+          "label": "Orders DB",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "lock-1",
+          "kind": "redisLock",
+          "label": "Stock Lock",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "es-1",
+          "kind": "elasticsearch",
+          "label": "Product Index",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->catalog",
+          "source": "lb-1",
+          "target": "catalog"
+        },
+        {
+          "id": "e:lb-1->searchsvc",
+          "source": "lb-1",
+          "target": "searchsvc"
+        },
+        {
+          "id": "e:catalog->cache-1",
+          "source": "catalog",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:catalog->queue-1",
+          "source": "catalog",
+          "target": "queue-1"
+        },
+        {
+          "id": "e:catalog->db-1",
+          "source": "catalog",
+          "target": "db-1"
+        },
+        {
+          "id": "e:queue-1->db-1",
+          "source": "queue-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:catalog->lock-1",
+          "source": "catalog",
+          "target": "lock-1"
+        },
+        {
+          "id": "e:searchsvc->es-1",
+          "source": "searchsvc",
+          "target": "es-1"
+        },
+        {
+          "id": "e:searchsvc->lock-1",
+          "source": "searchsvc",
+          "target": "lock-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 250,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 250,
+        "y": 190
+      },
+      "catalog": {
+        "x": 500,
+        "y": 60
+      },
+      "searchsvc": {
+        "x": 500,
+        "y": 190
+      },
+      "cache-1": {
+        "x": 750,
+        "y": 60
+      },
+      "queue-1": {
+        "x": 750,
+        "y": 190
+      },
+      "db-1": {
+        "x": 1000,
+        "y": 60
+      },
+      "lock-1": {
+        "x": 750,
+        "y": 320
+      },
+      "es-1": {
+        "x": 750,
+        "y": 450
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 6000,
+    "readRatio": 0.85,
+    "hotKeyFraction": 0.7,
+    "staticFraction": 0.5,
+    "contendedWriteFraction": 0.3
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Start from the traffic: half of it is static. What absorbs static files before they reach your servers?",
+    "Split the API: a Catalog & Orders service (cache in front of the database, a queue for order events) and a separate Search Service backed by a search engine, both behind the load balancer.",
+    "Checkout races for the same stock: connect a Redis Lock (2 replicas) to both services. Two of everything stateful (LB, cache, DB, lock, search) removes single points of failure."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 50,
+    "costBudget": 1800
+  },
+  "explanation": [
+    "The biggest wins come from routing each kind of traffic to the cheapest thing that can serve it: CDN for static files, cache for hot product pages, search engine for keyword queries.",
+    "Search is its own service because inverted indexes answer \"red running shoes\" in milliseconds, while LIKE '%red%' on SQL scans the whole table.",
+    "Checkout is the one place correctness beats speed: lock the item (or use a conditional UPDATE \u2026 WHERE stock > 0) so the last unit sells exactly once.",
+    "Order confirmation emails don't need to block checkout. Put an event on a queue and let workers send the email."
+  ]
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { FolderOpen, Loader2, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { getRepo, parseBackup, type DesignDoc, type SavedDesign } from "@/lib/storage";
@@ -263,16 +263,23 @@ export function ResetButton({
   options,
   title = "Reset canvas?",
   description = "Unsaved changes on the canvas will be lost. Saved designs are not affected.",
+  trigger,
 }: {
   options: Array<{ label: string; onSelect: () => void; destructive?: boolean }>;
   title?: string;
   description?: string;
+  /** Button content; defaults to the Reset icon and label. */
+  trigger?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="ghost" size="sm" />}>
-        <RotateCcw /> Reset
+        {trigger ?? (
+          <>
+            <RotateCcw /> Reset
+          </>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

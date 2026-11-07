@@ -25,8 +25,13 @@ export interface ChallengeScore {
 const clamp = (x: number, lo = 0, hi = 100) => Math.min(hi, Math.max(lo, x));
 const round = (x: number) => Math.round(x);
 
-export function metricValue(metric: ObjectiveMetric, r: SimResult): number | null {
+export function metricValue(metric: ObjectiveMetric, r: SimResult, o?: Objective, graph?: SimGraph): number | null {
   switch (metric) {
+    case "componentLoad": {
+      if (r.offeredRps <= 0 || !o?.kinds || !graph) return r.offeredRps > 0 ? 0 : null;
+      const wanted = new Set(o.kinds);
+      return graph.nodes.filter((n) => wanted.has(nodeSpec(n).behavior)).reduce((sum, n) => sum + (r.nodes[n.id]?.load ?? 0), 0);
+    }
     case "errorRate":
       return r.offeredRps > 0 ? r.errorRate : null;
     case "avgLatencyMs":
@@ -50,8 +55,8 @@ export function metricValue(metric: ObjectiveMetric, r: SimResult): number | nul
   }
 }
 
-export function evaluateObjective(o: Objective, r: SimResult): ObjectiveResult {
-  const actual = metricValue(o.metric, r);
+export function evaluateObjective(o: Objective, r: SimResult, graph?: SimGraph): ObjectiveResult {
+  const actual = metricValue(o.metric, r, o, graph);
   if (actual === null || !Number.isFinite(actual)) return { objective: o, actual, met: false };
   const eps = 1e-9;
   const met = o.op === "<=" ? actual <= o.value + eps : o.op === ">=" ? actual >= o.value - eps : Math.abs(actual - o.value) < eps;
@@ -175,6 +180,6 @@ export function scoreChallenge(ch: Challenge, r: SimResult, graph: SimGraph): Ch
     notes: raw[c][1],
   }));
   const total = round(categories.reduce((sum, c) => sum + c.score * c.weight, 0));
-  const objectives = ch.objectives.map((o) => evaluateObjective(o, r));
+  const objectives = ch.objectives.map((o) => evaluateObjective(o, r, graph));
   return { total, passed: !noTraffic && objectives.every((o) => o.met), categories, objectives };
 }

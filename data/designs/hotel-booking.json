@@ -1,0 +1,332 @@
+{
+  "id": "hotel-booking",
+  "order": 10,
+  "title": "Hotel Booking",
+  "difficulty": "Medium",
+  "summary": "Design an Airbnb-style site: searching stays, browsing listings, and booking without double-booking a room.",
+  "scenario": [
+    "Travelers search by city and dates, browse listings with many photos, and book a room for specific nights.",
+    "Popular listings get booked by several people at once around holidays."
+  ],
+  "mode": "build",
+  "category": "Travel",
+  "requirements": {
+    "functional": [
+      "Search listings by location and dates",
+      "View listing pages and photos",
+      "Book a room for specific nights",
+      "Never double-book a night"
+    ],
+    "nonFunctional": [
+      "Pages under 50 ms on average",
+      "No double bookings",
+      "No single point of failure",
+      "Cost under $1,800 / month"
+    ]
+  },
+  "estimates": [
+    "5,000 requests/s at peak, 40% of them photos",
+    "90% of API calls are reads",
+    "70% of bookings collide with another booking"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 50 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 50
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "unsafe",
+      "label": "No double bookings (contended writes are locked)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,800",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1800
+    },
+    {
+      "id": "uses-search",
+      "label": "Listing search runs on a search engine",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "search"
+      ]
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Photos are served by a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cdn",
+          "label": "Photo CDN",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "searchsvc",
+          "kind": "appServer",
+          "label": "Search Service",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "es-1",
+          "kind": "elasticsearch",
+          "label": "Listings Index",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "booking",
+          "kind": "appServer",
+          "label": "Booking Service",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Listing Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "postgres",
+          "label": "Bookings DB",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "lock-1",
+          "kind": "redisLock",
+          "label": "Room Locks",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->searchsvc",
+          "source": "lb-1",
+          "target": "searchsvc"
+        },
+        {
+          "id": "e:lb-1->booking",
+          "source": "lb-1",
+          "target": "booking"
+        },
+        {
+          "id": "e:searchsvc->es-1",
+          "source": "searchsvc",
+          "target": "es-1"
+        },
+        {
+          "id": "e:searchsvc->lock-1",
+          "source": "searchsvc",
+          "target": "lock-1"
+        },
+        {
+          "id": "e:booking->cache-1",
+          "source": "booking",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:booking->db-1",
+          "source": "booking",
+          "target": "db-1"
+        },
+        {
+          "id": "e:booking->lock-1",
+          "source": "booking",
+          "target": "lock-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 250,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 250,
+        "y": 190
+      },
+      "searchsvc": {
+        "x": 500,
+        "y": 60
+      },
+      "es-1": {
+        "x": 750,
+        "y": 60
+      },
+      "booking": {
+        "x": 500,
+        "y": 190
+      },
+      "cache-1": {
+        "x": 750,
+        "y": 190
+      },
+      "db-1": {
+        "x": 750,
+        "y": 320
+      },
+      "lock-1": {
+        "x": 750,
+        "y": 450
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 5000,
+    "readRatio": 0.9,
+    "hotKeyFraction": 0.6,
+    "staticFraction": 0.4,
+    "contendedWriteFraction": 0.7
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Search by location and dates is a different workload from showing one listing. Give it its own service and data store.",
+    "Booking specific nights is the classic race: check availability, then write. Lock the room.",
+    "Client \u2192 CDN, and Client \u2192 LB (2) \u2192 Search Service (2) \u2192 Elasticsearch (2), and \u2192 Booking Service (2) \u2192 Cache + Postgres (2). Both services \u2192 Redis Lock (2)."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 45,
+    "costBudget": 1600
+  },
+  "explanation": [
+    "Search runs on a geo-aware index (Elasticsearch geo queries) with date availability as a filter, and is kept in sync from the bookings database.",
+    "Bookings live in SQL, where a unique constraint on (room, night) is the final guard against double-booking. The lock just makes conflicts rare and fast to resolve.",
+    "Listing pages are read-heavy and cacheable; photos belong on a CDN."
+  ]
+}

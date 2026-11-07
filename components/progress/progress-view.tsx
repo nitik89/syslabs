@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Award, CalendarDays, CheckCircle2, Flame, FolderOpen, Sparkles, Trash2, Trophy } from "lucide-react";
 import { toast } from "sonner";
-import { CHALLENGES, getChallenge } from "@/data/challenges";
+import { CHALLENGES, getChallenge, problemPath } from "@/data/challenges";
+import { getDesign } from "@/data/designs";
 import { currentStreak, getRepo, longestStreak, type SavedDesign } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -140,13 +141,13 @@ export function ProgressView() {
         ) : (
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
             {designs.map((d) => {
-              const ch = d.challengeId ? getChallenge(d.challengeId) : undefined;
+              const ch = d.challengeId ? (getChallenge(d.challengeId) ?? getDesign(d.challengeId)) : undefined;
               return (
                 <li key={d.id} className="flex flex-wrap items-center gap-3 p-4">
                   <div className="min-w-0 flex-1 basis-56">
                     <p className="truncate text-sm font-medium">{d.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {ch ? `Challenge: ${ch.title}` : "Lab"} · {d.graph.nodes.length} components · updated {fmtDate(d.updatedAt)}
+                      {ch ? `${ch.mode === "build" ? "Build" : "Challenge"}: ${ch.title}` : "Lab"} · {d.graph.nodes.length} components · updated {fmtDate(d.updatedAt)}
                     </p>
                   </div>
                   {confirmDelete === d.id ? (
@@ -164,7 +165,7 @@ export function ProgressView() {
                         <Trash2 />
                       </Button>
                       {ch ? (
-                        <Link href={`/challenges/${ch.id}?design=${encodeURIComponent(d.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                        <Link href={`${problemPath(ch)}?design=${encodeURIComponent(d.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                           Open in challenge
                         </Link>
                       ) : (

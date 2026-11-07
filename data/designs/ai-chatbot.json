@@ -1,0 +1,278 @@
+{
+  "id": "ai-chatbot",
+  "order": 7,
+  "title": "AI Chatbot (RAG)",
+  "difficulty": "Medium",
+  "summary": "Design a ChatGPT-style assistant over your company's documents: retrieval, model calls, streaming answers.",
+  "scenario": [
+    "Employees ask questions; the assistant retrieves relevant documents, sends them to an LLM with the question, and streams the answer back.",
+    "60% of requests need a model call. Models are slow and rate-limited."
+  ],
+  "mode": "build",
+  "category": "AI",
+  "requirements": {
+    "functional": [
+      "Ask questions in a chat UI",
+      "Retrieve relevant documents (RAG)",
+      "Generate answers with an LLM",
+      "Stream answers token by token",
+      "Keep conversation history"
+    ],
+    "nonFunctional": [
+      "Average latency under 600 ms",
+      "Stay within the model's rate limits (no errors)",
+      "No single point of failure",
+      "Cost under $2,000 / month"
+    ]
+  },
+  "estimates": [
+    "800 requests/s at peak",
+    "60% call a model; 90% are reads",
+    "Model rate limit: 500 calls/s per deployment"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 600 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 600
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2000
+    },
+    {
+      "id": "uses-llm",
+      "label": "Answers come from an LLM",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "llm"
+      ]
+    },
+    {
+      "id": "uses-retrieval",
+      "label": "Documents are retrieved from a vector or search index",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "search"
+      ]
+    },
+    {
+      "id": "uses-stream",
+      "label": "Answers stream to the browser (SSE or WebSockets)",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "websocketGateway"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "sse-1",
+          "kind": "sse",
+          "label": "Answer Stream",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "chat",
+          "kind": "appServer",
+          "label": "Chat API",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "llm-1",
+          "kind": "claude",
+          "label": "Claude",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "vec-1",
+          "kind": "pinecone",
+          "label": "Vector Index",
+          "config": {}
+        },
+        {
+          "id": "db-1",
+          "kind": "dynamodb",
+          "label": "Conversations",
+          "config": {}
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->sse-1",
+          "source": "client-1",
+          "target": "sse-1"
+        },
+        {
+          "id": "e:sse-1->chat",
+          "source": "sse-1",
+          "target": "chat"
+        },
+        {
+          "id": "e:chat->llm-1",
+          "source": "chat",
+          "target": "llm-1"
+        },
+        {
+          "id": "e:chat->vec-1",
+          "source": "chat",
+          "target": "vec-1"
+        },
+        {
+          "id": "e:chat->db-1",
+          "source": "chat",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "sse-1": {
+        "x": 250,
+        "y": 60
+      },
+      "chat": {
+        "x": 500,
+        "y": 60
+      },
+      "llm-1": {
+        "x": 750,
+        "y": 60
+      },
+      "vec-1": {
+        "x": 750,
+        "y": 190
+      },
+      "db-1": {
+        "x": 750,
+        "y": 320
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 800,
+    "readRatio": 0.9,
+    "hotKeyFraction": 0.4,
+    "staticFraction": 0,
+    "aiFraction": 0.6
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "AI request share is fixed at 60% here. What happens when 480 calls/s hit a model capped at 500?",
+    "RAG = retrieve then generate: the Chat API reads from a vector index and a conversation store, then calls the model. Answers should stream.",
+    "Client \u2192 SSE (2) \u2192 Chat API (2) \u2192 Claude (2 replicas, i.e. two deployments for rate limit headroom) + Pinecone + DynamoDB."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 500,
+    "costBudget": 1800
+  },
+  "explanation": [
+    "RAG grounds answers in your documents: embed the question, find the nearest document chunks in a vector index, and put them in the prompt.",
+    "Model latency dominates, so streaming matters: users see the first tokens in a few hundred ms instead of waiting for the whole answer.",
+    "Rate limits are a capacity limit. Near the limit, requests queue and latency explodes, so plan headroom with more deployments, a faster model, or caching common answers.",
+    "Model choice is a latency/quality/cost trade-off: a fast model (Groq-hosted) cuts latency sharply, and a larger model may answer better."
+  ]
+}

@@ -7,7 +7,7 @@ import { ArrowLeft, BookOpen, Lightbulb, Loader2, ScrollText } from "lucide-reac
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
-import { CATALOG, simulate, type SimResult } from "@/lib/sim";
+import { CATALOG, simulate, type SimGraph, type SimResult } from "@/lib/sim";
 import { getRepo, type ChallengeRecord, type DesignDoc } from "@/lib/storage";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,11 +18,29 @@ import { ObjectiveList, ScoreCard } from "./score-card";
 
 type Phase = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; doc: DesignDoc; key: number };
 
+/** Same components (kind + config) and same connections, ignoring ids' order, labels and positions. */
+function sameGraph(a: SimGraph, b: SimGraph): boolean {
+  const nodes = (g: SimGraph) =>
+    g.nodes
+      .map((n) => `${n.id}|${n.kind}|${JSON.stringify(Object.entries(n.config).sort(([x], [y]) => x.localeCompare(y)))}`)
+      .sort()
+      .join("\n");
+  const edges = (g: SimGraph) =>
+    g.edges
+      .map((e) => `${e.source}>${e.target}`)
+      .sort()
+      .join("\n");
+  return nodes(a) === nodes(b) && edges(a) === edges(b);
+}
+
 function startingDoc(ch: Challenge): DesignDoc {
   return { ...structuredClone(ch.startingDesign), traffic: { ...ch.traffic } };
 }
 
 export function ChallengeClient({ challenge }: { challenge: Challenge }) {
+  const isBuild = challenge.mode === "build";
+  const basePath = isBuild ? "/build" : "/challenges";
+  const noun = isBuild ? "problem" : "challenge";
   const draftScope = `challenge:${challenge.id}`;
   const [state, setState] = useState<Phase>({ phase: "loading" });
   const [record, setRecord] = useState<ChallengeRecord | null>(null);
@@ -45,7 +63,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
         const saved = designs.find((d) => d.id === designParam && d.challengeId === challenge.id);
         if (designParam) {
           if (!saved) toast.error("That saved design no longer exists.");
-          router.replace(`/challenges/${challenge.id}`);
+          router.replace(`${basePath}/${challenge.id}`);
         }
         // Traffic is always the challenge's, even if an old draft or save says otherwise.
         const base = saved ?? draft;
@@ -61,7 +79,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
     return () => {
       cancelled = true;
     };
-  }, [challenge, draftScope, designParam, router]);
+  }, [challenge, draftScope, designParam, router, basePath]);
 
   useEffect(() => boot(), [boot]);
 
@@ -82,20 +100,25 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
   const onRun = useCallback(
     async (result: SimResult, doc: DesignDoc) => {
       const s = scoreChallenge(challenge, result, doc.graph);
+      // The reference design, run unchanged, is a worked example: score it, but don't record it or award XP.
+      if (challenge.reference && sameGraph(doc.graph, challenge.reference.graph)) {
+        toast.info("That's the reference design, unchanged. Change something to make it yours and earn XP.");
+        return;
+      }
       try {
         const { progress, xpGained } = await getRepo().recordAttempt(challenge.id, s.total, s.passed);
         const rec = progress.challenges[challenge.id];
         const firstPass = s.passed && rec.firstPassedAt === rec.lastAttemptAt;
         setRecord(rec);
         if (firstPass) {
-          toast.success(`Challenge passed! Score ${s.total}. +${xpGained} XP`);
+          toast.success(`${isBuild ? "Design accepted" : "Challenge passed"}! Score ${s.total}. +${xpGained} XP`);
           setExplanationOpen(true);
         } else if (xpGained > 0) toast.success(`New best: ${s.total}. +${xpGained} XP`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not record your attempt.");
       }
     },
-    [challenge],
+    [challenge, isBuild],
   );
 
   const pendingObjectives = useMemo(() => {
@@ -113,6 +136,36 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
           </p>
         ))}
       </section>
+      {challenge.requirements && (
+        <section className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Must do</h3>
+            <ul className="list-disc space-y-1 pl-4 text-[12.5px]">
+              {challenge.requirements.functional.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Must be</h3>
+            <ul className="list-disc space-y-1 pl-4 text-[12.5px]">
+              {challenge.requirements.nonFunctional.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+      {challenge.estimates && (
+        <section className="space-y-1.5">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Back-of-envelope</h3>
+          <ul className="space-y-1 rounded-lg border border-border bg-secondary/30 p-2.5 font-mono text-[11.5px] leading-relaxed">
+            {challenge.estimates.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Traffic (fixed)</h3>
         <p className="font-mono text-[12px]">
@@ -120,6 +173,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
           {challenge.traffic.staticFraction > 0 && ` · ${Math.round(challenge.traffic.staticFraction * 100)}% static`}
           {(challenge.traffic.contendedWriteFraction ?? 0) > 0 &&
             ` · ${Math.round(challenge.traffic.contendedWriteFraction! * 100)}% of writes contended`}
+          {(challenge.traffic.aiFraction ?? 0) > 0 && ` · ${Math.round(challenge.traffic.aiFraction! * 100)}% call an AI model`}
         </p>
       </section>
       <section className="space-y-2">
@@ -146,7 +200,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
           </Button>
         )}
       </section>
-      <section className="space-y-2">
+      {!isBuild && <section className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Allowed components</h3>
         <p className="text-[12px] text-muted-foreground">Only these appear in the palette for this challenge.</p>
         <ul className="flex flex-wrap gap-1.5">
@@ -156,7 +210,16 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
             </li>
           ))}
         </ul>
-      </section>
+      </section>}
+      {isBuild && challenge.reference && (
+        <section className="space-y-1.5">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reference architecture</h3>
+          <p className="text-[12px] text-muted-foreground">
+            Really stuck? Use <span className="font-medium text-foreground">Reference</span> in the canvas toolbar to load a design that meets every objective, then
+            study or improve it.
+          </p>
+        </section>
+      )}
     </div>
   );
 
@@ -173,12 +236,13 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
   return (
     <div className="flex flex-1 flex-col lg:h-dvh">
       <div className="flex flex-wrap items-center gap-3 border-b border-border/60 px-4 py-3 md:px-6">
-        <Link href="/challenges" className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label="Back to challenges">
+        <Link href={basePath} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label={isBuild ? "Back to build problems" : "Back to challenges"}>
           <ArrowLeft />
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-lg font-semibold tracking-tight">{challenge.title}</h1>
+            {challenge.category && <Badge variant="secondary">{challenge.category}</Badge>}
             <Badge variant="outline">{challenge.difficulty}</Badge>
             {record?.passed && <Badge className="bg-status-ok/15 text-status-ok">Passed</Badge>}
           </div>
@@ -188,7 +252,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
         </div>
         <Sheet open={briefOpen} onOpenChange={setBriefOpen}>
           <SheetTrigger render={<Button variant="outline" size="sm" />}>
-            <ScrollText /> Brief & hints
+            <ScrollText /> {isBuild ? "Requirements & hints" : "Brief & hints"}
           </SheetTrigger>
           <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
             <SheetHeader>
@@ -216,7 +280,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
 
       {state.phase === "loading" && (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
-          <Loader2 className="size-4 animate-spin" /> Loading challenge…
+          <Loader2 className="size-4 animate-spin" /> Loading {noun}…
         </div>
       )}
       {state.phase === "error" && (
@@ -261,7 +325,7 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
                 getDoc={getDoc}
                 current={current}
                 challengeId={challenge.id}
-                defaultName={`${challenge.title} attempt`}
+                defaultName={`${challenge.title} ${isBuild ? "design" : "attempt"}`}
                 onSaved={(d) => setCurrent({ id: d.id, name: d.name })}
               />
               <LoadDesignButton
@@ -271,9 +335,29 @@ export function ChallengeClient({ challenge }: { challenge: Challenge }) {
                   setCurrent({ id: d.id, name: d.name });
                 }}
               />
+              {challenge.reference && (
+                <ResetButton
+                  title="Load the reference architecture?"
+                  description="Replaces the canvas with a design that meets every objective. Undo brings yours back, and you can still earn full XP by improving it."
+                  trigger={
+                    <>
+                      <BookOpen /> Reference
+                    </>
+                  }
+                  options={[
+                    {
+                      label: "Load reference",
+                      onSelect: () => {
+                        loadDoc({ ...structuredClone(challenge.reference!), traffic: { ...challenge.traffic } });
+                        setCurrent(null);
+                      },
+                    },
+                  ]}
+                />
+              )}
               <ResetButton
-                title="Reset challenge?"
-                description="Restores the starting design. Your best score and saved designs are kept."
+                title={isBuild ? "Start over?" : "Reset challenge?"}
+                description={isBuild ? "Clears the canvas back to just your users. Your best score and saved designs are kept." : "Restores the starting design. Your best score and saved designs are kept."}
                 options={[
                   {
                     label: "Reset to start",

@@ -1,0 +1,250 @@
+{
+  "id": "search-autocomplete",
+  "order": 12,
+  "title": "Search Autocomplete",
+  "difficulty": "Easy",
+  "summary": "Design type-ahead suggestions: answer every keystroke in milliseconds for millions of users.",
+  "scenario": [
+    "As users type in a search box, the app suggests completions after every keystroke.",
+    "A small set of popular queries accounts for most lookups."
+  ],
+  "mode": "build",
+  "category": "Search",
+  "requirements": {
+    "functional": [
+      "Suggest completions for a prefix",
+      "Rank popular queries first"
+    ],
+    "nonFunctional": [
+      "Average latency under 50 ms",
+      "No single point of failure",
+      "Cost under $3,000 / month"
+    ]
+  },
+  "estimates": [
+    "30,000 keystroke requests/s at peak",
+    "All reads",
+    "90% of prefixes are popular"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 50 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 50
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3000
+    },
+    {
+      "id": "uses-cache",
+      "label": "Popular prefixes are served from a cache",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-search",
+      "label": "Suggestions come from a search index",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "search"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Suggest API",
+          "config": {
+            "replicas": 30
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Prefix Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "es-1",
+          "kind": "elasticsearch",
+          "label": "Suggestion Index",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "monitoring-1",
+          "kind": "monitoring",
+          "label": "Monitoring",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->es-1",
+          "source": "cache-1",
+          "target": "es-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 250,
+        "y": 60
+      },
+      "api": {
+        "x": 500,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 750,
+        "y": 60
+      },
+      "es-1": {
+        "x": 1000,
+        "y": 60
+      },
+      "monitoring-1": {
+        "x": 0,
+        "y": 420
+      }
+    }
+  },
+  "traffic": {
+    "rps": 30000,
+    "readRatio": 1,
+    "hotKeyFraction": 0.9,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Every keystroke is a request, and most prefixes are popular. What answers repeated lookups in a millisecond?",
+    "Cache misses need an index that can find completions for a prefix quickly.",
+    "LB (2) \u2192 Suggest API (30) \u2192 Prefix Cache (2 \u00d7 32 GB) \u2192 Elasticsearch (3). Connect the cache to the index so misses fall through to it."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2800
+  },
+  "explanation": [
+    "Autocomplete is a prefix lookup. A trie (or an index with edge n-grams) maps each prefix to its top-k completions.",
+    "Because a few prefixes dominate, caching the top results per prefix absorbs almost all traffic.",
+    "Clients also debounce keystrokes (wait ~100 ms) and cache results locally, which cuts server load further."
+  ]
+}

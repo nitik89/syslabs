@@ -8,7 +8,7 @@ export default function ProgressPage() {
   return (
     <>
       <PageHeader eyebrow="Progress" title="Your progress" description="Scores, XP, streak and saved designs. Everything is stored locally in this browser." />
-      <div className="p-6 md:p-8">
+      <div className="px-6 pb-12 md:px-10">
         <ProgressView />
       </div>
     </>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Logo } from "./logo";
+import { CommandMenu } from "./command-menu";
 import { NAV_ITEMS, isActive, isWorkspace, type NavItem } from "./nav";
 
 const TOTAL = CHALLENGES.length + DESIGNS.length;
@@ -158,7 +159,9 @@ function StatsBar({ progress }: { progress: ProgressState | null }) {
   const value = (v: string | number) => <span className="font-mono font-semibold text-foreground">{progress ? v : "–"}</span>;
   return (
     <div className="flex h-12 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-6">
-      <span className="hidden truncate text-[13px] font-medium text-muted-foreground sm:block">{here?.label ?? "SysLab"}</span>
+      <span className="hidden shrink-0 text-[13px] font-medium text-foreground/90 lg:block">{here?.label ?? "SysLab"}</span>
+      <span className="hidden h-4 w-px bg-border lg:block" aria-hidden="true" />
+      <CommandMenu progress={progress} />
       <div className="ml-auto flex items-center gap-1.5 text-muted-foreground" aria-label="Your stats">
         <Link href="/progress" className={cn(chip, "outline-none transition-colors hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring")} title="Days in a row you've run a simulation">
           <Flame className={cn("size-3.5", streak > 0 ? "text-status-warn" : "")} aria-hidden="true" />

@@ -61,7 +61,7 @@ export function SaveDesignButton({
         if (o) setName(current?.name ?? defaultName);
       }}
     >
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
         <Save /> Save
       </DialogTrigger>
       <DialogContent>
@@ -172,7 +172,7 @@ export function LoadDesignButton({
         }
       }}
     >
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
         <FolderOpen /> Load
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">

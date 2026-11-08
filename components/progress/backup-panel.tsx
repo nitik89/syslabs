@@ -63,7 +63,7 @@ export function BackupPanel({ onImported }: { onImported: () => void }) {
   const passed = b ? Object.values(b.progress.challenges).filter((r) => r.passed).length : 0;
 
   return (
-    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border p-4" aria-labelledby="backup-h">
+    <section className="surface flex flex-wrap items-center justify-between gap-3 rounded-2xl p-5" aria-labelledby="backup-h">
       <div>
         <h2 id="backup-h" className="text-sm font-semibold">
           Backup

@@ -28,8 +28,8 @@
     },
     "positions": {
       "client-1": { "x": 0, "y": 100 },
-      "appServer-1": { "x": 300, "y": 100 },
-      "nosqlDb-1": { "x": 600, "y": 100 }
+      "appServer-1": { "x": 336, "y": 100 },
+      "nosqlDb-1": { "x": 672, "y": 100 }
     }
   },
   "traffic": { "rps": 900, "readRatio": 0.8, "hotKeyFraction": 0.5, "staticFraction": 0 },

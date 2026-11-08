@@ -86,7 +86,7 @@ test("challenge: fix the overloaded database and pass", async ({ page }) => {
   await expect(page).toHaveURL(/\/challenges\/single-point-of-failure/);
 
   await page.goto("/progress");
-  await expect(page.getByText("1 / 16")).toBeVisible();
+  await expect(page.getByText("1 / 28")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -195,7 +195,7 @@ test("lab: hide side panels to widen the canvas", async ({ page }) => {
   await page.getByRole("button", { name: /Run simulation/ }).click();
   await expect(panel(page)).toContainText("Simulated"); // results reopen the side panel
   await page.getByRole("button", { name: "Show components panel" }).click();
-  await expect(page.getByPlaceholder(/Search all/)).toBeVisible();
+  await expect(page.getByPlaceholder(/Search Kafka/)).toBeVisible();
 });
 
 test("lab: import a design file straight from Load", async ({ page }) => {

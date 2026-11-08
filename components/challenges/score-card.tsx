@@ -66,19 +66,58 @@ export function ObjectiveList({ results, pending }: { results: ObjectiveResult[]
   );
 }
 
+/** Circular gauge for the 0–100 score. */
+function ScoreRing({ value, passed }: { value: number; passed: boolean }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const color = passed ? "var(--status-ok)" : value >= 50 ? "var(--status-warn)" : "var(--status-crit)";
+  return (
+    <div className="relative size-[68px] shrink-0">
+      <svg viewBox="0 0 64 64" className="size-full -rotate-90" aria-hidden="true">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="oklch(1 0 0 / 8%)" strokeWidth="6" />
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - value / 100)}
+          style={{ transition: "stroke-dashoffset 0.8s ease" }}
+        />
+      </svg>
+      <span className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono text-lg font-bold leading-none">{value}</span>
+        <span className="text-[9px] text-muted-foreground">/ 100</span>
+      </span>
+    </div>
+  );
+}
+
 export function ScoreCard({ score, stale }: { score: ChallengeScore; stale: boolean }) {
   return (
-    <section className={cn("space-y-3 rounded-xl border p-3", score.passed ? "border-status-ok/40 bg-status-ok/5" : "border-border bg-secondary/30", stale && "opacity-60")} aria-label="Challenge score">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {score.passed ? <Trophy className="size-4 text-status-ok" aria-hidden="true" /> : <CircleX className="size-4 text-status-crit" aria-hidden="true" />}
-          <span className={cn("text-sm font-semibold", score.passed ? "text-status-ok" : "text-status-crit")}>{score.passed ? "Passed" : "Not passed yet"}</span>
+    <section
+      className={cn(
+        "space-y-3 rounded-2xl border p-4",
+        score.passed ? "border-status-ok/35 bg-gradient-to-br from-status-ok/10 to-transparent" : "surface",
+        stale && "opacity-60",
+      )}
+      aria-label="Challenge score"
+    >
+      <div className="flex items-center gap-4">
+        <ScoreRing value={score.total} passed={score.passed} />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center gap-1.5">
+            {score.passed ? <Trophy className="size-4 text-status-ok" aria-hidden="true" /> : <CircleX className="size-4 text-status-crit" aria-hidden="true" />}
+            <span className={cn("text-sm font-semibold", score.passed ? "text-status-ok" : "text-status-crit")}>{score.passed ? "Passed" : "Not passed yet"}</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {score.objectives.filter((o) => o.met).length} of {score.objectives.length} objectives met
+          </p>
+          <SimulatedTag />
         </div>
-        <SimulatedTag />
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className={cn("font-mono text-3xl font-bold", scoreTone(score.total))}>{score.total}</span>
-        <span className="text-xs text-muted-foreground">/ 100</span>
       </div>
       <ul className="space-y-2">
         {score.categories.map((c) => (

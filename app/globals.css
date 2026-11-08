@@ -229,3 +229,38 @@
 .react-flow .react-flow__attribution a {
   color: var(--muted-foreground);
 }
+
+/* Canvas polish: handles appear on hover/selection only; framed minimap and controls. */
+.react-flow .react-flow__node .react-flow__handle {
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.react-flow .react-flow__node:hover .react-flow__handle,
+.react-flow .react-flow__node.selected .react-flow__handle,
+.react-flow .react-flow__node:focus-visible .react-flow__handle,
+.react-flow .react-flow__handle.connectingfrom,
+.react-flow .react-flow__handle.connectingto {
+  opacity: 1;
+}
+.react-flow .react-flow__minimap {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--popover) 85%, transparent);
+  box-shadow: 0 12px 32px -12px black;
+}
+.react-flow .react-flow__controls {
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -12px black;
+}
+.react-flow .react-flow__controls-button {
+  width: 30px;
+  height: 30px;
+  border-bottom: 1px solid var(--border);
+}
+.react-flow .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+.react-flow .react-flow__edge-path {
+  stroke-linecap: round;
+}

@@ -32,9 +32,9 @@
     },
     "positions": {
       "client-1": { "x": 0, "y": 140 },
-      "loadBalancer-1": { "x": 250, "y": 140 },
-      "appServer-1": { "x": 500, "y": 140 },
-      "sqlDb-1": { "x": 760, "y": 140 }
+      "loadBalancer-1": { "x": 280, "y": 140 },
+      "appServer-1": { "x": 560, "y": 140 },
+      "sqlDb-1": { "x": 851, "y": 140 }
     }
   },
   "traffic": { "rps": 20000, "readRatio": 0.9, "hotKeyFraction": 0.85, "staticFraction": 0.7 },

@@ -1,12 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { localDay } from "@/lib/storage";
 
 export function StatTile({ icon: Icon, label, value, sub, accent }: { icon: LucideIcon; label: string; value: string; sub?: string; accent: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
+    <div className="surface rounded-2xl p-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className={cn("flex size-7 items-center justify-center rounded-lg", accent)}>
           <Icon className="size-3.5" aria-hidden="true" />
@@ -20,9 +20,19 @@ export function StatTile({ icon: Icon, label, value, sub, accent }: { icon: Luci
 }
 
 export function LoadingBlock({ label }: { label: string }) {
+  // Skeleton of a stats row and two panels, so the page doesn't jump when data arrives.
   return (
-    <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground" role="status">
-      <Loader2 className="size-4 animate-spin" /> {label}
+    <div className="space-y-6" role="status" aria-label={label}>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-[92px] rounded-2xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-64 rounded-2xl" />
+        <Skeleton className="h-64 rounded-2xl" />
+      </div>
+      <span className="sr-only">{label}</span>
     </div>
   );
 }

@@ -232,12 +232,12 @@ export function layout(g: SimGraph): DesignDoc["positions"] {
   for (const node of g.nodes) {
     const d = depth.get(node.id);
     if (d === undefined) {
-      pos[node.id] = { x: spare++ * 250, y: maxRows * 140 + 40 };
+      pos[node.id] = { x: spare++ * 280, y: maxRows * 140 + 40 };
       continue;
     }
     const row = rows.get(d) ?? 0;
     rows.set(d, row + 1);
-    pos[node.id] = { x: d * 250, y: row * 140 };
+    pos[node.id] = { x: d * 280, y: row * 140 };
   }
   return pos;
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowRight, Link2, Trash2, X } from "lucide-react";
+import { ArrowRight, Link2, Lock, Trash2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatio, nodeSpec, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
 import { fmtPct, fmtUsd } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -249,6 +250,7 @@ export function TrafficEditor({
   onChange: (t: TrafficProfile) => void;
   locked?: boolean;
 }) {
+  if (locked) return <LockedTraffic traffic={traffic} />;
   return (
     <div className="space-y-4">
       <div>
@@ -302,6 +304,69 @@ export function TrafficEditor({
         onChange={(v) => onChange({ ...traffic, aiFraction: v })}
         hint="Requests that call a model. Servers connected to an LLM make one call each."
       />
+    </div>
+  );
+}
+
+/** Read-only traffic for challenges: a summary card instead of disabled sliders. */
+function LockedTraffic({ traffic }: { traffic: TrafficProfile }) {
+  const pct = (v: number) => Math.round(v * 100);
+  const rows: Array<{ label: string; value: number; hint: string; tone: string }> = [
+    { label: "Hot keys", value: traffic.hotKeyFraction, hint: "Reads hitting popular keys. Higher means caches hit more often.", tone: "bg-brand-cyan" },
+    { label: "Static assets", value: traffic.staticFraction, hint: "Images, JS and CSS. A CDN absorbs these.", tone: "bg-brand-blue" },
+    { label: "Contended writes", value: traffic.contendedWriteFraction ?? 0, hint: "Writes racing for the same item. Needs a Redis Lock or ZooKeeper.", tone: "bg-status-warn" },
+    { label: "AI requests", value: traffic.aiFraction ?? 0, hint: "Requests that call a model.", tone: "bg-brand-violet" },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Traffic profile</h3>
+          <p className="text-xs text-muted-foreground">Set by this challenge. Design for it.</p>
+        </div>
+        <span className="flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground ring-1 ring-inset ring-border">
+          <Lock className="size-3" aria-hidden="true" /> Fixed
+        </span>
+      </div>
+
+      <div className="surface rounded-xl p-4">
+        <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Incoming load</p>
+        <p className="mt-1 font-mono text-[28px] font-semibold leading-none tracking-tight">
+          {traffic.rps.toLocaleString()}
+          <span className="ml-1.5 text-sm font-normal text-muted-foreground">rps</span>
+        </p>
+        <div className="mt-4 space-y-1.5">
+          <div className="flex h-2 overflow-hidden rounded-full bg-white/[0.06]" aria-hidden="true">
+            <div className="bg-brand-cyan" style={{ width: `${pct(traffic.readRatio)}%` }} />
+            <div className="bg-brand-violet" style={{ width: `${100 - pct(traffic.readRatio)}%` }} />
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-brand-cyan" aria-hidden="true" />
+              Reads <span className="font-mono text-muted-foreground">{pct(traffic.readRatio)}%</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-brand-violet" aria-hidden="true" />
+              Writes <span className="font-mono text-muted-foreground">{100 - pct(traffic.readRatio)}%</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <ul className="surface divide-y divide-border rounded-xl">
+        {rows.map((r) => (
+          <li key={r.label} className="space-y-1.5 px-4 py-3" title={r.hint}>
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="font-medium">{r.label}</span>
+              <span className={cn("font-mono", r.value > 0 ? "text-foreground" : "text-muted-foreground")}>{pct(r.value)}%</span>
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className={cn("h-full rounded-full", r.tone)} style={{ width: `${pct(r.value)}%` }} />
+            </div>
+            <p className="text-[11px] leading-snug text-muted-foreground">{r.hint}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

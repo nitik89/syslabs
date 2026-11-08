@@ -1,20 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronsLeft, GripVertical, Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CATALOG, isKindAllowed, type NodeKind, type Vendor } from "@/lib/sim";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PALETTE_GROUPS, type PaletteGroup } from "./kind-style";
+import { PALETTE_GROUPS } from "./kind-style";
 import { KindIcon } from "./kind-icon";
 
 export const DRAG_MIME = "application/x-syslab-kind";
 
 /**
- * Component palette: a category rail on the left and a dense tile grid for the active category.
- * Every category fits on one screen; search looks across all of them.
+ * Component palette: title bar, search, category chips and a list of components for the active category.
+ * Search looks across every category.
  */
-export function Palette({ allowed, onAdd }: { allowed?: NodeKind[]; onAdd: (kind: NodeKind) => void }) {
+export function Palette({ allowed, onAdd, onClose }: { allowed?: NodeKind[]; onAdd: (kind: NodeKind) => void; onClose?: () => void }) {
   const allowedSet = useMemo(() => (allowed ? new Set(allowed) : null), [allowed]);
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
@@ -28,6 +28,7 @@ export function Palette({ allowed, onAdd }: { allowed?: NodeKind[]; onAdd: (kind
       }).filter((g) => g.generic.length + g.services.length > 0),
     [allowedSet],
   );
+  const total = groups.reduce((n, g) => n + g.generic.length + g.services.length, 0);
   const [active, setActive] = useState(groups[0]?.title ?? "");
   const current = groups.find((g) => g.title === active) ?? groups[0];
 
@@ -38,105 +39,118 @@ export function Palette({ allowed, onAdd }: { allowed?: NodeKind[]; onAdd: (kind
   const results = q ? groups.map((g) => ({ ...g, generic: g.generic.filter(matches), services: g.services.filter(matches) })).filter((g) => g.generic.length + g.services.length > 0) : [];
 
   return (
-    <div className="flex h-full min-h-0" aria-label="Component palette">
-      {/* Category rail */}
-      <nav aria-label="Component categories" className="flex w-[66px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border/70 bg-background/30 py-2">
-        {groups.map((g) => {
-          const Icon = g.icon;
-          const on = !q && g.title === current?.title;
-          return (
+    <div className="flex h-full min-h-0 flex-col" aria-label="Component palette">
+      <div className="space-y-3 border-b border-border px-3 pb-3 pt-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-[13px] font-semibold">Components</h2>
+          <span className="rounded-full bg-white/[0.06] px-1.5 font-mono text-[10.5px] text-muted-foreground">{total}</span>
+          {onClose && (
             <button
-              key={g.title}
               type="button"
-              onClick={() => {
-                setActive(g.title);
-                setQuery("");
-              }}
-              aria-current={on ? "true" : undefined}
-              className={cn(
-                "relative mx-1 flex flex-col items-center gap-1 rounded-lg px-0.5 py-1.5 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                on ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-              )}
+              onClick={onClose}
+              aria-label="Hide components panel"
+              title="Hide components panel"
+              className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-white/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {on && <span className="absolute -left-1 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand-blue" aria-hidden="true" />}
-              <Icon className="size-4" aria-hidden="true" />
-              <span className="max-w-full truncate">{g.title}</span>
+              <ChevronsLeft className="size-4" aria-hidden="true" />
             </button>
-          );
-        })}
-      </nav>
-
-      {/* Tiles */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="space-y-1.5 border-b border-border/70 p-2">
-          <label className="relative block">
-            <span className="sr-only">Search components</span>
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search all: kafka, aws, claude…"
-              className="h-8 w-full rounded-lg border border-input bg-background/40 pl-7 pr-7 text-[12.5px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-              >
-                <X className="size-3.5" aria-hidden="true" />
-              </button>
-            )}
-          </label>
-          <p className="px-0.5 text-[10px] text-muted-foreground">Drag onto the canvas or click to add.</p>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {q ? (
-            results.length === 0 ? (
-              <p className="px-1 py-6 text-center text-[12px] text-muted-foreground">No components match &ldquo;{query}&rdquo;.</p>
-            ) : (
-              <div className="space-y-3">
-                {results.map((g) => (
-                  <TileSection key={g.title} title={g.title} kinds={[...g.generic, ...g.services]} onAdd={onAdd} />
-                ))}
-              </div>
-            )
-          ) : (
-            current && <GroupTiles group={current} onAdd={onAdd} />
           )}
         </div>
+        <label className="relative block">
+          <span className="sr-only">Search components</span>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search Kafka, AWS, Claude…"
+            className="h-8 w-full rounded-lg border border-input bg-white/[0.03] pl-8 pr-7 text-[12.5px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 [&::-webkit-search-cancel-button]:hidden"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </label>
+        {groups.length > 1 && (
+          <nav aria-label="Component categories" className="flex flex-wrap gap-1">
+            {groups.map((g) => {
+              const Icon = g.icon;
+              const on = !q && g.title === current?.title;
+              return (
+                <button
+                  key={g.title}
+                  type="button"
+                  onClick={() => {
+                    setActive(g.title);
+                    setQuery("");
+                  }}
+                  aria-current={on ? "true" : undefined}
+                  className={cn(
+                    "flex h-7 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-medium outline-none ring-1 ring-inset transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    on ? "bg-brand-blue/15 text-foreground ring-brand-blue/35" : "text-muted-foreground ring-transparent hover:bg-white/[0.05] hover:text-foreground",
+                  )}
+                >
+                  <Icon className={cn("size-3.5", on && "text-brand-blue")} aria-hidden="true" />
+                  {g.title}
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+        {q ? (
+          results.length === 0 ? (
+            <p className="px-2 py-8 text-center text-[12px] text-muted-foreground">No components match &ldquo;{query}&rdquo;.</p>
+          ) : (
+            <div className="space-y-4">
+              {results.map((g) => (
+                <ItemSection key={g.title} title={g.title} kinds={[...g.generic, ...g.services]} onAdd={onAdd} />
+              ))}
+            </div>
+          )
+        ) : (
+          current && (
+            <div className="space-y-4">
+              <ItemSection title={current.services.length > 0 ? "Building blocks" : current.title} kinds={current.generic} onAdd={onAdd} />
+              {current.services.length > 0 && <ItemSection title="Services" kinds={current.services} onAdd={onAdd} />}
+            </div>
+          )
+        )}
+      </div>
+
+      <p className="flex items-center gap-1.5 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+        <GripVertical className="size-3.5" aria-hidden="true" /> Drag onto the canvas, or click to add
+      </p>
     </div>
   );
 }
 
-function GroupTiles({ group, onAdd }: { group: PaletteGroup; onAdd: (kind: NodeKind) => void }) {
-  return (
-    <div className="space-y-3">
-      <TileSection title={group.services.length > 0 ? "Building blocks" : group.title} kinds={group.generic} onAdd={onAdd} />
-      {group.services.length > 0 && <TileSection title="Popular services" kinds={group.services} onAdd={onAdd} />}
-    </div>
-  );
-}
-
-function TileSection({ title, kinds, onAdd }: { title: string; kinds: NodeKind[]; onAdd: (kind: NodeKind) => void }) {
+function ItemSection({ title, kinds, onAdd }: { title: string; kinds: NodeKind[]; onAdd: (kind: NodeKind) => void }) {
   if (kinds.length === 0) return null;
   return (
     <section className="space-y-1">
-      <h3 className="px-0.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</h3>
-      <ul className="grid grid-cols-3 gap-1">
+      <h3 className="flex items-center justify-between px-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
+        {title}
+        <span className="font-mono font-normal tracking-normal">{kinds.length}</span>
+      </h3>
+      <ul className="space-y-px">
         {kinds.map((k) => (
-          <Tile key={k} kind={k} onAdd={onAdd} />
+          <Item key={k} kind={k} onAdd={onAdd} />
         ))}
       </ul>
     </section>
   );
 }
 
-function Tile({ kind, onAdd }: { kind: NodeKind; onAdd: (kind: NodeKind) => void }) {
+function Item({ kind, onAdd }: { kind: NodeKind; onAdd: (kind: NodeKind) => void }) {
   const spec = CATALOG[kind];
   return (
     <li>
@@ -152,19 +166,22 @@ function Tile({ kind, onAdd }: { kind: NodeKind; onAdd: (kind: NodeKind) => void
               }}
               onClick={() => onAdd(kind)}
               aria-label={`Add ${spec.label}: ${spec.short}`}
-              className={cn(
-                "relative flex h-[70px] w-full cursor-grab flex-col items-center justify-center gap-1 rounded-lg border border-border/60 bg-card/40 px-1 pb-1 pt-1.5 text-center outline-none transition-colors",
-                "hover:border-ring/60 hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing",
-                kind === "custom" && "border-dashed",
-              )}
+              className="group/item flex w-full cursor-grab items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none transition-colors hover:bg-white/[0.05] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
             />
           }
         >
-          {spec.vendor && <VendorMark vendor={spec.vendor} />}
           <KindIcon kind={kind} size="md" />
-          <span className="line-clamp-2 w-full overflow-hidden px-0.5 pb-px text-[10.5px] font-medium leading-[1.25] [overflow-wrap:normal] [word-break:normal]">{tileName(kind)}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12.5px] font-medium leading-tight">{spec.label}</span>
+            <span className="block truncate text-[11px] leading-tight text-muted-foreground">{spec.short}</span>
+          </span>
+          {spec.vendor ? (
+            <VendorMark vendor={spec.vendor} />
+          ) : (
+            <Plus className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100" aria-hidden="true" />
+          )}
         </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={8} className="max-w-72 p-0">
+        <TooltipContent side="right" sideOffset={10} className="max-w-72 p-0">
           <ComponentCard kind={kind} />
         </TooltipContent>
       </Tooltip>
@@ -210,45 +227,6 @@ function ComponentCard({ kind }: { kind: NodeKind }) {
   );
 }
 
-/** Tiles are narrow: short names for long labels (full name is in the hover card). */
-const TILE_NAMES: Partial<Record<NodeKind, string>> = {
-  serverless: "Serverless",
-  worker: "Worker",
-  websocketGateway: "WS Gateway",
-  timeseriesDb: "Time-Series DB",
-  objectStorage: "Object Storage",
-  codeRepo: "Code Repo",
-  ciPipeline: "CI/CD",
-  containerRegistry: "Registry",
-  fineTune: "Fine-tune Job",
-  kubernetes: "Kubernetes",
-  embeddings: "Embed API",
-  vercelAiGateway: "AI Gateway",
-  vercel: "Vercel",
-  vercelSandbox: "Vercel Sandbox",
-  cloudflareWorkers: "CF Workers",
-  agentService: "AI Agent",
-  pgvector: "pgvector",
-  playwright: "Playwright",
-  huggingface: "HF Inference",
-  huggingfaceHub: "HF Hub",
-  openaiFineTune: "OpenAI Fine-tune",
-  awsApiGateway: "API Gateway",
-  mongodbAtlas: "Atlas",
-  prometheus: "Prometheus",
-  githubActions: "Actions",
-  e2b: "E2B",
-  celery: "Celery",
-  rabbitmq: "RabbitMQ",
-  redisPubsub: "Redis Pub/Sub",
-  redisStreams: "Redis Streams",
-  sse: "SSE Stream",
-};
-
-function tileName(kind: NodeKind): string {
-  return TILE_NAMES[kind] ?? CATALOG[kind].label.replace(/^(AWS|Google|Apache|Anthropic|OpenAI) (?=\S)/, "");
-}
-
 const VENDOR_STYLE: Record<Vendor, { text: string; cls: string }> = {
   AWS: { text: "AWS", cls: "text-status-warn" },
   GCP: { text: "GCP", cls: "text-brand-blue" },
@@ -258,5 +236,7 @@ const VENDOR_STYLE: Record<Vendor, { text: string; cls: string }> = {
 
 function VendorMark({ vendor }: { vendor: Vendor }) {
   const v = VENDOR_STYLE[vendor];
-  return <span className={cn("absolute right-1 top-0.5 text-[7.5px] font-semibold uppercase tracking-wide opacity-80", v.cls)}>{v.text}</span>;
+  return (
+    <span className={cn("shrink-0 rounded px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wide ring-1 ring-inset ring-current/25", v.cls)}>{v.text}</span>
+  );
 }

@@ -38,13 +38,13 @@
     },
     "positions": {
       "client-1": { "x": 0, "y": 120 },
-      "apiGateway-1": { "x": 240, "y": 120 },
-      "loadBalancer-1": { "x": 480, "y": 120 },
-      "appServer-1": { "x": 720, "y": 120 },
-      "cache-1": { "x": 980, "y": 0 },
-      "sqlDb-1": { "x": 980, "y": 120 },
-      "nosqlDb-1": { "x": 980, "y": 240 },
-      "monitoring-1": { "x": 720, "y": 300 }
+      "apiGateway-1": { "x": 269, "y": 120 },
+      "loadBalancer-1": { "x": 538, "y": 120 },
+      "appServer-1": { "x": 806, "y": 120 },
+      "cache-1": { "x": 1098, "y": 0 },
+      "sqlDb-1": { "x": 1098, "y": 120 },
+      "nosqlDb-1": { "x": 1098, "y": 240 },
+      "monitoring-1": { "x": 806, "y": 300 }
     }
   },
   "traffic": { "rps": 1200, "readRatio": 0.85, "hotKeyFraction": 0.7, "staticFraction": 0 },

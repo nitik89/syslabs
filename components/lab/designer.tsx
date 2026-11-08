@@ -22,7 +22,7 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { Boxes, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Redo2, Undo2 } from "lucide-react";
+import { Boxes, ChevronsRight, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, nodeSpec, simulate, type NodeConfig, type NodeKind, type SimResult, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc } from "@/lib/storage";
@@ -120,6 +120,16 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     else void rootRef.current?.requestFullscreen?.();
   }, []);
   const rf = useReactFlow<SysNode, FlowEdge>();
+  // Re-fit when a drawer opens or closes, so the design uses the space it gains (skip the first render).
+  const drawersReady = useRef(false);
+  useEffect(() => {
+    if (!drawersReady.current) {
+      drawersReady.current = true;
+      return;
+    }
+    const id = requestAnimationFrame(() => void rf.fitView({ padding: 0.08, maxZoom: 1, duration: 250 }));
+    return () => cancelAnimationFrame(id);
+  }, [showPalette, showPanel, rf]);
 
   const allowed = useMemo(() => new Set<NodeKind>(allowedKinds ?? NODE_KINDS), [allowedKinds]);
   const markDirty = useCallback(() => setStale(true), []);
@@ -324,7 +334,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
       setStale(false);
       setSelectedId(null);
       setTab("inspect");
-      requestAnimationFrame(() => void rf.fitView({ padding: 0.2, duration: 250 }));
+      requestAnimationFrame(() => void rf.fitView({ padding: 0.08, maxZoom: 1, duration: 250 }));
     },
     [setNodes, setEdges, rf, record],
   );
@@ -422,8 +432,8 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
   return (
     <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background lg:flex-row", fullscreen && "h-screen")}>
       {/* Palette */}
-      <aside hidden={!showPalette} className="h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[256px] lg:border-b-0 lg:border-r">
-        <Palette allowed={allowedKinds} onAdd={addAtCenter} />
+      <aside hidden={!showPalette} className="h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[284px] lg:border-b-0 lg:border-r">
+        <Palette allowed={allowedKinds} onAdd={addAtCenter} onClose={() => setShowPalette(false)} />
       </aside>
 
       {/* Canvas */}
@@ -445,51 +455,53 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
           deleteKeyCode={["Backspace", "Delete"]}
           colorMode="dark"
           fitView
-          fitViewOptions={{ padding: 0.06, maxZoom: 1, minZoom: 0.72 }}
+          fitViewOptions={{ padding: 0.06, maxZoom: 1 }}
           minZoom={0.25}
           maxZoom={2}
           ariaLabelConfig={{ "node.a11yDescription.default": "Press Enter or Space to select. Use arrow keys to move. Press Delete to remove." }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.3} color="oklch(1 0 0 / 11%)" />
           <Controls showInteractive={false} position="bottom-left" />
-          <MiniMap pannable zoomable position="bottom-right" className="!hidden md:!block" nodeColor="color-mix(in oklch, var(--brand-blue) 55%, var(--card))" maskColor="oklch(0 0 0 / 55%)" />
-          <Panel position="top-left" className="!m-3 max-w-[calc(100%-11rem)]">
-            <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_black] backdrop-blur-md">
-              <Button size="sm" onClick={run} className="bg-brand-gradient shadow-brand border-0 hover:opacity-90">
+          {/* Only worth the space once a design outgrows the screen. */}
+          {nodes.length > 8 && (
+            <MiniMap
+              pannable
+              zoomable
+              position="bottom-right"
+              className="!hidden md:!block"
+              style={{ width: 168, height: 104 }}
+              nodeBorderRadius={8}
+              nodeColor="color-mix(in oklch, var(--brand-blue) 45%, var(--card))"
+              maskColor="oklch(0 0 0 / 45%)"
+            />
+          )}
+          <Panel position="top-left" className="!m-3 max-w-[calc(100%-1.5rem)]">
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_black] backdrop-blur-md">
+              {!showPalette && (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => setShowPalette(true)} aria-label="Show components panel" title="Show components panel">
+                    <Shapes /> Components
+                  </Button>
+                  <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                </>
+              )}
+              <Button size="sm" onClick={run} title="Run simulation (⌘↵)" className="bg-brand-gradient shadow-brand border-0 hover:opacity-90">
                 <Play /> Run simulation
-                <kbd className="ml-1 hidden rounded bg-white/15 px-1 font-mono text-[10px] sm:inline">⌘↵</kbd>
               </Button>
+              <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
               <Button variant="ghost" size="icon-sm" onClick={() => restore("undo")} disabled={!canUndo} aria-label="Undo" title="Undo (⌘Z)">
                 <Undo2 />
               </Button>
               <Button variant="ghost" size="icon-sm" onClick={() => restore("redo")} disabled={!canRedo} aria-label="Redo" title="Redo (⇧⌘Z)">
                 <Redo2 />
               </Button>
-              {actions && <Slot render={actions} ctx={ctx} />}
-            </div>
-          </Panel>
-          <Panel position="top-right" className="!m-3">
-            <div className="flex items-center gap-0.5 rounded-2xl border border-border bg-popover/90 p-1 shadow-[0_12px_32px_-12px_black] backdrop-blur-md" role="group" aria-label="Canvas layout">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowPalette((v) => !v)}
-                aria-pressed={!showPalette}
-                aria-label={showPalette ? "Hide components panel" : "Show components panel"}
-                title={showPalette ? "Hide components panel" : "Show components panel"}
-              >
-                {showPalette ? <PanelLeftClose /> : <PanelLeftOpen />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowPanel((v) => !v)}
-                aria-pressed={!showPanel}
-                aria-label={showPanel ? "Hide side panel" : "Show side panel"}
-                title={showPanel ? "Hide traffic and results panel" : "Show traffic and results panel"}
-              >
-                {showPanel ? <PanelRightClose /> : <PanelRightOpen />}
-              </Button>
+              {actions && (
+                <>
+                  <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                  <Slot render={actions} ctx={ctx} />
+                </>
+              )}
+              <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -499,6 +511,11 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
               >
                 {fullscreen ? <Minimize2 /> : <Maximize2 />}
               </Button>
+              {!showPanel && (
+                <Button variant="ghost" size="sm" onClick={() => setShowPanel(true)} aria-label="Show side panel" title="Show traffic and results panel">
+                  <SlidersHorizontal /> Details
+                </Button>
+              )}
             </div>
           </Panel>
         </ReactFlow>
@@ -520,14 +537,17 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
       {/* Inspector / results */}
       <aside hidden={!showPanel} className="shrink-0 overflow-y-auto border-t border-border bg-sidebar/60 lg:w-[300px] lg:border-l lg:border-t-0">
         <Tabs value={tab} onValueChange={(v) => setTab(v as "inspect" | "results")} className="gap-0">
-          <div className="sticky top-0 z-10 border-b border-border bg-sidebar/95 p-2 backdrop-blur">
-            <TabsList className="w-full">
+          <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-border bg-sidebar/95 p-2 backdrop-blur">
+            <TabsList className="flex-1">
               <TabsTrigger value="inspect">{selected ? "Component" : "Traffic"}</TabsTrigger>
               <TabsTrigger value="results">
                 Results
                 {result && stale && <span className="ml-1 size-1.5 rounded-full bg-status-warn" aria-label="(outdated)" />}
               </TabsTrigger>
             </TabsList>
+            <Button variant="ghost" size="icon-sm" onClick={() => setShowPanel(false)} aria-label="Hide side panel" title="Hide traffic and results panel">
+              <ChevronsRight />
+            </Button>
           </div>
           <TabsContent value="inspect" className="p-4">
             {selected ? (
@@ -547,8 +567,9 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
             ) : (
               <div className="space-y-5">
                 <TrafficEditor traffic={traffic} onChange={changeTraffic} locked={trafficLocked} />
-                <p className="rounded-lg border border-border bg-secondary/40 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                  Select a component to edit its capacity, latency, replicas and cost, or to connect it by keyboard.
+                <p className="flex gap-2.5 rounded-xl border border-dashed border-border p-3 text-[11.5px] leading-relaxed text-muted-foreground">
+                  <MousePointerClick className="mt-0.5 size-4 shrink-0 text-brand-blue" aria-hidden="true" />
+                  <span>Select a component to tune its capacity, replicas and cost, or connect it by keyboard. Double-click a name to rename it.</span>
                 </p>
               </div>
             )}

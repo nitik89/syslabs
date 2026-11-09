@@ -254,7 +254,7 @@ test("build: product problems with requirements and a reference architecture", a
   await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(page.getByText(/Accepted! Score/)).toBeVisible();
   await page.goto("/build");
-  await expect(page.locator("main li a", { hasText: "Shopping App" })).toContainText("Solved");
+  await expect(page.locator("main li a").filter({ has: page.getByRole("heading", { name: "Shopping App", exact: true }) })).toContainText("Solved");
   expect(errors).toEqual([]);
 });
 
@@ -265,4 +265,25 @@ test("challenges can reveal their solution", async ({ page }) => {
   await page.getByRole("dialog").getByRole("button", { name: "Reveal solution" }).click();
   await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
+});
+
+test("mock interview: requirements, estimates, twist and a scorecard", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/interview");
+  await page.getByRole("link", { name: /Design Pastebin/ }).click();
+  await page.getByRole("button", { name: /Start the 45-minute clock/ }).click();
+  await page.getByRole("tab", { name: "Requirements" }).click();
+  await page.getByLabel("Functional requirements", { exact: true }).fill("Create a paste\nOpen a paste\nDownload raw");
+  await page.getByLabel("Non-functional requirements", { exact: true }).fill("6000 rps\np99 under 200 ms\n99.9% uptime");
+  await page.getByRole("tab", { name: "Estimates" }).click();
+  await page.getByLabel("Peak requests per second").fill("6000");
+  await page.getByLabel("Share of reads (%)").fill("90");
+  await page.getByRole("button", { name: /bring the twist now/ }).click();
+  await expect(page.getByText("Lose any one component").first()).toBeVisible();
+  await page.getByRole("button", { name: /Finish interview/ }).click();
+  await expect(page.getByText(/Performance:/)).toBeVisible();
+  await expect(page.getByText("3 measurable non-functional requirements.")).toBeVisible();
+  await page.goto("/interview");
+  await expect(page.locator("ol li")).toHaveCount(1);
+  expect(errors).toEqual([]);
 });

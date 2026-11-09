@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { StorageError, type StorageDriver } from "./driver";
-import type { ChallengeRecord, ProgressState, SavedDesign } from "./repo";
+import type { ChallengeRecord, InterviewResult, ProgressState, SavedDesign } from "./repo";
 import { mergeCards, type CardState } from "./cards";
 
 /** Key-value storage in the `user_data` table, one row per key, visible only to its owner (row-level security). */
@@ -74,4 +74,9 @@ export async function migrateGuestData(local: StorageDriver, cloud: StorageDrive
   if (ld?.length) await cloud.set("designs", mergeDesigns(cd, ld));
   const [lc, cc] = await Promise.all([local.get<CardState>("cards"), cloud.get<CardState>("cards")]);
   if (lc && Object.keys(lc).length) await cloud.set("cards", mergeCards(cc, lc));
+  const [li, ci] = await Promise.all([local.get<InterviewResult[]>("interviews"), cloud.get<InterviewResult[]>("interviews")]);
+  if (li?.length) {
+    const byId = new Map([...(ci ?? []), ...li].map((r) => [r.id, r]));
+    await cloud.set("interviews", [...byId.values()].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50));
+  }
 }

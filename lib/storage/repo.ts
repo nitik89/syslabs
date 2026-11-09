@@ -59,6 +59,16 @@ export interface Submission {
 
 const HISTORY_LIMIT = 20;
 
+/** One finished mock interview. */
+export interface InterviewResult {
+  id: string;
+  interviewId: string;
+  at: string;
+  total: number;
+  level: string;
+  parts: Array<{ id: string; label: string; score: number }>;
+}
+
 export interface ProgressState {
   challenges: Record<string, ChallengeRecord>;
   xp: number;
@@ -73,6 +83,7 @@ const KEYS = {
   progress: "progress",
   draft: (scope: string) => `draft:${scope}`,
   cards: "cards",
+  interviews: "interviews",
 };
 
 /* ----------------------------- Repository ----------------------------- */
@@ -133,6 +144,16 @@ export function createRepo(driver: StorageDriver, now: () => Date = () => new Da
       await driver.set(KEYS.cards, cards);
       await this.markActive();
       return cards;
+    },
+
+    async listInterviews(): Promise<InterviewResult[]> {
+      const l = await driver.get<InterviewResult[]>(KEYS.interviews);
+      return Array.isArray(l) ? l : [];
+    },
+    async saveInterview(result: InterviewResult): Promise<void> {
+      const l = await this.listInterviews();
+      await driver.set(KEYS.interviews, [result, ...l.filter((x) => x.id !== result.id)].slice(0, 50));
+      await this.markActive();
     },
 
     async getProgress(): Promise<ProgressState> {

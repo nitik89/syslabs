@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Activity, ArrowRight, BookOpen, Boxes, EyeOff, FlaskConical, Layers, PenTool, Play, Send, Share2, Trophy } from "lucide-react";
 import { CHALLENGES } from "@/data/challenges";
@@ -13,6 +14,7 @@ import { MiniArch } from "@/components/challenges/mini-arch";
 import { RoadmapStrip } from "@/components/roadmap/roadmap";
 import { LogoMark } from "@/components/shell/logo";
 import { useAuth } from "@/components/auth/auth-provider";
+import { HeroScene, type HeroPhase } from "./hero-scene";
 
 const PROBLEMS = CHALLENGES.length + DESIGNS.length;
 const demo = CHALLENGES[0];
@@ -38,6 +40,77 @@ const FAQ = [
   { q: "How realistic is the simulator?", a: "It's a deterministic model: capacity, queueing, cache hit ratios, replicas, locks and failures. It's built for learning trade-offs, not for benchmarking real hardware." },
   { q: "Who is it for?", a: "Engineers preparing for system-design interviews, and anyone who wants to understand why systems fall over and how to fix them." },
 ];
+
+const PREVIEW: Record<HeroPhase, { tag: string; title: string; verdict: string; check: string; stats: [string, string, boolean][] }> = {
+  broken: {
+    tag: "Paged",
+    title: "Database at 500% capacity",
+    verdict: "FAIL",
+    check: "error rate ≤ 1% · got 80%",
+    stats: [
+      ["p50", "5.0 s", false],
+      ["p99", "5.0 s", false],
+      ["errors", "80.0%", false],
+      ["Products DB", "500% busy", false],
+    ],
+  },
+  fixed: {
+    tag: "Resolved",
+    title: "Cache added, reads off the database",
+    verdict: "PASS",
+    check: "error rate ≤ 1% · got 0.2%",
+    stats: [
+      ["p50", "9 ms", true],
+      ["p99", "41 ms", true],
+      ["errors", "0.2%", true],
+      ["Products DB", "62% busy", true],
+    ],
+  },
+};
+
+function HeroPreview() {
+  const [phase, setPhase] = useState<HeroPhase>("broken");
+  const p = PREVIEW[phase];
+  const ok = phase === "fixed";
+  return (
+    <div className="surface relative overflow-hidden rounded-3xl">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        <span
+          className={cn(
+            "rounded px-1.5 py-0.5 font-mono text-[10.5px] font-semibold transition-colors",
+            ok ? "bg-status-ok/15 text-status-ok" : "bg-status-crit/15 text-status-crit",
+          )}
+        >
+          {p.tag}
+        </span>
+        <span className="truncate text-[13px] font-semibold" aria-live="polite">
+          {p.title}
+        </span>
+        <span className="ml-auto hidden shrink-0 font-mono text-[11px] text-muted-foreground sm:inline">{demo.title}</span>
+      </div>
+      <HeroScene
+        onPhase={setPhase}
+        className="h-64 bg-[radial-gradient(ellipse_at_50%_40%,oklch(0.25_0.03_250/0.5),transparent_70%)] sm:h-72"
+        fallback={<MiniArch graph={demo.startingDesign.graph} positions={demo.startingDesign.positions} labels className="h-full bg-black/20" />}
+      />
+      <div className="space-y-3 border-t border-border p-4">
+        <p className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+          <span className="font-semibold">Peak traffic</span>
+          <span className={cn("rounded px-1.5 font-mono text-[10px] font-bold", ok ? "bg-status-ok/15 text-status-ok" : "bg-status-crit/15 text-status-crit")}>{p.verdict}</span>
+          <span className={cn("rounded px-1.5 py-0.5 font-mono text-[10.5px]", ok ? "bg-status-ok/10 text-status-ok" : "bg-status-crit/10 text-status-crit")}>{p.check}</span>
+        </p>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[12px]">
+          {p.stats.map(([l, v, good], i) => (
+            <span key={l}>
+              <span className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{l}</span>{" "}
+              <span className={cn("font-semibold", i === 0 ? "text-foreground" : good ? "text-status-ok" : "text-status-crit")}>{v}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** Shown at / to first-time visitors who aren't signed in. */
 export function Landing() {
@@ -77,39 +150,8 @@ export function Landing() {
           </p>
         </div>
 
-        {/* Product preview */}
-        <div className="surface relative overflow-hidden rounded-3xl">
-          <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-            <span className="rounded bg-status-crit/15 px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-status-crit">On-call</span>
-            <span className="truncate text-[13px] font-semibold">{demo.title}</span>
-            <span className="ml-auto font-mono text-[11px] text-muted-foreground">t=59s</span>
-          </div>
-          <MiniArch graph={demo.startingDesign.graph} positions={demo.startingDesign.positions} labels className="h-48 bg-black/20" />
-          <div className="space-y-3 border-t border-border p-4">
-            <p className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
-              <span className="font-semibold">Peak traffic</span>
-              <span className="rounded bg-status-crit/15 px-1.5 font-mono text-[10px] font-bold text-status-crit">FAIL</span>
-              <span className="rounded bg-status-crit/10 px-1.5 py-0.5 font-mono text-[10.5px] text-status-crit">error rate ≤ 1% · got 80%</span>
-            </p>
-            <div className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[12px]">
-              {[
-                ["p50", "5.0 s", "text-foreground"],
-                ["p99", "5.0 s", "text-status-crit"],
-                ["errors", "80.0%", "text-status-crit"],
-                ["Products DB", "500% busy", "text-status-crit"],
-              ].map(([l, v, c]) => (
-                <span key={l}>
-                  <span className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{l}</span> <span className={cn("font-semibold", c)}>{v}</span>
-                </span>
-              ))}
-            </div>
-            <svg viewBox="0 0 300 50" className="h-12 w-full" aria-hidden="true">
-              <polyline points="0,46 30,44 60,40 75,8 100,6 140,7 180,5 220,6 260,7 300,6" fill="none" stroke="var(--status-crit)" strokeWidth="2" />
-              <polyline points="0,47 60,46 75,30 100,29 140,30 180,28 220,30 260,29 300,30" fill="none" stroke="var(--brand-blue)" strokeWidth="1.5" />
-              <line x1="0" x2="300" y1="40" y2="40" stroke="var(--status-ok)" strokeDasharray="4 4" strokeWidth="1" />
-            </svg>
-          </div>
-        </div>
+        {/* Product preview: a live 3D run. The database melts down, a cache lands, traffic recovers. */}
+        <HeroPreview />
       </section>
 
       {/* How it works */}

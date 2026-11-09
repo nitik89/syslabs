@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronsLeft, GripVertical, Plus, Search, X } from "lucide-react";
+import { ChevronRight, ChevronsLeft, GripVertical, Plus, Search, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CATALOG, isKindAllowed, type NodeKind, type Vendor } from "@/lib/sim";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,7 +11,7 @@ import { KindIcon } from "./kind-icon";
 export const DRAG_MIME = "application/x-syslab-kind";
 
 /**
- * Component palette: title bar, search, category chips and a list of components for the active category.
+ * Component palette: title bar, search, then every category as a collapsible group (generic blocks, then named services).
  * Search looks across every category.
  */
 export function Palette({ allowed, onAdd, onClose }: { allowed?: NodeKind[]; onAdd: (kind: NodeKind) => void; onClose?: () => void }) {
@@ -29,8 +29,9 @@ export function Palette({ allowed, onAdd, onClose }: { allowed?: NodeKind[]; onA
     [allowedSet],
   );
   const total = groups.reduce((n, g) => n + g.generic.length + g.services.length, 0);
-  const [active, setActive] = useState(groups[0]?.title ?? "");
-  const current = groups.find((g) => g.title === active) ?? groups[0];
+  // Small palettes (challenges) start fully open; the full catalog starts with just the first group.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const defaultOpen = (title: string) => total <= 40 || title === groups[0]?.title;
 
   const matches = (k: NodeKind) => {
     const s = CATALOG[k];
@@ -77,75 +78,86 @@ export function Palette({ allowed, onAdd, onClose }: { allowed?: NodeKind[]; onA
             </button>
           )}
         </label>
-        {groups.length > 1 && (
-          <nav aria-label="Component categories" className="flex flex-wrap gap-1">
-            {groups.map((g) => {
-              const Icon = g.icon;
-              const on = !q && g.title === current?.title;
-              return (
-                <button
-                  key={g.title}
-                  type="button"
-                  onClick={() => {
-                    setActive(g.title);
-                    setQuery("");
-                  }}
-                  aria-current={on ? "true" : undefined}
-                  className={cn(
-                    "flex h-7 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-medium outline-none ring-1 ring-inset transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                    on ? "bg-brand-blue/15 text-foreground ring-brand-blue/35" : "text-muted-foreground ring-transparent hover:bg-white/[0.05] hover:text-foreground",
-                  )}
-                >
-                  <Icon className={cn("size-3.5", on && "text-brand-blue")} aria-hidden="true" />
-                  {g.title}
-                </button>
-              );
-            })}
-          </nav>
-        )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-        {q ? (
-          results.length === 0 ? (
-            <p className="px-2 py-8 text-center text-[12px] text-muted-foreground">No components match &ldquo;{query}&rdquo;.</p>
-          ) : (
-            <div className="space-y-4">
-              {results.map((g) => (
-                <ItemSection key={g.title} title={g.title} kinds={[...g.generic, ...g.services]} onAdd={onAdd} />
-              ))}
-            </div>
-          )
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+        {q && results.length === 0 ? (
+          <p className="px-4 py-8 text-center text-[12px] text-muted-foreground">No components match &ldquo;{query}&rdquo;.</p>
         ) : (
-          current && (
-            <div className="space-y-4">
-              <ItemSection title={current.services.length > 0 ? "Building blocks" : current.title} kinds={current.generic} onAdd={onAdd} />
-              {current.services.length > 0 && <ItemSection title="Services" kinds={current.services} onAdd={onAdd} />}
-            </div>
-          )
+          (q ? results : groups).map((g) => (
+            <GroupSection
+              key={g.title}
+              title={g.title}
+              icon={g.icon}
+              generic={g.generic}
+              services={g.services}
+              open={q ? true : (openGroups[g.title] ?? defaultOpen(g.title))}
+              onToggle={() => setOpenGroups((o) => ({ ...o, [g.title]: !(o[g.title] ?? defaultOpen(g.title)) }))}
+              onAdd={onAdd}
+            />
+          ))
         )}
       </div>
 
       <p className="flex items-center gap-1.5 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-        <GripVertical className="size-3.5" aria-hidden="true" /> Drag onto the canvas, or click to add
+        <GripVertical className="size-3.5" aria-hidden="true" /> Drag onto the canvas, or click to add. Hover for details.
       </p>
     </div>
   );
 }
 
-function ItemSection({ title, kinds, onAdd }: { title: string; kinds: NodeKind[]; onAdd: (kind: NodeKind) => void }) {
-  if (kinds.length === 0) return null;
+function GroupSection({
+  title,
+  icon: Icon,
+  generic,
+  services,
+  open,
+  onToggle,
+  onAdd,
+}: {
+  title: string;
+  icon: LucideIcon;
+  generic: NodeKind[];
+  services: NodeKind[];
+  open: boolean;
+  onToggle: () => void;
+  onAdd: (kind: NodeKind) => void;
+}) {
   return (
-    <section className="space-y-1">
-      <h3 className="flex items-center justify-between px-2 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
-        {title}
-        <span className="font-mono font-normal tracking-normal">{kinds.length}</span>
-      </h3>
-      <ul className="space-y-px">
-        {kinds.map((k) => (
-          <Item key={k} kind={k} onAdd={onAdd} />
-        ))}
-      </ul>
+    <section className="border-b border-border/70">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={`${title} components`}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left outline-none transition-colors hover:bg-white/[0.03] focus-visible:bg-white/[0.04]"
+      >
+        <ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-90")} aria-hidden="true" />
+        <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+        <span className="flex-1 font-mono text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</span>
+        <span className="rounded bg-white/[0.06] px-1.5 font-mono text-[10px] text-muted-foreground">{generic.length + services.length}</span>
+      </button>
+      {open && (
+        <div className="space-y-1 px-1.5 pb-2.5">
+          {generic.length > 0 && (
+            <ul className="space-y-px">
+              {generic.map((k) => (
+                <Item key={k} kind={k} onAdd={onAdd} />
+              ))}
+            </ul>
+          )}
+          {services.length > 0 && (
+            <>
+              {generic.length > 0 && <p className="px-2 pt-1.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted-foreground/60">Services</p>}
+              <ul className="space-y-px">
+                {services.map((k) => (
+                  <Item key={k} kind={k} onAdd={onAdd} />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -170,11 +182,8 @@ function Item({ kind, onAdd }: { kind: NodeKind; onAdd: (kind: NodeKind) => void
             />
           }
         >
-          <KindIcon kind={kind} size="md" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12.5px] font-medium leading-tight">{spec.label}</span>
-            <span className="block truncate text-[11px] leading-tight text-muted-foreground">{spec.short}</span>
-          </span>
+          <KindIcon kind={kind} size="sm" />
+          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{spec.label}</span>
           {spec.vendor ? (
             <VendorMark vendor={spec.vendor} />
           ) : (
@@ -216,6 +225,15 @@ function ComponentCard({ kind }: { kind: NodeKind }) {
         )}
       </div>
       <p className="text-[11.5px] leading-relaxed opacity-85">{spec.description}</p>
+      {spec.includes && (
+        <ul className="flex flex-wrap gap-1" aria-label="Built-in features">
+          {spec.includes.map((f) => (
+            <li key={f} className="rounded border border-current/20 px-1.5 py-px text-[10px] font-medium opacity-80">
+              {f}
+            </li>
+          ))}
+        </ul>
+      )}
       <p className="font-mono text-[10.5px] opacity-70">{stats.join(" · ")}</p>
       {kind !== spec.behavior && (
         <p className="border-t border-current/15 pt-1.5 text-[10.5px] opacity-70">

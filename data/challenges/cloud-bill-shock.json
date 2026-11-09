@@ -9,6 +9,20 @@
     "The answer is about 1,200 requests per second. Over time, every incident was \"fixed\" by adding more of everything: 20 app servers, a gateway cluster, a NoSQL store nobody remembers adding, and six database replicas.",
     "Right-size it. Keep it reliable: no single points of failure, and nothing running above 80% utilization."
   ],
+  "requirements": {
+    "functional": [
+      "Keep serving the product's reads and writes",
+      "Remove components that carry no useful load",
+      "Right-size what remains"
+    ],
+    "nonFunctional": [
+      "Handle 1,200 requests/s, 85% reads",
+      "Cost at or below $1,000 / month (down from ~$3,800)",
+      "Error rate at or below 0.5%",
+      "No single points of failure",
+      "Every component at or below 80% utilization"
+    ]
+  },
   "objectives": [
     { "id": "cost", "label": "Monthly cost at or below $1,000", "metric": "monthlyCost", "op": "<=", "value": 1000 },
     { "id": "errors", "label": "Error rate at or below 0.5%", "metric": "errorRate", "op": "<=", "value": 0.005 },

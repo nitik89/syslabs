@@ -24,8 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Boxes, ChevronsRight, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, nodeSpec, simulate, type NodeConfig, type NodeKind, type SimResult, type TrafficProfile } from "@/lib/sim";
-import type { DesignDoc } from "@/lib/storage";
+import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, nodeSpec, simulateTimeline, type NodeConfig, type NodeKind, type SimResult, type Timeline, type TrafficProfile } from "@/lib/sim";
+import type { DesignDoc, DesignRequirements } from "@/lib/storage";
 import { checkpoint, emptyHistory, redo as redoHistory, undo as undoHistory, type History } from "@/lib/history";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +35,9 @@ import { MetricsPanel } from "./metrics-panel";
 import { connectionProblem, docToFlow, edgeId, flowToDoc, makeNode, type FlowEdge, type SysNode } from "./model";
 import { DRAG_MIME, Palette } from "./palette";
 import { RenameNodeContext, SysNodeComponent } from "./sys-node";
+import { RequirementsEditor } from "./requirements-editor";
+import { ResizeHandle, usePanelWidth } from "./resize-handle";
+import { RunConsole, fmtLatency, type ConsoleTab } from "./run-console";
 
 const nodeTypes = { sys: SysNodeComponent };
 const edgeTypes = { flow: FlowEdgeComponent };
@@ -54,6 +57,8 @@ function freeSpot(start: { x: number; y: number }, nodes: SysNode[]): { x: numbe
   return start;
 }
 
+type Tab = "inspect" | "requirements" | "results";
+
 type Snapshot = { nodes: SysNode[]; edges: FlowEdge[]; traffic: TrafficProfile };
 
 function isTextEntry(t: EventTarget | null): boolean {
@@ -65,6 +70,15 @@ export interface DesignerContext {
   loadDoc: (doc: DesignDoc) => void;
   result: SimResult | null;
   stale: boolean;
+  /** Run the 60-second simulation now; returns the peak (steady-state) result. */
+  run: () => SimResult | null;
+  timeline: Timeline | null;
+  /** Current replay second. */
+  t: number;
+  /** Open a tab of the run console. */
+  showConsoleTab: (id: string) => void;
+  /** Monthly cost of the design as drawn (no run needed). */
+  monthlyCost: number;
 }
 
 /** Renders a caller-supplied render prop as its own component (keeps handlers out of the parent's render). */
@@ -82,6 +96,26 @@ export interface DesignerProps {
   actions?: (ctx: DesignerContext) => ReactNode;
   /** Extra content above metrics in the Results tab (challenge scoring). */
   resultsExtra?: (ctx: DesignerContext) => ReactNode;
+  /** The problem's own requirements, shown in the Requirements tab (build problems). */
+  brief?: DesignRequirements;
+  /** Workspace layout (problem pages): a bar across the top. When set, Run lives there instead of the canvas toolbar. */
+  header?: (ctx: DesignerContext) => ReactNode;
+  /** A panel left of the palette (problem description). */
+  leftPanel?: ReactNode;
+  /** Shown over the canvas (e.g. the on-call page, or a getting-started guide). */
+  canvasOverlay?: (ctx: DesignerContext) => ReactNode;
+  /** Run-console content before the first run. */
+  consoleIdle?: ReactNode;
+  /** Test results for the current run, at the top of the console's Run tab. */
+  consoleStatus?: (ctx: DesignerContext) => ReactNode;
+  /** Pass/fail summary in the console's tab bar. */
+  consoleBadge?: (ctx: DesignerContext) => ReactNode;
+  /** Extra run-console tabs (e.g. Submission). */
+  consoleTabs?: ConsoleTab[];
+  /** Run once as soon as the canvas mounts (on-call: see the system as it is right now). */
+  autoRun?: boolean;
+  /** Target line on the latency chart. */
+  latencyTarget?: { ms: number; label: string };
   /** Called (debounced) whenever the design changes, for draft autosave. */
   onDocChange?: (doc: DesignDoc) => void;
   onRun?: (result: SimResult, doc: DesignDoc) => void;
@@ -95,20 +129,52 @@ export function Designer(props: DesignerProps) {
   );
 }
 
-function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsExtra, onDocChange, onRun }: DesignerProps) {
+const NO_REQUIREMENTS: DesignRequirements = { functional: [], nonFunctional: [] };
+
+function DesignerInner({
+  initial,
+  allowedKinds,
+  trafficLocked,
+  actions,
+  resultsExtra,
+  brief,
+  header,
+  leftPanel,
+  canvasOverlay,
+  consoleIdle,
+  consoleStatus,
+  consoleTabs,
+  consoleBadge,
+  latencyTarget,
+  autoRun,
+  onDocChange,
+  onRun,
+}: DesignerProps) {
   const [initialFlow] = useState(() => docToFlow(initial));
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<SysNode>(initialFlow.nodes);
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<FlowEdge>(initialFlow.edges);
   const [traffic, setTraffic] = useState<TrafficProfile>(initial.traffic);
+  const [requirements, setRequirements] = useState<DesignRequirements>(initial.requirements ?? NO_REQUIREMENTS);
   const [result, setResult] = useState<SimResult | null>(null);
+  const [timeline, setTimeline] = useState<Timeline | null>(null);
+  const [t, setT] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [consoleTab, setConsoleTab] = useState("run");
+  const [consoleCollapsed, setConsoleCollapsed] = useState(false);
   const [stale, setStale] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"inspect" | "results">("inspect");
+  const [tab, setTab] = useState<Tab>("inspect");
   const wrapperRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   // Canvas space: either side panel can be hidden, or the whole designer can go full screen.
   const [showPalette, setShowPalette] = useState(true);
-  const [showPanel, setShowPanel] = useState(true);
+  const paletteRef = useRef<HTMLElement>(null);
+  const paletteWidth = usePanelWidth({ min: 180, max: 420 });
+  // Problem workspace: the side panel is a drawer over the canvas, open while a component is selected (or pinned open).
+  const workspace = Boolean(header);
+  const [showPanel, setShowPanel] = useState(!workspace);
+  const panelSqueezes = !workspace && showPanel;
+  const [inspectOpen, setInspectOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     const sync = () => setFullscreen(document.fullscreenElement === rootRef.current);
@@ -129,7 +195,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     }
     const id = requestAnimationFrame(() => void rf.fitView({ padding: 0.08, maxZoom: 1, duration: 250 }));
     return () => cancelAnimationFrame(id);
-  }, [showPalette, showPanel, rf]);
+  }, [showPalette, panelSqueezes, consoleCollapsed, rf]);
 
   const allowed = useMemo(() => new Set<NodeKind>(allowedKinds ?? NODE_KINDS), [allowedKinds]);
   const markDirty = useCallback(() => setStale(true), []);
@@ -321,7 +387,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
 
   /* ------------------------------ doc + run ------------------------------ */
 
-  const getDoc = useCallback(() => flowToDoc(nodes, edges, traffic), [nodes, edges, traffic]);
+  const getDoc = useCallback(() => flowToDoc(nodes, edges, traffic, requirements), [nodes, edges, traffic, requirements]);
 
   const loadDoc = useCallback(
     (doc: DesignDoc) => {
@@ -330,6 +396,7 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
       setNodes(f.nodes);
       setEdges(f.edges);
       setTraffic(doc.traffic);
+      setRequirements(doc.requirements ?? NO_REQUIREMENTS);
       setResult(null);
       setStale(false);
       setSelectedId(null);
@@ -354,19 +421,63 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     [setNodes, setEdges, markDirty],
   );
 
-  const run = useCallback(() => {
+  const run = useCallback((): SimResult | null => {
     const doc = flowToDoc(nodes, edges, traffic);
     try {
-      const r = simulate(doc.graph, doc.traffic);
+      const tl = simulateTimeline(doc.graph, doc.traffic);
+      const r = tl.ticks[tl.ticks.length - 1].result;
+      setTimeline(tl);
       setResult(r);
-      setShowPanel(true); // results live in the right panel
+      setT(0);
+      setPlaying(true);
+      setConsoleCollapsed(false);
+      setConsoleTab("run");
       setStale(false);
-      setTab("results");
+      if (!header) {
+        setShowPanel(true);
+        setTab("results");
+      }
       onRun?.(r, doc);
+      return r;
     } catch (err) {
       toast.error(`Simulation failed: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
     }
-  }, [nodes, edges, traffic, onRun]);
+  }, [nodes, edges, traffic, onRun, header]);
+
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!autoRun || autoRan.current) return;
+    // Mark it done only once it actually runs (dev double-mount cancels the first frame).
+    const id = requestAnimationFrame(() => {
+      autoRan.current = true;
+      void run();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [autoRun, run]);
+
+  // Replay: one simulated second every 90 ms.
+  useEffect(() => {
+    if (!playing || !timeline) return;
+    const id = setInterval(() => {
+      setT((x) => {
+        if (x >= timeline.seconds - 1) {
+          setPlaying(false);
+          return x;
+        }
+        return x + 1;
+      });
+    }, 90);
+    return () => clearInterval(id);
+  }, [playing, timeline]);
+  const togglePlay = useCallback(() => {
+    if (!timeline) return;
+    if (playing) setPlaying(false);
+    else {
+      if (t >= timeline.seconds - 1) setT(0);
+      setPlaying(true);
+    }
+  }, [playing, timeline, t]);
 
   // Ctrl/Cmd + Enter runs the simulation.
   useEffect(() => {
@@ -394,14 +505,15 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
   // Debounced autosave hook for drafts.
   useEffect(() => {
     if (!onDocChange) return;
-    const t = setTimeout(() => onDocChange(flowToDoc(nodes, edges, traffic)), 400);
+    const t = setTimeout(() => onDocChange(flowToDoc(nodes, edges, traffic, requirements)), 400);
     return () => clearTimeout(t);
-  }, [nodes, edges, traffic, onDocChange]);
+  }, [nodes, edges, traffic, requirements, onDocChange]);
 
   const focusNode = useCallback(
     (id: string) => {
       selectOnly(id);
       setTab("inspect");
+      setInspectOpen(true);
       void rf.fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.2, padding: 0.6 });
     },
     [selectOnly, rf],
@@ -410,9 +522,11 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
   /* ------------------------------ rendering ------------------------------ */
 
   const showResults = result !== null && !stale;
+  // The canvas follows the replay: node load and link flow at the current second.
+  const shown = showResults ? (timeline?.ticks[Math.min(t, timeline.ticks.length - 1)]?.result ?? result) : null;
   const displayNodes = useMemo(
-    () => (showResults ? nodes.map((n) => ({ ...n, data: { ...n.data, result: result.nodes[n.id] } })) : nodes),
-    [nodes, result, showResults],
+    () => (shown ? nodes.map((n) => ({ ...n, data: { ...n.data, result: shown.nodes[n.id] } })) : nodes),
+    [nodes, shown],
   );
   const displayEdges = useMemo(() => {
     const delivery = new Set(
@@ -420,24 +534,63 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
     );
     return edges.map((e) => {
       if (delivery.has(e.source) || delivery.has(e.target)) return { ...e, data: { deploy: true } };
-      return showResults ? { ...e, data: { rps: result.edgeFlows[e.id] ?? 0, targetStatus: result.nodes[e.target]?.status } } : e;
+      return shown ? { ...e, data: { rps: shown.edgeFlows[e.id] ?? 0, targetStatus: shown.nodes[e.target]?.status } } : e;
     });
-  }, [nodes, edges, result, showResults]);
+  }, [nodes, edges, shown]);
 
   const renameNode = useCallback((id: string, label: string) => updateNode(id, { label }), [updateNode]);
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
-  const ctx: DesignerContext = { getDoc, loadDoc, result, stale };
+  // Workspace: the drawer opens on double-click (or from the console), not on every click or drag.
+  const panelOpen = showPanel || (workspace && inspectOpen && selected !== null);
+  const nodeCosts = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n.data.config.costPerReplica * n.data.config.replicas])), [nodes]);
+  const nodeLabels = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n.data.label.trim() || n.id])), [nodes]);
+  const monthlyCost = nodes.reduce((sum, n) => sum + n.data.config.costPerReplica * n.data.config.replicas, 0);
+  const showConsoleTab = useCallback((id: string) => {
+    setConsoleTab(id);
+    setConsoleCollapsed(false);
+  }, []);
+  const ctx: DesignerContext = { getDoc, loadDoc, result, stale, run, timeline, t, showConsoleTab, monthlyCost };
+
+  // Pager: what an on-call engineer would see at this second.
+  const tick = showResults && timeline ? timeline.ticks[Math.min(t, timeline.ticks.length - 1)] : null;
+  const hottest = tick
+    ? Object.entries(tick.utilization)
+        .filter(([id]) => (tick.result.nodes[id]?.load ?? 0) > 0)
+        .sort((a, b) => b[1] - a[1])[0]
+    : undefined;
+  const hottestName = hottest ? (nodes.find((n) => n.id === hottest[0])?.data.label.trim() || hottest[0]) : "";
+  const tickErr = tick && tick.offeredRps > 0 ? tick.errorRps / tick.offeredRps : 0;
+  const paging = tick !== null && (tickErr > 0.01 || tick.p99 >= 1000 || (hottest?.[1] ?? 0) > 1);
 
   return (
-    <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background lg:flex-row", fullscreen && "h-screen")}>
+    <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background", fullscreen && "h-screen")}>
+      {header && <Slot render={header} ctx={ctx} />}
+      <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
+      {leftPanel}
       {/* Palette */}
-      <aside hidden={!showPalette} className="h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[284px] lg:border-b-0 lg:border-r">
-        <Palette allowed={allowedKinds} onAdd={addAtCenter} onClose={() => setShowPalette(false)} />
+      <aside
+        ref={paletteRef}
+        hidden={!showPalette}
+        className={cn(
+          "relative h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[var(--palette-w)] lg:border-b-0 lg:border-r lg:overflow-visible",
+        )}
+        style={{ ["--palette-w" as string]: `${paletteWidth.width ?? (leftPanel ? 220 : 284)}px` }}
+      >
+        <div className="h-full overflow-hidden">
+          <Palette allowed={allowedKinds} onAdd={addAtCenter} onClose={() => setShowPalette(false)} />
+        </div>
+        <ResizeHandle
+          label="Resize components panel"
+          getWidth={() => paletteRef.current?.offsetWidth ?? 240}
+          onResize={paletteWidth.setWidth}
+          onReset={paletteWidth.reset}
+        />
       </aside>
 
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Canvas */}
-      <div ref={wrapperRef} className="relative h-[62vh] min-h-[420px] flex-1 lg:h-auto" onDragOver={onDragOver} onDrop={onDrop}>
+      <div ref={wrapperRef} className="relative min-h-[380px] flex-1" onDragOver={onDragOver} onDrop={onDrop}>
         <RenameNodeContext.Provider value={renameNode}>
         <ReactFlow<SysNode, FlowEdge>
           nodes={displayNodes}
@@ -448,6 +601,12 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
           onConnectEnd={onConnectEnd}
           connectionRadius={40}
           onSelectionChange={onSelectionChange}
+          onNodeDoubleClick={(_, n) => {
+            selectOnly(n.id);
+            setTab("inspect");
+            if (workspace) setInspectOpen(true);
+            else setShowPanel(true);
+          }}
           isValidConnection={isValidConnection}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -485,10 +644,14 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
                   <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
                 </>
               )}
-              <Button size="sm" onClick={run} title="Run simulation (⌘↵)" className="bg-brand-gradient shadow-brand border-0 hover:opacity-90">
-                <Play /> Run simulation
-              </Button>
-              <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+              {!header && (
+                <>
+                  <Button size="sm" onClick={run} title="Run simulation (⌘↵)">
+                    <Play /> Run simulation
+                  </Button>
+                  <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                </>
+              )}
               <Button variant="ghost" size="icon-sm" onClick={() => restore("undo")} disabled={!canUndo} aria-label="Undo" title="Undo (⌘Z)">
                 <Undo2 />
               </Button>
@@ -511,13 +674,28 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
               >
                 {fullscreen ? <Minimize2 /> : <Maximize2 />}
               </Button>
-              {!showPanel && (
+              {!panelOpen && (
                 <Button variant="ghost" size="sm" onClick={() => setShowPanel(true)} aria-label="Show side panel" title="Show traffic and results panel">
                   <SlidersHorizontal /> Details
                 </Button>
               )}
             </div>
           </Panel>
+          {tick && (
+            <Panel position="bottom-center" className="!mb-3">
+              <div
+                role="status"
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 font-mono text-[11.5px] backdrop-blur-md",
+                  paging ? "border-status-crit/40 bg-status-crit/15 text-status-crit" : "border-status-ok/30 bg-status-ok/10 text-status-ok",
+                )}
+              >
+                <span className={cn("size-1.5 rounded-full bg-current", playing && "animate-pulse")} aria-hidden="true" />
+                {paging ? "PAGER" : "LIVE SIM"} · p99 {fmtLatency(tick.p99)}
+                {hottest && ` · ${hottestName} ${Math.round(hottest[1] * 100)}% busy`}
+              </div>
+            </Panel>
+          )}
         </ReactFlow>
         </RenameNodeContext.Provider>
 
@@ -532,20 +710,63 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
             </div>
           </div>
         )}
+        {canvasOverlay && <Slot render={canvasOverlay} ctx={ctx} />}
+      </div>
+      <RunConsole
+        timeline={timeline}
+        t={t}
+        onSeek={(x) => {
+          setPlaying(false);
+          setT(x);
+        }}
+        playing={playing}
+        onTogglePlay={togglePlay}
+        stale={stale}
+        status={consoleStatus && result ? <Slot render={consoleStatus} ctx={ctx} /> : undefined}
+        tabs={consoleTabs}
+        badge={consoleBadge && result && !stale ? <Slot render={consoleBadge} ctx={ctx} /> : undefined}
+        labels={nodeLabels}
+        costs={nodeCosts}
+        idle={consoleIdle}
+        tab={consoleTab}
+        onTabChange={setConsoleTab}
+        collapsed={consoleCollapsed}
+        onToggleCollapsed={() => setConsoleCollapsed((c) => !c)}
+        monthlyCost={monthlyCost}
+        latencyTarget={latencyTarget}
+        onFocusNode={focusNode}
+      />
       </div>
 
       {/* Inspector / results */}
-      <aside hidden={!showPanel} className="shrink-0 overflow-y-auto border-t border-border bg-sidebar/60 lg:w-[300px] lg:border-l lg:border-t-0">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "inspect" | "results")} className="gap-0">
+      <aside
+        hidden={!panelOpen}
+        className={cn(
+          "shrink-0 overflow-y-auto border-t border-border",
+          workspace
+            ? "bg-sidebar/95 backdrop-blur-md lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:w-[310px] lg:border-l lg:border-t-0 lg:shadow-[-24px_0_48px_-24px_black]"
+            : "bg-sidebar/60 lg:w-[300px] lg:border-l lg:border-t-0",
+        )}
+      >
+        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-0">
           <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-border bg-sidebar/95 p-2 backdrop-blur">
             <TabsList className="flex-1">
               <TabsTrigger value="inspect">{selected ? "Component" : "Traffic"}</TabsTrigger>
+              <TabsTrigger value="requirements" title="Functional and non-functional requirements">
+                Reqs
+                {requirements.functional.length + requirements.nonFunctional.length > 0 && (
+                  <span className="ml-1 font-mono text-[10px] text-muted-foreground">{requirements.functional.length + requirements.nonFunctional.length}</span>
+                )}
+              </TabsTrigger>
               <TabsTrigger value="results">
                 Results
                 {result && stale && <span className="ml-1 size-1.5 rounded-full bg-status-warn" aria-label="(outdated)" />}
               </TabsTrigger>
             </TabsList>
-            <Button variant="ghost" size="icon-sm" onClick={() => setShowPanel(false)} aria-label="Hide side panel" title="Hide traffic and results panel">
+            <Button variant="ghost" size="icon-sm" onClick={() => {
+                setShowPanel(false);
+                setInspectOpen(false);
+              }} aria-label="Hide side panel" title="Hide traffic and results panel">
               <ChevronsRight />
             </Button>
           </div>
@@ -574,12 +795,16 @@ function DesignerInner({ initial, allowedKinds, trafficLocked, actions, resultsE
               </div>
             )}
           </TabsContent>
+          <TabsContent value="requirements" className="p-4">
+            <RequirementsEditor value={requirements} onChange={setRequirements} brief={brief} />
+          </TabsContent>
           <TabsContent value="results" className="space-y-4 p-4">
             {resultsExtra && <Slot render={resultsExtra} ctx={ctx} />}
             <MetricsPanel result={result} stale={stale} nodes={nodes} edges={edges} onFocusNode={focusNode} />
           </TabsContent>
         </Tabs>
       </aside>
+      </div>
     </div>
   );
 }

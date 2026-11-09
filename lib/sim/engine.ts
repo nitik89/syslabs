@@ -47,6 +47,7 @@ const COMPUTE_KINDS: ReadonlySet<NodeKind> = new Set([
   "loadBalancer",
   "apiGateway",
   "rateLimiter",
+  "appGateway",
   "websocketGateway",
   "appServer",
   "serverless",
@@ -573,6 +574,7 @@ function accepts(n: SimNode, cls: TrafficClass, children: Map<string, Kid[]>): b
     case "loadBalancer":
     case "apiGateway":
     case "rateLimiter":
+    case "appGateway":
     case "websocketGateway":
     case "appServer":
     case "serverless":
@@ -619,6 +621,7 @@ function routeFor(
     case "loadBalancer":
     case "apiGateway":
     case "rateLimiter":
+    case "appGateway":
     case "websocketGateway":
       whenNoDownstream = "none";
       if (cls === "static") {

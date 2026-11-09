@@ -1,5 +1,5 @@
 export * from "./types";
-export { CATALOG, CUSTOM_BEHAVIORS, behaviorOf, defaultConfig, isKindAllowed, isNodeAllowed, nodeSpec, type ComponentSpec, type Vendor } from "./catalog";
+export { BUNDLES, CATALOG, CUSTOM_BEHAVIORS, behaviorOf, behaviorSatisfies, defaultConfig, isKindAllowed, isNodeAllowed, nodeSpec, type ComponentSpec, type Vendor } from "./catalog";
 export {
   simulate,
   cacheHitRatio,
@@ -13,3 +13,4 @@ export {
   INDEX_EFFECT,
 } from "./engine";
 export { analyzePipeline, type PipelineReport } from "./pipeline";
+export { simulateTimeline, latencyPercentiles, percentilesOf, loadFactor, TIMEOUT_MS, type Timeline, type Tick, type LogEvent, type LogLevel, type Percentiles } from "./timeline";

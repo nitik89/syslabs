@@ -94,7 +94,16 @@ function FlowEdgeView({ id, source, target, sourceX, sourceY, targetX, targetY, 
           d={path}
           fill="none"
           className="syslab-flow pointer-events-none"
-          style={{ stroke: color, ["--flow-speed" as string]: flowDuration(rps) }}
+          style={{ stroke: data?.targetStatus === "crit" ? "var(--brand-cyan)" : color, ["--flow-speed" as string]: flowDuration(rps) }}
+        />
+      )}
+      {/* Into an overloaded component, some of the particles are failures. */}
+      {active && data?.targetStatus === "crit" && (
+        <path
+          d={path}
+          fill="none"
+          className="syslab-flow pointer-events-none"
+          style={{ stroke: "var(--status-crit)", animationDelay: "calc(var(--flow-speed) / -2)", ["--flow-speed" as string]: flowDuration(rps) }}
         />
       )}
       {rps !== undefined && (roomy || selected) && (

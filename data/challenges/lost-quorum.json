@@ -9,6 +9,20 @@
     "To cut costs, the ZooKeeper ensemble was shrunk to 2 nodes. \"We still have a spare,\" the reasoning went.",
     "Last night one ZooKeeper node restarted and every trip assignment in the city failed until it came back. Make coordination survive a node failure, within budget."
   ],
+  "requirements": {
+    "functional": [
+      "Riders poll for nearby cars",
+      "Drivers accept trips",
+      "A driver is never assigned to two trips at once"
+    ],
+    "nonFunctional": [
+      "Handle 6,000 requests/s, 40% trip acceptances",
+      "Coordination survives a node failure (no single points of failure)",
+      "No unsafe contended writes",
+      "Error rate at or below 1%",
+      "Cost under $1,150 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "spof",

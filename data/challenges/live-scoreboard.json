@@ -9,6 +9,22 @@
     "Only the scorekeepers write, about 2% of dynamic traffic. Reads are extremely concentrated: 98% hit a handful of hot keys (the live matches).",
     "Build it from scratch. It has to feel instant, survive any single failure mid-match, keep 20% headroom everywhere, and the sponsor's budget is $4,000 a month."
   ],
+  "requirements": {
+    "functional": [
+      "Show live scores for every match",
+      "Serve page assets (JS, CSS, images)",
+      "Let scorekeepers update scores"
+    ],
+    "nonFunctional": [
+      "Handle 50,000 requests/s at kickoff, 20% static assets",
+      "98% of reads hit a few hot keys",
+      "Error rate at or below 0.1%",
+      "Feels instant: average latency at or below 45 ms",
+      "Survive any single failure mid-match",
+      "Every component at or below 80% utilization",
+      "Cost under $4,000 / month"
+    ]
+  },
   "objectives": [
     { "id": "errors", "label": "Error rate at or below 0.1%", "metric": "errorRate", "op": "<=", "value": 0.001 },
     { "id": "latency", "label": "Average latency at or below 45 ms", "metric": "avgLatencyMs", "op": "<=", "value": 45 },

@@ -13,6 +13,8 @@ import { MiniArch } from "@/components/challenges/mini-arch";
 import { DifficultyPill } from "@/components/challenges/challenge-list";
 import { ErrorBlock, LoadingBlock } from "./bits";
 import { useProgressData } from "./use-progress";
+import { FeatureGrid } from "./feature-grid";
+import { RoadmapSection } from "@/components/roadmap/roadmap";
 
 function greeting(d: Date): string {
   const h = d.getHours();
@@ -80,7 +82,7 @@ function Track({
           </span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-          <div className="h-full rounded-full bg-gradient-to-r from-brand-cyan via-brand-blue to-brand-violet" style={{ width: `${(solved / items.length) * 100}%` }} />
+          <div className="h-full rounded-full bg-brand-blue" style={{ width: `${(solved / items.length) * 100}%` }} />
         </div>
       </div>
       <ul className="space-y-1.5">
@@ -155,7 +157,7 @@ export function DashboardView() {
                 : "Push your best scores higher, or build something new in the Lab."}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Link href={nextPath} className={cn(buttonVariants({ size: "lg" }), "bg-brand-gradient shadow-brand border-0 hover:opacity-90")}>
+              <Link href={nextPath} className={buttonVariants({ size: "lg" })}>
                 {next ? (nextRec ? "Continue" : "Start") : "View scores"} <ArrowRight />
               </Link>
               <Link href="/lab" className={buttonVariants({ variant: "outline", size: "lg" })}>
@@ -180,6 +182,10 @@ export function DashboardView() {
         <Stat icon={Sparkles} label="Total XP" value={progress.xp.toLocaleString()} of={`level ${level}`} tone="bg-brand-violet/12 text-brand-violet" />
         <Stat icon={Flame} label="Streak" value={streak} of={streak === 1 ? "day" : "days"} tone="bg-status-warn/12 text-status-warn" />
       </section>
+
+      <RoadmapSection progress={progress} />
+
+      <FeatureGrid progress={progress} today={today} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Track

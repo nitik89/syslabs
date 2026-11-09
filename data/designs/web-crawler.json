@@ -1,0 +1,301 @@
+{
+  "id": "web-crawler",
+  "order": 15,
+  "title": "Web Crawler",
+  "difficulty": "Medium",
+  "summary": "Crawl billions of pages politely: a URL frontier, fetchers that keep up, and storage for everything you download.",
+  "scenario": [
+    "A search startup needs to recrawl the web every few weeks. The scheduler hands out URLs; fetchers download pages and store them for indexing.",
+    "Fetching is slow and bursty, so it must happen off the request path, and nothing may pile up in the frontier."
+  ],
+  "mode": "build",
+  "category": "Data",
+  "requirements": {
+    "functional": [
+      "Accept seed URLs and schedule them",
+      "Fetch pages in the background",
+      "Store raw pages for the indexer",
+      "Skip URLs that were already crawled"
+    ],
+    "nonFunctional": [
+      "Process 5,000 URL events/s at peak",
+      "Frontier keeps up: no backlog",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $2,500 / month"
+    ]
+  },
+  "estimates": [
+    "5,000 URL events/s from the scheduler",
+    "90% are new URLs to fetch (writes)",
+    "10% are 'have we seen this URL?' lookups"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,500",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2500
+    },
+    {
+      "id": "uses-queue",
+      "label": "URLs wait in a queue (the frontier)",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Fetchers run as background workers",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    },
+    {
+      "id": "uses-blob",
+      "label": "Raw pages are stored in object storage",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "objectStorage"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Scheduler",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Scheduler",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Frontier API",
+          "config": {
+            "replicas": 6
+          }
+        },
+        {
+          "id": "kafka-1",
+          "kind": "kafka",
+          "label": "URL Frontier",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Fetchers",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "s3-1",
+          "kind": "s3",
+          "label": "Raw Pages",
+          "config": {}
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Seen-URL Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "URL Index",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->kafka-1",
+          "source": "api",
+          "target": "kafka-1"
+        },
+        {
+          "id": "e:kafka-1->worker-1",
+          "source": "kafka-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->s3-1",
+          "source": "worker-1",
+          "target": "s3-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "kafka-1": {
+        "x": 900,
+        "y": 60
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "s3-1": {
+        "x": 1500,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 5000,
+    "readRatio": 0.1,
+    "hotKeyFraction": 0.2,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "The API should only enqueue. Who does the slow downloading, and where does it put the pages?",
+    "4,500 fetches/s arrive. Workers must remove at least that many, with headroom.",
+    "LB (2) → API (6) → Kafka → Fetchers (4) → S3, plus API → Redis → NoSQL for seen-URL checks."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2300
+  },
+  "explanation": [
+    "The frontier is a durable log (Kafka) partitioned by host, so each fetcher handles one site at a time and stays polite.",
+    "Fetchers scale horizontally; size them to outrun the frontier or the backlog grows forever.",
+    "Dedup with a fast seen-set (a cache or Bloom filter) in front of the URL index before scheduling a fetch."
+  ]
+}

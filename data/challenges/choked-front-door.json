@@ -9,6 +9,20 @@
     "One API Gateway still sits in front of everything, handling auth and routing. It tops out at 10,000 rps.",
     "Stop the drops and make sure the front door can't take the whole API down on its own."
   ],
+  "requirements": {
+    "functional": [
+      "Authenticate and route every public API call",
+      "Serve API reads and writes from the app tier, cache and database",
+      "Keep the API available if a gateway instance fails"
+    ],
+    "nonFunctional": [
+      "Handle 14,000 requests/s, 85% reads",
+      "Error rate at or below 1%",
+      "No single points of failure (including the gateway)",
+      "Average latency at or below 65 ms",
+      "Cost under $1,500 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "errors",

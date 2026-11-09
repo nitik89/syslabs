@@ -1,0 +1,326 @@
+{
+  "id": "online-judge",
+  "order": 17,
+  "title": "Online Judge",
+  "difficulty": "Hard",
+  "summary": "Run untrusted code submissions against test cases at contest scale, and show results without melting under the rush.",
+  "scenario": [
+    "A coding-contest platform: thousands of people read problems, and when the clock ticks down, submissions spike.",
+    "Each submission runs untrusted code in a sandbox, which is slow and must never block the website."
+  ],
+  "mode": "build",
+  "category": "Developer tools",
+  "requirements": {
+    "functional": [
+      "Browse problems and statements",
+      "Submit code for a problem",
+      "Run each submission in an isolated sandbox",
+      "Show verdicts and the contest scoreboard"
+    ],
+    "nonFunctional": [
+      "Handle 3,000 requests/s at peak, 30% submissions",
+      "Website stays fast: average latency at or below 60 ms",
+      "Error rate at or below 1%",
+      "Judging keeps up: no backlog",
+      "No single points of failure",
+      "Cost under $3,000 / month"
+    ]
+  },
+  "estimates": [
+    "3,000 requests/s at the contest peak",
+    "20% are static assets (editor JS, CSS)",
+    "Of the rest, 70% are problem/scoreboard reads and 30% are submissions"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3000
+    },
+    {
+      "id": "uses-queue",
+      "label": "Submissions are queued for judging",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Judges run as background workers",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Problems and scoreboard are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Contestants",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Contestants",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cdn",
+          "label": "CDN",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Contest API",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Problem Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "postgres",
+          "label": "Problems + Results",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Submission Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Sandboxed Judges",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "db-2",
+          "kind": "nosqlDb",
+          "label": "Verdicts",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:cdn-1->lb-1",
+          "source": "cdn-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-2",
+          "source": "worker-1",
+          "target": "db-2"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 300,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 600,
+        "y": 60
+      },
+      "api": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1500,
+        "y": 60
+      },
+      "q-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1500,
+        "y": 230
+      },
+      "db-2": {
+        "x": 1800,
+        "y": 60
+      }
+    }
+  },
+  "traffic": {
+    "rps": 3000,
+    "readRatio": 0.7,
+    "hotKeyFraction": 0.85,
+    "staticFraction": 0.2
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Never run user code inside the web tier. Where do submissions go, and who runs them?",
+    "Everyone reads the same few problems and the scoreboard: cache them. Editor assets belong on a CDN.",
+    "CDN → LB (2) → API (4) → Redis (2) → Postgres (2); API → SQS → Judges (3) → NoSQL verdicts."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2800
+  },
+  "explanation": [
+    "Judging is a queue-and-worker problem: accept the submission, enqueue it, return 'queued', and let sandboxed judges pull work at their own pace.",
+    "Isolate every run (containers, Firecracker microVMs or services like E2B) with CPU, memory and time limits, and no network.",
+    "Contest traffic is extremely hot on a few problems: cache statements and the scoreboard, and push static editor assets to a CDN."
+  ]
+}

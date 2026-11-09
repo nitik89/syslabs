@@ -9,6 +9,21 @@
     "Last time, the team panicked and added two read replicas. It didn't help: every write still lands on the single Postgres primary, which commits about 1,000 writes per second. Checkout timed out for most buyers.",
     "Take every order, keep checkout fast, and make sure nothing piles up unprocessed. Writes can be confirmed and processed a moment later."
   ],
+  "requirements": {
+    "functional": [
+      "Browse the limited-edition drop",
+      "Add to cart, reserve and place orders",
+      "Confirm orders now and process them a moment later"
+    ],
+    "nonFunctional": [
+      "Handle 8,000 requests/s at midnight, 40% writes",
+      "Take every order: error rate at or below 0.5%",
+      "Checkout stays fast: average latency at or below 60 ms",
+      "Writes are processed as fast as they arrive (no backlog)",
+      "No single points of failure",
+      "Cost under $2,000 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "errors",

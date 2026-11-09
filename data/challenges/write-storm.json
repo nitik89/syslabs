@@ -9,6 +9,20 @@
     "The team saw the database overloaded and added read replicas, three of them. The error rate barely moved, and the bill went up.",
     "Handle the write load reliably and keep at least 20% headroom everywhere."
   ],
+  "requirements": {
+    "functional": [
+      "Accept sensor readings from thermostats",
+      "Store every reading",
+      "Let users view their recent readings"
+    ],
+    "nonFunctional": [
+      "Handle 4,000 requests/s, 90% writes",
+      "Error rate at or below 1%",
+      "No component above 80% utilization",
+      "No single points of failure",
+      "Cost under $1,000 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "errors",

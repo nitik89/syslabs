@@ -1,0 +1,252 @@
+{
+  "id": "key-value-store",
+  "order": 20,
+  "title": "Distributed Key-Value Store",
+  "difficulty": "Hard",
+  "summary": "Design a DynamoDB-style key-value store: partitioned, replicated, and fast for both reads and writes.",
+  "scenario": [
+    "Internal teams want a simple get/put store that scales without them thinking about servers.",
+    "It must survive losing a node, and a single hot key or a spike of writes must not take it down."
+  ],
+  "mode": "build",
+  "category": "Infrastructure",
+  "requirements": {
+    "functional": [
+      "put(key, value) and get(key)",
+      "Partition keys across many nodes",
+      "Replicate each key to several nodes",
+      "Keep serving when a node fails"
+    ],
+    "nonFunctional": [
+      "Handle 30,000 requests/s at peak, 60% reads",
+      "Average latency at or below 60 ms",
+      "Error rate at or below 0.5%",
+      "No component above 80% utilization",
+      "No single points of failure",
+      "Cost under $4,000 / month"
+    ]
+  },
+  "estimates": [
+    "30,000 requests/s at peak",
+    "60% gets, 40% puts",
+    "A minority of keys are much hotter than the rest"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $4,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 4000
+    },
+    {
+      "id": "headroom",
+      "label": "No component above 80% utilization",
+      "metric": "maxUtilization",
+      "op": "<=",
+      "value": 0.8
+    },
+    {
+      "id": "uses-nosql",
+      "label": "Data lives in partitioned, replicated storage nodes",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "nosqlDb"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Hot keys are served from memory",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Client Services",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Client Services",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Request Router",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Coordinator Nodes",
+          "config": {
+            "replicas": 28
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Hot-Key Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Storage Nodes",
+          "config": {
+            "replicas": 6
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 60
+      }
+    }
+  },
+  "traffic": {
+    "rps": 30000,
+    "readRatio": 0.6,
+    "hotKeyFraction": 0.6,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Spread keys over many storage nodes with consistent hashing, and keep several copies of each.",
+    "Writes are 40% of 30,000 req/s: size storage for 12,000 writes/s plus cache misses, with 20% headroom.",
+    "Router (3) → Coordinators (28) → Redis hot-key cache (2) → NoSQL storage nodes (6)."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 45,
+    "costBudget": 3600
+  },
+  "explanation": [
+    "Consistent hashing places keys on a ring so adding a node moves only a small slice of data.",
+    "Replicate each key to N nodes and use quorums (for example W=2, R=2 with N=3) to trade consistency against latency.",
+    "Hot keys get a small in-memory cache or are split across sub-keys so one partition doesn't melt."
+  ]
+}

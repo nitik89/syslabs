@@ -37,6 +37,11 @@ describe("challenge data", () => {
     ]);
     expect(new Set(CHALLENGES.map((c) => c.order)).size).toBe(CHALLENGES.length);
     for (const c of CHALLENGES) expect(SOLUTIONS[c.id]).toBeDefined();
+    // Every question states what the system must do and how well.
+    for (const c of CHALLENGES) {
+      expect(c.requirements?.functional.length, c.id).toBeGreaterThan(0);
+      expect(c.requirements?.nonFunctional.length, c.id).toBeGreaterThan(0);
+    }
   });
 
   for (const ch of CHALLENGES) {
@@ -278,5 +283,15 @@ describe("missing index", () => {
     const { r, s } = run("missing-index", g);
     expect(s.passed).toBe(true);
     expect(r.nodes["sqlDb-1"].utilization).toBeLessThan(run("missing-index", SOLUTIONS["missing-index"]).r.nodes["sqlDb-1"].utilization);
+  });
+});
+
+describe("test cases", () => {
+  it("cover every objective exactly once", async () => {
+    const { testCasesFor } = await import("@/lib/challenges/test-cases");
+    for (const c of CHALLENGES) {
+      const ids = testCasesFor(c).flatMap((t) => t.objectives.map((o) => o.id));
+      expect(ids.sort()).toEqual(c.objectives.map((o) => o.id).sort());
+    }
   });
 });

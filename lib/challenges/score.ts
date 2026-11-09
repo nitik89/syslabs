@@ -1,4 +1,4 @@
-import { CATALOG, NO_TRAFFIC_KINDS, isNodeAllowed, nodeSpec, type SimGraph, type SimResult } from "@/lib/sim";
+import { CATALOG, NO_TRAFFIC_KINDS, behaviorSatisfies, isNodeAllowed, nodeSpec, type SimGraph, type SimResult } from "@/lib/sim";
 import type { Challenge, Objective, ObjectiveMetric, ScoreCategory } from "./types";
 
 export interface CategoryScore {
@@ -30,7 +30,7 @@ export function metricValue(metric: ObjectiveMetric, r: SimResult, o?: Objective
     case "componentLoad": {
       if (r.offeredRps <= 0 || !o?.kinds || !graph) return r.offeredRps > 0 ? 0 : null;
       const wanted = new Set(o.kinds);
-      return graph.nodes.filter((n) => wanted.has(nodeSpec(n).behavior)).reduce((sum, n) => sum + (r.nodes[n.id]?.load ?? 0), 0);
+      return graph.nodes.filter((n) => behaviorSatisfies(nodeSpec(n).behavior, wanted)).reduce((sum, n) => sum + (r.nodes[n.id]?.load ?? 0), 0);
     }
     case "errorRate":
       return r.offeredRps > 0 ? r.errorRate : null;

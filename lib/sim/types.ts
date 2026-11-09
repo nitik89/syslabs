@@ -11,6 +11,7 @@ export const BASE_KINDS = [
   "loadBalancer",
   "apiGateway",
   "rateLimiter",
+  "appGateway",
   "websocketGateway",
   "appServer",
   "serverless",
@@ -47,6 +48,7 @@ export const SERVICE_KINDS = [
   "awsApiGateway",
   "kong",
   "awsWaf",
+  "envoyGateway",
   // Compute
   "docker",
   "kubernetes",

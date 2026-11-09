@@ -9,6 +9,22 @@
     "Peak traffic is 12,000 requests per second. Reads outnumber writes 19 to 1, and popular links get clicked far more than the rest: 80% of redirects hit a small set of hot links.",
     "Start from an empty canvas. A redirect should feel instant, the service must survive any single failure, and finance wants the bill under $2,000 a month."
   ],
+  "requirements": {
+    "functional": [
+      "Create a short link for a long URL",
+      "Redirect a short link to its long URL",
+      "Store every link durably"
+    ],
+    "nonFunctional": [
+      "Handle 12,000 requests/s at peak, 19 reads per write",
+      "80% of redirects hit a small set of hot links",
+      "Redirects feel instant: average latency at or below 60 ms",
+      "Error rate at or below 0.5%",
+      "Survive any single failure",
+      "Database load at or below 4,000 rps",
+      "Cost under $2,000 / month"
+    ]
+  },
   "objectives": [
     { "id": "errors", "label": "Error rate at or below 0.5%", "metric": "errorRate", "op": "<=", "value": 0.005 },
     { "id": "latency", "label": "Average latency at or below 60 ms", "metric": "avgLatencyMs", "op": "<=", "value": 60 },

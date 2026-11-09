@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Logo } from "./logo";
 import { CommandMenu } from "./command-menu";
+import { UserMenu } from "@/components/auth/user-menu";
 import { NAV_ITEMS, isActive, isWorkspace, type NavItem } from "./nav";
 
 const TOTAL = CHALLENGES.length + DESIGNS.length;
@@ -113,7 +114,7 @@ function LevelCard({ progress, rail = false }: { progress: ProgressState | null;
             <Link
               href="/progress"
               aria-label={`Level ${level}, ${xp} XP`}
-              className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-brand-cyan via-brand-blue to-brand-violet font-mono text-xs font-bold text-white outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-10 items-center justify-center rounded-full bg-brand-blue font-mono text-xs font-bold text-white outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           }
         >
@@ -130,7 +131,7 @@ function LevelCard({ progress, rail = false }: { progress: ProgressState | null;
       href="/progress"
       className="surface flex items-center gap-3 rounded-xl p-3 outline-none transition-colors hover:border-brand-blue/40 focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-cyan via-brand-blue to-brand-violet font-mono text-xs font-bold text-white">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue font-mono text-xs font-bold text-white">
         L{level}
       </span>
       <span className="min-w-0 flex-1 space-y-1.5">
@@ -139,7 +140,7 @@ function LevelCard({ progress, rail = false }: { progress: ProgressState | null;
           <span className="font-mono text-[11px] text-muted-foreground">{xp.toLocaleString()} XP</span>
         </span>
         <span className="block h-1 overflow-hidden rounded-full bg-white/[0.07]">
-          <span className="block h-full rounded-full bg-gradient-to-r from-brand-cyan via-brand-blue to-brand-violet" style={{ width: `${pct}%` }} />
+          <span className="block h-full rounded-full bg-brand-blue" style={{ width: `${pct}%` }} />
         </span>
         <span className="block text-[10.5px] text-muted-foreground">{toNext} XP to level {level + 1}</span>
       </span>
@@ -177,6 +178,7 @@ function StatsBar({ progress }: { progress: ProgressState | null }) {
           <span>/ {TOTAL}</span>
           <span className="hidden sm:inline">solved</span>
         </Link>
+        <UserMenu />
       </div>
     </div>
   );

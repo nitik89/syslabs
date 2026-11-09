@@ -20,6 +20,8 @@ export interface ComponentSpec {
   inherentlyRedundant: boolean;
   /** Whether capacity limits apply. */
   unlimited: boolean;
+  /** What a bundled component does in one box (shown as feature chips). */
+  includes?: string[];
 }
 
 type BaseSpec = Omit<ComponentSpec, "behavior" | "vendor">;
@@ -84,6 +86,19 @@ const BASE: Record<BaseKind, BaseSpec> = {
     defaults: { capacity: 10000, latencyMs: 1, replicas: 1, costPerReplica: 30 },
     inherentlyRedundant: false,
     unlimited: false,
+  },
+  appGateway: {
+    kind: "appGateway",
+    label: "Application Gateway",
+    short: "WAF, rate limits, auth, L7 LB",
+    description:
+      "One front door that does the whole edge job: terminates TLS, filters attacks (WAF), rate-limits clients, checks auth tokens, then load-balances and routes requests by path to your services.",
+    simBehavior:
+      "Pass-through router that spreads traffic across downstream nodes like a load balancer. Its capacity is the allowed rate, so anything above it is rejected here instead of overloading what is behind it. Counts as a load balancer, API gateway and rate limiter for objectives.",
+    defaults: { capacity: 25000, latencyMs: 4, replicas: 1, costPerReplica: 90 },
+    inherentlyRedundant: false,
+    unlimited: false,
+    includes: ["TLS termination", "WAF", "Rate limiting", "Auth (JWT / OAuth)", "L7 load balancing", "Path routing"],
   },
   websocketGateway: {
     kind: "websocketGateway",
@@ -311,6 +326,7 @@ const SERVICES: Record<ServiceKind, ServiceRow> = {
   nginx: ["loadBalancer", "Open source", "NGINX", "Reverse proxy / LB", "Self-hosted reverse proxy and load balancer. Fast and cheap, but you run (and replicate) it yourself.", [30000, 1, 1, 20], false],
   awsApiGateway: ["apiGateway", "AWS", "AWS API Gateway", "Managed API front door", "Managed gateway with auth, throttling and request routing to Lambda or HTTP backends. Adds a few ms per call.", [10000, 5, 1, 100], true],
   kong: ["apiGateway", "Open source", "Kong Gateway", "Self-hosted API gateway", "NGINX-based API gateway with plugins for auth, rate limits and logging. You run the replicas.", [12000, 3, 1, 60], false],
+  envoyGateway: ["appGateway", "Open source", "Envoy Gateway", "Envoy-based edge gateway", "Kubernetes Gateway API on Envoy proxy: TLS, rate limits, JWT auth, retries and weighted routing. You run the replicas.", [30000, 3, 1, 70], false],
   awsWaf: ["rateLimiter", "AWS", "AWS WAF", "Firewall + rate rules", "Web application firewall with rate-based rules. Blocks abusive clients at the edge.", [25000, 1, 1, 40], true],
   // Compute
   docker: ["appServer", "Open source", "Docker Container", "Containerized service", "Your service packaged as a container image. Each replica is one running container on a host you manage.", [1200, 15, 1, 40], false],
@@ -420,6 +436,7 @@ function serviceSpec(kind: ServiceKind, row: ServiceRow): ComponentSpec {
     },
     inherentlyRedundant: managed || base.inherentlyRedundant,
     unlimited: base.unlimited,
+    ...(base.includes ? { includes: base.includes } : {}),
   };
 }
 
@@ -454,6 +471,16 @@ export function nodeSpec(n: { kind: NodeKind; config: NodeConfig }): ComponentSp
 /** Like isKindAllowed, but custom nodes are judged by the behavior they picked. */
 export function isNodeAllowed(n: { kind: NodeKind; config: NodeConfig }, allowed: ReadonlySet<NodeKind>): boolean {
   return n.kind === "custom" ? allowed.has(nodeSpec(n).behavior) : isKindAllowed(n.kind, allowed);
+}
+
+/** Bundled components that also count as the building blocks they contain (for objectives). */
+export const BUNDLES: Partial<Record<BaseKind, readonly BaseKind[]>> = {
+  appGateway: ["loadBalancer", "apiGateway", "rateLimiter"],
+};
+
+/** True if a component with this behavior satisfies a request for any of `wanted`. */
+export function behaviorSatisfies(behavior: BaseKind, wanted: ReadonlySet<BaseKind>): boolean {
+  return wanted.has(behavior) || (BUNDLES[behavior]?.some((b) => wanted.has(b)) ?? false);
 }
 
 /** The generic behavior a component runs as. */

@@ -42,7 +42,7 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
       )}
       <div className="relative flex items-center gap-2.5">
         <KindIcon kind={data.kind} size="xl" />
-        <div className="min-w-0 flex-1" onDoubleClick={() => setEditing(true)} title="Double-click to rename">
+        <div className="min-w-0 flex-1">
           {editing ? (
             <input
               autoFocus
@@ -62,7 +62,16 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
               className="nodrag nopan w-full rounded border border-ring bg-background px-1 text-[14px] font-semibold leading-tight outline-none"
             />
           ) : (
-            <p className="truncate text-[14px] font-semibold leading-tight">{name}</p>
+            <p
+              className="truncate text-[14px] font-semibold leading-tight"
+              title="Double-click the name to rename"
+              onDoubleClick={(e) => {
+                e.stopPropagation(); // rename, don't open the inspector
+                setEditing(true);
+              }}
+            >
+              {name}
+            </p>
           )}
           <p className="truncate text-[11.5px] text-muted-foreground">{subtitle}</p>
         </div>
@@ -78,14 +87,28 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
         )}
       </div>
 
+      {spec.includes && !r && (
+        <ul className="relative mt-2 flex flex-wrap gap-1" aria-label="Built-in features">
+          {spec.includes.slice(1, 5).map((f) => (
+            <li key={f} className="rounded bg-white/[0.06] px-1.5 py-px text-[9.5px] font-medium text-muted-foreground">
+              {f.replace(/ \(.*\)$/, "").replace("L7 load balancing", "Load balancing")}
+            </li>
+          ))}
+        </ul>
+      )}
       {r && r.capacity !== null && (
-        <div className="mt-2 space-y-1">
-          <div className="flex items-center justify-between font-mono text-[10px]">
-            <span className="text-muted-foreground">{fmtRps(r.load)} rps</span>
-            <span className={STATUS_TEXT[r.status]}>{Math.round(r.utilization * 100)}%</span>
+        <div className="relative mt-2 space-y-1">
+          {/* One segment per replica (load is spread evenly across them). */}
+          <div className="flex gap-0.5" aria-hidden="true">
+            {Array.from({ length: Math.min(Math.max(data.config.replicas, 1), 8) }, (_, i) => (
+              <div key={i} className="h-1.5 flex-1 overflow-hidden rounded-sm bg-white/[0.08]">
+                <div className={cn("h-full rounded-sm transition-[width] duration-150", STATUS_BAR[r.status])} style={{ width: `${pct}%` }} />
+              </div>
+            ))}
           </div>
-          <div className="h-1 overflow-hidden rounded-full bg-secondary">
-            <div className={cn("h-full rounded-full", STATUS_BAR[r.status])} style={{ width: `${pct}%` }} />
+          <div className="flex items-center justify-between font-mono text-[10.5px]">
+            <span className={STATUS_TEXT[r.status]}>{Math.round(r.utilization * 100)}% busy</span>
+            <span className="text-muted-foreground">{fmtRps(r.load)} rps</span>
           </div>
           {r.hitRatio !== undefined && (
             <p className="font-mono text-[10px] text-muted-foreground">hit {Math.round(r.hitRatio * 100)}%</p>
@@ -93,7 +116,7 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
         </div>
       )}
       {r && r.capacity === null && data.kind === "client" && (
-        <p className="mt-2 font-mono text-[10px] text-muted-foreground">{fmtRps(r.load)} rps out</p>
+        <p className="relative mt-2 font-mono text-[10.5px] text-muted-foreground">traffic source · {fmtRps(r.load)} rps</p>
       )}
 
       <Handle type="source" position={Position.Right} className="!size-3.5 !border-2 !border-background !bg-brand-violet transition-transform hover:!scale-125" />

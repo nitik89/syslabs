@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NODE_KINDS, simulate } from "@/lib/sim";
+import { NODE_KINDS, simulate, type SimGraph } from "@/lib/sim";
 import { scoreChallenge } from "@/lib/challenges/score";
 import { CHALLENGES } from "@/data/challenges";
 import { DESIGNS, DESIGN_CATEGORIES, getDesign } from "./index";
@@ -57,5 +57,16 @@ describe("build problems", () => {
     g.edges = g.edges.filter((e) => e.target !== "cdn-1");
     const { s } = run("shopping-app", g);
     expect(s.objectives.find((o) => o.objective.id === "uses-cdn")!.met).toBe(false);
+  });
+
+  it("notification system: an Application Gateway counts as the gateway, a plain load balancer doesn't", () => {
+    const met = (g: SimGraph) =>
+      run("notification-system", g).s.objectives.find((o) => o.objective.id === "uses-gateway")!.met;
+    const ref = getDesign("notification-system")!.reference!.graph;
+    expect(ref.nodes.some((n) => n.kind === "appGateway")).toBe(true);
+    expect(met(ref)).toBe(true);
+    const lbOnly = structuredClone(ref);
+    lbOnly.nodes = lbOnly.nodes.map((n) => (n.kind === "appGateway" ? { ...n, kind: "loadBalancer" as const } : n));
+    expect(met(lbOnly)).toBe(false);
   });
 });

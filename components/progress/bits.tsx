@@ -87,7 +87,7 @@ export function ActivityGrid({ activeDays, today, weeks = 12 }: { activeDays: st
                 title={c.future ? undefined : `${c.day}${c.on ? ": active" : ""}`}
                 className={cn(
                   "size-3 rounded-[3px]",
-                  c.future ? "bg-transparent" : c.on ? "bg-gradient-to-br from-brand-cyan to-brand-violet" : "bg-secondary",
+                  c.future ? "bg-transparent" : c.on ? "bg-brand-blue" : "bg-secondary",
                 )}
               />
             ))}

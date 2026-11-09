@@ -1,35 +1,26 @@
 "use client";
 
-import { useId } from "react";
 import Link from "next/link";
 
-/** Original SysLab mark: three stacked nodes joined by a flow line. */
-export function Logo({ compact = false }: { compact?: boolean }) {
-  // Unique per instance: a gradient defined inside a hidden SVG (e.g. the desktop sidebar on mobile) is not resolvable.
-  const gid = `syslab-g-${useId().replace(/:/g, "")}`;
+/** SysLab mark: a request's path drawn as an "S", from one node to the next, on a solid tile. */
+export function LogoMark({ className = "size-8" }: { className?: string }) {
   return (
-    <Link
-      href="/"
-      className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      aria-label="SysLab home"
-    >
-      <svg viewBox="0 0 32 32" className="size-8 shrink-0" aria-hidden="true">
-        <defs>
-          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="var(--brand-cyan)" />
-            <stop offset="0.5" stopColor="var(--brand-blue)" />
-            <stop offset="1" stopColor="var(--brand-violet)" />
-          </linearGradient>
-        </defs>
-        <rect x="1" y="1" width="30" height="30" rx="8" fill="var(--card)" stroke={`url(#${gid})`} strokeWidth="1.5" />
-        <path d="M9 10.5 L16 16 L23 10.5 M16 16 V22.5" stroke={`url(#${gid})`} strokeWidth="1.6" fill="none" strokeLinecap="round" />
-        <circle cx="9" cy="10.5" r="2.6" fill="var(--brand-cyan)" />
-        <circle cx="23" cy="10.5" r="2.6" fill="var(--brand-violet)" />
-        <circle cx="16" cy="22.5" r="2.6" fill="var(--brand-blue)" />
-      </svg>
+    <svg viewBox="0 0 32 32" className={`${className} shrink-0`} aria-hidden="true">
+      <rect x="1" y="1" width="30" height="30" rx="9" fill="var(--brand-blue)" />
+      <path d="M10.5 8.5H19.5a3.75 3.75 0 0 1 0 7.5H12.5a3.75 3.75 0 0 0 0 7.5H21.5" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="10" cy="8.5" r="2.6" fill="var(--brand-blue)" stroke="white" strokeWidth="2" />
+      <circle cx="22" cy="23.5" r="2.9" fill="white" />
+    </svg>
+  );
+}
+
+export function Logo({ compact = false }: { compact?: boolean }) {
+  return (
+    <Link href="/" className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="SysLab home">
+      <LogoMark />
       {!compact && (
-        <span className="text-[15px] font-semibold tracking-tight">
-          Sys<span className="text-gradient-brand">Lab</span>
+        <span className="text-[15.5px] font-semibold tracking-tight">
+          Sys<span className="text-brand-blue">Lab</span>
         </span>
       )}
     </Link>

@@ -9,6 +9,20 @@
     "One Background Worker pulls messages off the queue and writes them to the database. It can process 2,000 per second.",
     "Users see \"sent\", but their friends get the messages hours late. The backlog grows every second. Drain it, with headroom to spare."
   ],
+  "requirements": {
+    "functional": [
+      "Send a message and return immediately",
+      "Deliver queued messages to the database in the background",
+      "Let users read their conversations"
+    ],
+    "nonFunctional": [
+      "Handle 6,000 requests/s, 80% sends",
+      "Queue keeps up: no backlog",
+      "No component above 75% utilization",
+      "Error rate at or below 1%",
+      "Cost under $1,200 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "backlog",

@@ -3,19 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Eye, Lightbulb, Loader2, ScrollText } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Loader2, PanelLeft, Play, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
-import { CATALOG, simulate, type SimGraph, type SimResult } from "@/lib/sim";
+import { percentilesOf, type SimGraph, type SimResult } from "@/lib/sim";
+import { perHour, runTests, testCasesFor, type TestResult } from "@/lib/challenges/test-cases";
+import { INCIDENTS } from "@/data/challenges/incidents";
 import { PROGRESS_EVENT, getRepo, type ChallengeRecord, type DesignDoc } from "@/lib/storage";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Designer } from "@/components/lab/designer";
+import { ResizeHandle, usePanelWidth } from "@/components/lab/resize-handle";
+import { ShareButton } from "@/components/lab/share-button";
 import { LoadDesignButton, ResetButton, SaveDesignButton, type CurrentDesign } from "@/components/lab/design-actions";
 import { ObjectiveList, ScoreCard } from "./score-card";
-import { DifficultyPill } from "./challenge-list";
+import { OnCallCard } from "./on-call";
+import { StartGuide, TestsPreview } from "./start-guide";
+import { ProblemPanel, type ProblemTab } from "./problem-panel";
+import { PassBadge, TestStatusLines } from "./test-results";
 import { cn } from "@/lib/utils";
 
 type Phase = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; doc: DesignDoc; key: number };
@@ -48,8 +53,28 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
   const [record, setRecord] = useState<ChallengeRecord | null>(null);
   const [current, setCurrent] = useState<CurrentDesign | null>(null);
   const [hintsShown, setHintsShown] = useState(0);
-  const [briefOpen, setBriefOpen] = useState(false);
-  const [explanationOpen, setExplanationOpen] = useState(false);
+  const [editorialOpen, setEditorialOpen] = useState(false);
+  const [problemTab, setProblemTab] = useState<ProblemTab>("description");
+  const [leftOpen, setLeftOpen] = useState(true);
+  const problemRef = useRef<HTMLElement>(null);
+  const problemWidth = usePanelWidth({ min: 260, max: 560 });
+  const [testFilter, setTestFilter] = useState<string>("all");
+  const [submission, setSubmission] = useState<{ tests: TestResult[]; score: number; passed: boolean; xp: number; p99: number; cost: number } | null>(null);
+  const incident = challenge.mode === "build" ? undefined : INCIDENTS[challenge.id];
+  // The on-call page opens by itself only on the first visit to an unsolved challenge.
+  const [pageOpen, setPageOpen] = useState(false);
+  const seenKey = `syslab:oncall-seen:${challenge.id}`;
+  const closePage = useCallback(() => {
+    setPageOpen(false);
+    try {
+      localStorage.setItem(seenKey, "1");
+    } catch {
+      /* private mode: it will just show again next time */
+    }
+  }, [seenKey]);
+  const tests = useMemo(() => testCasesFor(challenge), [challenge]);
+  const latencyObjective = challenge.objectives.find((o) => o.metric === "avgLatencyMs");
+  const budget = challenge.objectives.find((o) => o.metric === "monthlyCost")?.value;
   const draftWarned = useRef(false);
   const router = useRouter();
   const nextHref = next ? `${basePath}/${next.id}` : null;
@@ -73,6 +98,13 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
         const doc = base ? { graph: base.graph, positions: base.positions, traffic: { ...challenge.traffic } } : startingDoc(challenge);
         if (saved) setCurrent({ id: saved.id, name: saved.name });
         setRecord(progress.challenges[challenge.id] ?? null);
+        let seen = false;
+        try {
+          seen = localStorage.getItem(`syslab:oncall-seen:${challenge.id}`) === "1";
+        } catch {
+          /* ignore */
+        }
+        setPageOpen(Boolean(INCIDENTS[challenge.id]) && challenge.mode !== "build" && !seen && !progress.challenges[challenge.id]?.passed);
         setState({ phase: "ready", doc, key: Date.now() });
       },
       (e: unknown) => {
@@ -100,210 +132,59 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
     [draftScope],
   );
 
-  const onRun = useCallback(
-    async (result: SimResult, doc: DesignDoc) => {
-      const s = scoreChallenge(challenge, result, doc.graph);
-      // The reference design, run unchanged, is a worked example: score it, but don't record it or award XP.
-      if (challenge.reference && sameGraph(doc.graph, challenge.reference.graph)) {
+  const testsFor = useCallback(
+    (result: SimResult, graph: SimGraph) => runTests(tests, scoreChallenge(challenge, result, graph).objectives),
+    [tests, challenge],
+  );
+
+  /** Grade the design against every test, record the attempt and show the verdict. */
+  const submit = useCallback(
+    async (result: SimResult, graph: SimGraph, monthlyCost: number) => {
+      const s = scoreChallenge(challenge, result, graph);
+      const results = runTests(tests, s.objectives);
+      const p99 = percentilesOf(result).p99;
+      const verdict = { tests: results, score: s.total, passed: s.passed, xp: 0, p99, cost: monthlyCost };
+      // The reference design, run unchanged, is a worked example: grade it, but don't record it or award XP.
+      if (challenge.reference && sameGraph(graph, challenge.reference.graph)) {
+        setSubmission(verdict);
         toast.info("That's the revealed solution, unchanged. Change something to make it yours and mark it solved.");
         return;
       }
       try {
-        const { progress, xpGained } = await getRepo().recordAttempt(challenge.id, s.total, s.passed);
+        const { progress, xpGained } = await getRepo().recordAttempt(challenge.id, s.total, s.passed, {
+          testsPassed: results.filter((r) => r.passed).length,
+          testsTotal: results.length,
+          p99Ms: p99,
+          monthlyCost,
+        });
         const rec = progress.challenges[challenge.id];
         const firstPass = s.passed && rec.firstPassedAt === rec.lastAttemptAt;
         setRecord(rec);
+        setSubmission({ ...verdict, xp: xpGained });
         window.dispatchEvent(new Event(PROGRESS_EVENT));
         if (firstPass) {
-          toast.success(`Solved! Score ${s.total}. +${xpGained} XP`, {
+          toast.success(`Accepted! Score ${s.total}. +${xpGained} XP`, {
             description: next ? `Up next: ${next.title}` : `That was the last ${noun}. Nice work!`,
             ...(nextHref ? { action: { label: "Next →", onClick: () => router.push(nextHref) } } : {}),
             duration: 8000,
           });
-          setExplanationOpen(true);
-        } else if (xpGained > 0) toast.success(`New best: ${s.total}. +${xpGained} XP`);
+        }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not record your attempt.");
       }
     },
-    [challenge, next, nextHref, noun, router],
+    [challenge, tests, next, nextHref, noun, router],
   );
 
-  const pendingObjectives = useMemo(() => {
-    // An "empty" result just to list objectives in their unchecked state.
-    const r = simulate({ nodes: [], edges: [] }, challenge.traffic);
-    return scoreChallenge(challenge, r, { nodes: [], edges: [] }).objectives;
-  }, [challenge]);
-
-  const brief = (
-    <div className="space-y-5">
-      <section className="space-y-2">
-        {challenge.scenario.map((p) => (
-          <p key={p} className="text-sm leading-relaxed text-muted-foreground">
-            {p}
-          </p>
-        ))}
-      </section>
-      {challenge.requirements && (
-        <section className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Must do</h3>
-            <ul className="list-disc space-y-1 pl-4 text-[12.5px]">
-              {challenge.requirements.functional.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="space-y-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Must be</h3>
-            <ul className="list-disc space-y-1 pl-4 text-[12.5px]">
-              {challenge.requirements.nonFunctional.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      )}
-      {challenge.estimates && (
-        <section className="space-y-1.5">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Back-of-envelope</h3>
-          <ul className="space-y-1 rounded-lg border border-border bg-secondary/30 p-2.5 font-mono text-[11.5px] leading-relaxed">
-            {challenge.estimates.map((e) => (
-              <li key={e}>{e}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Traffic (fixed)</h3>
-        <p className="font-mono text-[12px]">
-          {challenge.traffic.rps.toLocaleString()} rps · {Math.round(challenge.traffic.readRatio * 100)}% reads · {Math.round(challenge.traffic.hotKeyFraction * 100)}% hot keys
-          {challenge.traffic.staticFraction > 0 && ` · ${Math.round(challenge.traffic.staticFraction * 100)}% static`}
-          {(challenge.traffic.contendedWriteFraction ?? 0) > 0 &&
-            ` · ${Math.round(challenge.traffic.contendedWriteFraction! * 100)}% of writes contended`}
-          {(challenge.traffic.aiFraction ?? 0) > 0 && ` · ${Math.round(challenge.traffic.aiFraction! * 100)}% call an AI model`}
-        </p>
-      </section>
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Objectives</h3>
-        <ObjectiveList results={pendingObjectives} pending />
-      </section>
-      <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hints</h3>
-        {hintsShown === 0 && <p className="text-[12px] text-muted-foreground">Stuck? Hints get more specific as you reveal them.</p>}
-        <ol className="space-y-2">
-          {challenge.hints.slice(0, hintsShown).map((h, i) => (
-            <li key={h} className="flex gap-2 rounded-lg border border-status-warn/25 bg-status-warn/5 p-2.5 text-[12px] leading-relaxed">
-              <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-status-warn" aria-hidden="true" />
-              <span>
-                <span className="font-medium">Hint {i + 1}: </span>
-                {h}
-              </span>
-            </li>
-          ))}
-        </ol>
-        {hintsShown < challenge.hints.length && (
-          <Button variant="outline" size="sm" onClick={() => setHintsShown((n) => n + 1)}>
-            <Lightbulb /> Reveal hint {hintsShown + 1} of {challenge.hints.length}
-          </Button>
-        )}
-      </section>
-      {!isBuild && <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Allowed components</h3>
-        <p className="text-[12px] text-muted-foreground">Only these appear in the palette for this challenge.</p>
-        <ul className="flex flex-wrap gap-1.5">
-          {challenge.allowedComponents.map((k) => (
-            <li key={k}>
-              <Badge variant="secondary">{CATALOG[k].label}</Badge>
-            </li>
-          ))}
-        </ul>
-      </section>}
-      {challenge.reference && (
-        <section className="space-y-1.5">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solution</h3>
-          <p className="text-[12px] text-muted-foreground">
-            Really stuck? Use <span className="font-medium text-foreground">Reveal solution</span> in the canvas toolbar to load a design that meets every objective,
-            then study it. Change it and run it to mark the {noun} solved.
-          </p>
-        </section>
-      )}
-    </div>
+  const pendingObjectives = useMemo(
+    () => challenge.objectives.map((objective) => ({ objective, actual: null, met: false })),
+    [challenge],
   );
 
-  const explanation = (
-    <div className="space-y-3">
-      {challenge.explanation.map((p) => (
-        <p key={p} className="text-sm leading-relaxed text-muted-foreground">
-          {p}
-        </p>
-      ))}
-    </div>
-  );
+  const visibleTests = (all: TestResult[]) => (testFilter === "all" ? all : all.filter((r) => r.test.id === testFilter));
 
   return (
-    <div className="flex flex-1 flex-col lg:h-[calc(100dvh-3rem)]">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border bg-sidebar/60 px-4 py-2.5 md:px-5">
-        <Link href={basePath} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label={isBuild ? "Back to build problems" : "Back to challenges"}>
-          <ArrowLeft />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
-              {isBuild ? challenge.category : `#${String(challenge.order).padStart(2, "0")}`} /
-            </span>
-            <h1 className="truncate text-[15px] font-semibold tracking-tight">{challenge.title}</h1>
-            <DifficultyPill difficulty={challenge.difficulty} />
-            {record?.passed && (
-              <span className="flex items-center gap-1 rounded-full bg-status-ok/12 px-2 py-0.5 text-[11px] font-medium text-status-ok">
-                <CheckCircle2 className="size-3" aria-hidden="true" /> Solved
-              </span>
-            )}
-          </div>
-          <p className="truncate text-[11.5px] text-muted-foreground">
-            {record ? `Best score ${record.bestScore} · ${record.attempts} attempt${record.attempts === 1 ? "" : "s"}` : challenge.summary}
-          </p>
-        </div>
-        <Sheet open={briefOpen} onOpenChange={setBriefOpen}>
-          <SheetTrigger render={<Button variant="outline" size="sm" />}>
-            <ScrollText /> {isBuild ? "Requirements & hints" : "Brief & hints"}
-          </SheetTrigger>
-          <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-            <SheetHeader>
-              <SheetTitle>{challenge.title}</SheetTitle>
-              <SheetDescription>{challenge.summary}</SheetDescription>
-            </SheetHeader>
-            <div className="px-4 pb-6">{brief}</div>
-          </SheetContent>
-        </Sheet>
-        <Sheet open={explanationOpen} onOpenChange={setExplanationOpen}>
-          <SheetTrigger render={<Button variant="outline" size="sm" />}>
-            <BookOpen /> {record?.passed ? "Explanation" : "Reveal explanation"}
-          </SheetTrigger>
-          <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-            <SheetHeader>
-              <SheetTitle>How to think about it</SheetTitle>
-              <SheetDescription>
-                {record?.passed ? "You passed. Here is the reasoning behind a strong solution." : "Spoiler: this describes a working solution. You can still earn full XP afterwards."}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="px-4 pb-6">{explanation}</div>
-          </SheetContent>
-        </Sheet>
-        {nextHref && (
-          <Link
-            href={nextHref}
-            className={cn(
-              buttonVariants({ variant: record?.passed ? "default" : "ghost", size: "sm" }),
-              record?.passed && "bg-brand-gradient shadow-brand border-0 hover:opacity-90",
-            )}
-            title={`Next ${noun}: ${next!.title}`}
-          >
-            Next <ArrowRight />
-          </Link>
-        )}
-      </div>
-
+    <div className="flex flex-1 flex-col lg:h-[calc(100dvh-3rem)] lg:flex-none lg:overflow-hidden">
       {state.phase === "loading" && (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
           <Loader2 className="size-4 animate-spin" /> Loading {noun}…
@@ -333,8 +214,203 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
           initial={state.doc}
           allowedKinds={challenge.allowedComponents}
           trafficLocked
+          brief={challenge.requirements}
           onDocChange={saveDraft}
-          onRun={(r, d) => void onRun(r, d)}
+          autoRun={pageOpen}
+          latencyTarget={latencyObjective ? { ms: latencyObjective.value, label: `target avg ≤ ${latencyObjective.value} ms` } : undefined}
+          header={(ctx) => {
+            const overBudget = budget !== undefined && ctx.monthlyCost > budget;
+            return (
+              <div className="shrink-0 border-b border-border bg-sidebar/80">
+                <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                  <Button variant="outline" size="sm" onClick={() => setLeftOpen((o) => !o)} aria-pressed={leftOpen} title="Show or hide the problem panel">
+                    <PanelLeft /> Layout
+                  </Button>
+                  <Link href={basePath} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label={isBuild ? "Back to build problems" : "Back to challenges"}>
+                    <ArrowLeft />
+                  </Link>
+                  <span className="hidden font-mono text-[11.5px] text-muted-foreground sm:inline">
+                    {isBuild ? challenge.category : `#${String(challenge.order).padStart(2, "0")}`} ·
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-md px-1.5 py-0.5 font-mono text-[10.5px] font-semibold",
+                      incident ? "bg-status-crit/15 text-status-crit" : isBuild ? "bg-brand-cyan/15 text-brand-cyan" : "bg-brand-blue/15 text-brand-blue",
+                    )}
+                  >
+                    {incident ? "On-call" : isBuild ? "Build" : "Design"}
+                  </span>
+                  <h1 className="min-w-0 truncate text-[15px] font-semibold tracking-tight">{challenge.title}</h1>
+                  <span
+                    className={cn(
+                      "text-[12.5px] font-medium",
+                      challenge.difficulty === "Easy" ? "text-status-ok" : challenge.difficulty === "Medium" ? "text-status-warn" : "text-status-crit",
+                    )}
+                  >
+                    {challenge.difficulty}
+                  </span>
+                  {record?.passed && (
+                    <span className="flex items-center gap-1 rounded-full bg-status-ok/12 px-2 py-0.5 text-[11px] font-medium text-status-ok">
+                      <CheckCircle2 className="size-3" aria-hidden="true" /> Solved
+                    </span>
+                  )}
+                  <div className="ml-auto flex flex-wrap items-center gap-2">
+                    {record?.passed && nextHref && (
+                      <Link
+                        href={nextHref}
+                        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "max-w-[240px] text-status-ok hover:text-status-ok")}
+                        title={`Next ${noun}: ${next!.title}`}
+                      >
+                        <span className="truncate">Next: {next!.title}</span> <ArrowRight />
+                      </Link>
+                    )}
+                    <span className={cn("font-mono text-[12px] tabular-nums", overBudget ? "text-status-crit" : "text-muted-foreground")} title="Monthly cost ÷ 730 hours">
+                      ${perHour(ctx.monthlyCost).toFixed(2)}/hr{budget !== undefined && <> of ${perHour(budget).toFixed(2)}</>}
+                    </span>
+                    <label className="sr-only" htmlFor="test-filter">
+                      Test case
+                    </label>
+                    <select
+                      id="test-filter"
+                      value={testFilter}
+                      onChange={(e) => setTestFilter(e.target.value)}
+                      className="h-8 rounded-lg border border-border bg-background px-2 text-[12.5px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <option value="all">All tests ({tests.length})</option>
+                      {tests.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                    <Button variant="outline" size="sm" onClick={() => ctx.run()} title="Run 60 seconds of traffic (⌘↵)">
+                      <Play /> Run
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const r = ctx.run();
+                        if (!r) return;
+                        ctx.showConsoleTab("submission");
+                        void submit(r, ctx.getDoc().graph, ctx.monthlyCost);
+                      }}
+                      title="Grade your design against every test"
+                    >
+                      Submit
+                    </Button>
+                    <ResetButton
+                      title={isBuild ? "Start over?" : "Reset challenge?"}
+                      description={isBuild ? "Clears the canvas back to just your users. Your best score and saved designs are kept." : "Restores the starting design. Your best score and saved designs are kept."}
+                      trigger={<RotateCcw aria-label="Reset" />}
+                      options={[
+                        {
+                          label: "Reset to start",
+                          destructive: true,
+                          onSelect: () => {
+                            ctx.loadDoc(startingDoc(challenge));
+                            setCurrent(null);
+                          },
+                        },
+                      ]}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          }}
+          leftPanel={
+            leftOpen ? (
+              <aside
+                ref={problemRef}
+                className="relative max-h-[70vh] shrink-0 overflow-hidden border-b border-border bg-sidebar/40 lg:max-h-none lg:w-[var(--problem-w)] lg:overflow-visible lg:border-b-0 lg:border-r"
+                style={{ ["--problem-w" as string]: `${problemWidth.width ?? 320}px` }}
+              >
+                <ResizeHandle
+                  label="Resize problem panel"
+                  getWidth={() => problemRef.current?.offsetWidth ?? 320}
+                  onResize={problemWidth.setWidth}
+                  onReset={problemWidth.reset}
+                />
+                <div className="h-full overflow-hidden">
+                <ProblemPanel
+                  challenge={challenge}
+                  tab={problemTab}
+                  onTabChange={setProblemTab}
+                  tests={tests}
+                  testResults={submission?.tests ?? null}
+                  record={record}
+                  hintsShown={hintsShown}
+                  onRevealHint={() => setHintsShown((n) => n + 1)}
+                  editorialOpen={editorialOpen}
+                  onRevealEditorial={() => setEditorialOpen(true)}
+                  onShowPage={incident ? () => setPageOpen(true) : undefined}
+                />
+                </div>
+              </aside>
+            ) : undefined
+          }
+          canvasOverlay={({ getDoc, result }) =>
+            incident && pageOpen ? (
+              <OnCallCard id={challenge.id} incident={incident} intro={challenge.summary} onClose={closePage} />
+            ) : isBuild && !result && getDoc().graph.nodes.length <= 1 ? (
+              <StartGuide challenge={challenge} />
+            ) : null
+          }
+          consoleIdle={<TestsPreview tests={tests} />}
+          consoleBadge={({ result, getDoc }) => {
+            if (!result) return null;
+            const all = testsFor(result, getDoc().graph);
+            const ok = all.filter((x) => x.passed).length;
+            return (
+              <span
+                className={cn(
+                  "rounded-md px-2 py-0.5 font-mono text-[11px] font-semibold",
+                  ok === all.length ? "bg-status-ok/12 text-status-ok" : "bg-status-crit/12 text-status-crit",
+                )}
+              >
+                {ok}/{all.length} tests passing
+              </span>
+            );
+          }}
+          consoleStatus={({ result, getDoc }) => (result ? <TestStatusLines tests={visibleTests(testsFor(result, getDoc().graph))} /> : null)}
+          consoleTabs={[
+            {
+              id: "submission",
+              label: submission ? `Submission · ${submission.score}` : "Submission",
+              content: submission ? (
+                <div className="space-y-3">
+                  <div className={cn("rounded-xl border p-4", submission.passed ? "border-status-ok/35 bg-status-ok/[0.06]" : "border-status-crit/35 bg-status-crit/[0.06]")}>
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <p className={cn("text-2xl font-semibold tracking-tight", submission.passed ? "text-status-ok" : "text-status-crit")}>
+                        {submission.passed ? "Accepted" : "Failed"}
+                      </p>
+                      <p className="font-mono text-[12px] text-muted-foreground">
+                        {submission.tests.filter((t) => t.passed).length}/{submission.tests.length} tests · score {submission.score} · ${perHour(submission.cost).toFixed(2)}/hr · p99{" "}
+                        {submission.p99 >= 1000 ? `${(submission.p99 / 1000).toFixed(1)} s` : `${Math.round(submission.p99)} ms`}
+                      </p>
+                      {submission.xp > 0 && <span className="rounded bg-brand-blue/15 px-1.5 py-px font-mono text-[11px] text-brand-blue">+{submission.xp} XP</span>}
+                    </div>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {submission.tests.map((t) => (
+                      <li key={t.test.id} className="rounded-xl border border-border bg-white/[0.02] px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <PassBadge passed={t.passed} />
+                          <span className="text-[13px] font-semibold">{t.test.title}</span>
+                          <span className="text-[11.5px] text-muted-foreground">{t.test.detail}</span>
+                        </div>
+                        <div className="mt-1.5">
+                          <TestStatusLines tests={[{ ...t, test: { ...t.test, title: "" } }]} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="py-6 text-center text-[12.5px] text-muted-foreground">Press Submit to grade your design against every test and record your score.</p>
+              ),
+            },
+          ]}
           resultsExtra={({ getDoc, result, stale }) =>
             result ? (
               <>
@@ -369,6 +445,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                 defaultName={`${challenge.title} ${isBuild ? "design" : "attempt"}`}
                 onSaved={(d) => setCurrent({ id: d.id, name: d.name })}
               />
+              <ShareButton getDoc={getDoc} defaultName={`${challenge.title} design`} challengeId={challenge.id} />
               <LoadDesignButton
                 filter={(d) => d.challengeId === challenge.id}
                 onLoad={(d) => {
@@ -379,7 +456,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
               {challenge.reference && (
                 <ResetButton
                   title="Reveal the solution?"
-                  description="Replaces the canvas with a design that meets every objective. Undo brings yours back. Running it unchanged scores it but doesn't mark the problem solved; change something to make it yours."
+                  description="Replaces the canvas with a design that meets every objective. Undo brings yours back. Submitting it unchanged grades it but doesn't mark the problem solved; change something to make it yours."
                   trigger={
                     <>
                       <Eye /> Reveal solution
@@ -396,20 +473,6 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                   ]}
                 />
               )}
-              <ResetButton
-                title={isBuild ? "Start over?" : "Reset challenge?"}
-                description={isBuild ? "Clears the canvas back to just your users. Your best score and saved designs are kept." : "Restores the starting design. Your best score and saved designs are kept."}
-                options={[
-                  {
-                    label: "Reset to start",
-                    destructive: true,
-                    onSelect: () => {
-                      loadDoc(startingDoc(challenge));
-                      setCurrent(null);
-                    },
-                  },
-                ]}
-              />
             </>
           )}
         />

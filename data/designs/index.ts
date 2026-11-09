@@ -12,6 +12,14 @@ import collaborativeDocs from "./collaborative-docs.json";
 import hotelBooking from "./hotel-booking.json";
 import metricsDashboard from "./metrics-dashboard.json";
 import searchAutocomplete from "./search-autocomplete.json";
+import pastebin from "./pastebin.json";
+import apiRateLimiter from "./api-rate-limiter.json";
+import webCrawler from "./web-crawler.json";
+import leaderboard from "./leaderboard.json";
+import onlineJudge from "./online-judge.json";
+import fileStorage from "./file-storage.json";
+import nearbyPlaces from "./nearby-places.json";
+import keyValueStore from "./key-value-store.json";
 
 /**
  * "Build" problems: design a product from a blank canvas. Same shape as challenges (so scoring, progress and
@@ -44,6 +52,14 @@ export const DESIGNS: Challenge[] = [
   hotelBooking,
   metricsDashboard,
   searchAutocomplete,
+  pastebin,
+  apiRateLimiter,
+  webCrawler,
+  leaderboard,
+  onlineJudge,
+  fileStorage,
+  nearbyPlaces,
+  keyValueStore,
 ]
   .map(normalize)
   .sort((a, b) => a.order - b.order);

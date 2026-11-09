@@ -9,6 +9,21 @@
     "Every one of those requests goes through the load balancer to the app servers, which read files from disk and send them back. The app tier is drowning, and the few dynamic requests that matter (search, prices, bookings) are failing with them.",
     "Make the homepage fast for everyone, keep at least 15% headroom on every component, and stay within budget."
   ],
+  "requirements": {
+    "functional": [
+      "Serve the photo-heavy homepage (images, JS, CSS)",
+      "Serve search, prices and bookings dynamically",
+      "Keep static and dynamic traffic from hurting each other"
+    ],
+    "nonFunctional": [
+      "Handle 20,000 requests/s at peak, 70% static assets",
+      "Average latency at or below 40 ms",
+      "Error rate at or below 1%",
+      "Every component at or below 85% utilization",
+      "No single points of failure",
+      "Cost under $2,200 / month"
+    ]
+  },
   "objectives": [
     { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },
     { "id": "latency", "label": "Average latency at or below 40 ms", "metric": "avgLatencyMs", "op": "<=", "value": 40 },

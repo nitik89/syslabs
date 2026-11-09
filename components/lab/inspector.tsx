@@ -67,6 +67,18 @@ export function NodeInspector({
         <span className="font-medium text-foreground">In the simulator: </span>
         {spec.simBehavior}
       </p>
+      {spec.includes && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">Built in</p>
+          <ul className="flex flex-wrap gap-1.5" aria-label="Built-in features">
+            {spec.includes.map((f) => (
+              <li key={f} className="rounded-md bg-brand-cyan/10 px-2 py-0.5 text-[11px] font-medium text-brand-cyan ring-1 ring-inset ring-brand-cyan/20">
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="space-y-1">
         <Label htmlFor={labelId} className="text-xs text-muted-foreground">

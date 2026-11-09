@@ -3,18 +3,21 @@
   "order": 8,
   "title": "Notification System",
   "difficulty": "Medium",
-  "summary": "Design a system that sends push, email and SMS notifications at scale without falling behind.",
+  "summary": "Design a system that authenticates and rate-limits senders, then delivers push, email and SMS at scale without falling behind.",
   "scenario": [
-    "Every product event (a like, a message, a shipped order) can trigger notifications to users through push, email or SMS.",
-    "Delivery providers are slow, so sending must happen in the background, and nothing may pile up."
+    "Every product event (a like, a message, a shipped order) makes an internal service ask you to notify a user by push, email or SMS.",
+    "Callers must be authenticated, and a buggy service must not be able to flood users, so requests enter through a gateway that checks auth and rate-limits each sender.",
+    "Delivery providers (APNs, FCM, SES, Twilio) are slow, so sending happens in the background, and nothing may pile up."
   ],
   "mode": "build",
   "category": "Messaging",
   "requirements": {
     "functional": [
+      "Authenticate calling services and rate-limit noisy senders",
       "Accept notification requests from other services",
-      "Deliver push, email and SMS",
-      "Store notification history",
+      "Deliver push, email and SMS in the background",
+      "Store notification history and serve each user's inbox",
+      "Read user preferences quickly (cached)",
       "Retry failed deliveries"
     ],
     "nonFunctional": [
@@ -27,7 +30,7 @@
   "estimates": [
     "10,000 notification requests/s at peak",
     "90% are sends (writes)",
-    "Users occasionally open their notification inbox (reads)"
+    "10% are inbox / preference reads, mostly for active users (hot keys)"
   ],
   "objectives": [
     {
@@ -59,6 +62,17 @@
       "value": 2400
     },
     {
+      "id": "uses-gateway",
+      "label": "Senders are authenticated and rate-limited at a gateway",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "apiGateway",
+        "rateLimiter"
+      ]
+    },
+    {
       "id": "uses-queue",
       "label": "Requests are queued",
       "metric": "componentLoad",
@@ -76,6 +90,16 @@
       "value": 1,
       "kinds": [
         "worker"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Inbox and preference reads are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
       ]
     }
   ],
@@ -108,9 +132,9 @@
           "config": {}
         },
         {
-          "id": "lb-1",
-          "kind": "loadBalancer",
-          "label": "Load Balancer",
+          "id": "gw-1",
+          "kind": "appGateway",
+          "label": "Application Gateway",
           "config": {
             "replicas": 2
           }
@@ -138,6 +162,12 @@
           }
         },
         {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Preferences Cache",
+          "config": {}
+        },
+        {
           "id": "db-1",
           "kind": "nosqlDb",
           "label": "Notification History",
@@ -154,13 +184,13 @@
       ],
       "edges": [
         {
-          "id": "e:client-1->lb-1",
+          "id": "e:client-1->gw-1",
           "source": "client-1",
-          "target": "lb-1"
+          "target": "gw-1"
         },
         {
-          "id": "e:lb-1->api",
-          "source": "lb-1",
+          "id": "e:gw-1->api",
+          "source": "gw-1",
           "target": "api"
         },
         {
@@ -182,16 +212,17 @@
           "id": "e:api->db-1",
           "source": "api",
           "target": "db-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
         }
       ]
     },
     "positions": {
       "client-1": {
         "x": 0,
-        "y": 60
-      },
-      "lb-1": {
-        "x": 280,
         "y": 60
       },
       "api": {
@@ -208,11 +239,19 @@
       },
       "db-1": {
         "x": 1400,
-        "y": 60
+        "y": 240
       },
       "monitoring-1": {
         "x": 0,
         "y": 420
+      },
+      "gw-1": {
+        "x": 280,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 840,
+        "y": 240
       }
     }
   },
@@ -227,6 +266,7 @@
     "dns",
     "cdn",
     "loadBalancer",
+    "appGateway",
     "apiGateway",
     "rateLimiter",
     "websocketGateway",
@@ -250,9 +290,9 @@
     "fineTune"
   ],
   "hints": [
-    "The API should only accept and enqueue. Who does the slow delivery?",
-    "Producers add 9,000 jobs/s. Workers must remove at least that many, with headroom.",
-    "LB (2) \u2192 API (10) \u2192 Kafka \u2192 Delivery Workers (6) \u2192 NoSQL (3), plus API \u2192 NoSQL for inbox reads."
+    "Put one front door in front of the API: it should check who is calling and cap how fast each sender can go. Which component does all of that?",
+    "The API should only accept and enqueue. Workers must remove at least 9,000 jobs/s, with headroom.",
+    "Application Gateway (2) → API (10) → Kafka → Delivery Workers (6) → NoSQL (3), plus API → Redis → NoSQL for inbox and preference reads."
   ],
   "scoring": {
     "weights": {
@@ -265,8 +305,10 @@
     "costBudget": 2200
   },
   "explanation": [
+    "The Application Gateway terminates TLS, verifies service tokens and enforces a per-sender rate limit, so one runaway service can't spam users or overload the API. It also load-balances across API replicas.",
     "Accept fast, deliver later: the API validates and appends to a durable log, and returns. Workers consume at their own pace and retry failures with backoff.",
     "Consumer capacity must exceed the producer rate, or lag grows forever. Size workers for the peak with headroom.",
-    "Real systems add per-user preferences and rate limits (don't send 50 pushes a minute), and dead-letter queues for messages that keep failing."
+    "User preferences and recent inbox items are read constantly, so a cache keeps that traffic off the history database.",
+    "Real systems add per-user frequency caps (don't send 50 pushes a minute), deduplication keys, and dead-letter queues for messages that keep failing."
   ]
 }

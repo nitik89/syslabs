@@ -9,6 +9,20 @@
     "The database was overloaded, so the team added a big Redis cache. It barely helped. Two-thirds of reads still miss and go to the database.",
     "Make reads reliable and stay within budget. Spending money on things that don't help is a design flaw too."
   ],
+  "requirements": {
+    "functional": [
+      "Let users open their own documents",
+      "Save document edits",
+      "Read each document by its own key (no shared hot keys)"
+    ],
+    "nonFunctional": [
+      "Handle 3,000 requests/s, 95% reads with almost no hot keys",
+      "Error rate at or below 1%",
+      "Average latency at or below 60 ms",
+      "No component above 85% utilization",
+      "Cost under $900 / month (no spending on things that don't help)"
+    ]
+  },
   "objectives": [
     {
       "id": "errors",

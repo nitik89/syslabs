@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getRepo, type DesignDoc } from "@/lib/storage";
+import { getSharedDesign } from "@/lib/supabase/public";
 import { LAB_STARTER } from "@/data/lab-starter";
 import { Button } from "@/components/ui/button";
 import { Designer } from "./designer";
+import { ShareButton } from "./share-button";
 import { LoadDesignButton, ResetButton, SaveDesignButton, type CurrentDesign } from "./design-actions";
 
 const DRAFT = "lab";
@@ -18,8 +20,14 @@ type Phase =
   | { phase: "error"; message: string }
   | { phase: "ready"; doc: DesignDoc; current: CurrentDesign | null; key: number };
 
-async function loadInitial(designId: string | null): Promise<{ doc: DesignDoc; current: CurrentDesign | null; missingDesign: boolean }> {
+async function loadInitial(designId: string | null, sharedId: string | null): Promise<{ doc: DesignDoc; current: CurrentDesign | null; missingDesign: boolean }> {
   const repo = getRepo();
+  if (sharedId) {
+    // Fork a shared design: it opens as an unsaved copy in your Lab.
+    const shared = await getSharedDesign(sharedId).catch(() => null);
+    if (shared) return { doc: shared.design, current: null, missingDesign: false };
+    return { doc: (await repo.getDraft(DRAFT)) ?? LAB_STARTER, current: null, missingDesign: true };
+  }
   if (designId) {
     const d = (await repo.listDesigns()).find((x) => x.id === designId);
     if (d) return { doc: d, current: { id: d.id, name: d.name }, missingDesign: false };
@@ -33,17 +41,19 @@ export function LabClient() {
   const router = useRouter();
   // Read ?design= once: clearing it from the URL afterwards must not trigger a reload of the draft.
   const [designParam] = useState(() => params.get("design"));
+  const [sharedParam] = useState(() => params.get("shared"));
   const [state, setState] = useState<Phase>({ phase: "loading" });
   const [current, setCurrent] = useState<CurrentDesign | null>(null);
   const draftWarned = useRef(false);
 
   const boot = useCallback(() => {
     let cancelled = false;
-    loadInitial(designParam).then(
+    loadInitial(designParam, sharedParam).then(
       (res) => {
         if (cancelled) return;
-        if (res.missingDesign) toast.error("That saved design no longer exists.");
-        if (designParam) router.replace("/lab");
+        if (res.missingDesign) toast.error(sharedParam ? "That shared design couldn't be opened." : "That saved design no longer exists.");
+        else if (sharedParam) toast.success("Opened a copy of the shared design. Save it to keep it.");
+        if (designParam || sharedParam) router.replace("/lab");
         setCurrent(res.current);
         setState({ phase: "ready", doc: res.doc, current: res.current, key: Date.now() });
       },
@@ -54,7 +64,7 @@ export function LabClient() {
     return () => {
       cancelled = true;
     };
-  }, [designParam, router]);
+  }, [designParam, sharedParam, router]);
 
   useEffect(() => boot(), [boot]);
 
@@ -124,6 +134,7 @@ export function LabClient() {
       actions={({ getDoc, loadDoc }) => (
         <>
           <SaveDesignButton getDoc={getDoc} current={current} onSaved={(d) => setCurrent({ id: d.id, name: d.name })} />
+          <ShareButton getDoc={getDoc} defaultName={current?.name ?? "My architecture"} />
           <LoadDesignButton
             filter={(d) => !d.challengeId}
             onLoad={(d) => {

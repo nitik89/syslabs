@@ -9,6 +9,20 @@
     "The current design routes everything through the app servers. Images come from object storage via the app tier, and feed reads and photo uploads all hit a SQL database.",
     "Both the app tier and the database are overloaded. Redesign it for launch: fast, reliable, and under budget."
   ],
+  "requirements": {
+    "functional": [
+      "View photos and assets",
+      "Read the photo feed",
+      "Upload new photos"
+    ],
+    "nonFunctional": [
+      "Handle 12,000 requests/s, 60% image and asset downloads",
+      "Error rate at or below 1%",
+      "Average latency at or below 50 ms",
+      "Uploads processed without backlog",
+      "Cost under $1,400 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "errors",

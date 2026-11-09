@@ -44,10 +44,16 @@ export function flowToGraph(nodes: SysNode[], edges: FlowEdge[]): SimGraph {
   };
 }
 
-export function flowToDoc(nodes: SysNode[], edges: FlowEdge[], traffic: DesignDoc["traffic"]): DesignDoc {
+export function flowToDoc(nodes: SysNode[], edges: FlowEdge[], traffic: DesignDoc["traffic"], requirements?: DesignDoc["requirements"]): DesignDoc {
   const positions: DesignDoc["positions"] = {};
   for (const n of nodes) positions[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
-  return { graph: flowToGraph(nodes, edges), positions, traffic: { ...traffic } };
+  const hasReqs = requirements && (requirements.functional.length > 0 || requirements.nonFunctional.length > 0);
+  return {
+    graph: flowToGraph(nodes, edges),
+    positions,
+    traffic: { ...traffic },
+    ...(hasReqs ? { requirements: { functional: [...requirements.functional], nonFunctional: [...requirements.nonFunctional] } } : {}),
+  };
 }
 
 /** Readable, collision-free id like "appServer-3". */

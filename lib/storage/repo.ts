@@ -10,10 +10,17 @@ export interface Position {
 }
 
 /** A design as the editor persists it: sim graph plus node positions. */
+/** Requirements the user writes down before (or while) designing. */
+export interface DesignRequirements {
+  functional: string[];
+  nonFunctional: string[];
+}
+
 export interface DesignDoc {
   graph: SimGraph;
   positions: Record<string, Position>;
   traffic: TrafficProfile;
+  requirements?: DesignRequirements;
 }
 
 export interface SavedDesign extends DesignDoc {
@@ -34,7 +41,22 @@ export interface ChallengeRecord {
   lastAttemptAt: string;
   /** XP already awarded for this challenge (so re-runs only award improvements). */
   xpAwarded: number;
+  /** Recent submissions, newest first (capped). */
+  history?: Submission[];
 }
+
+export interface Submission {
+  at: string;
+  score: number;
+  passed: boolean;
+  /** Tests passed / total, p99 and monthly cost at the time, for the Submissions list. */
+  testsPassed?: number;
+  testsTotal?: number;
+  p99Ms?: number | null;
+  monthlyCost?: number;
+}
+
+const HISTORY_LIMIT = 20;
 
 export interface ProgressState {
   challenges: Record<string, ChallengeRecord>;
@@ -116,7 +138,12 @@ export function createRepo(driver: StorageDriver, now: () => Date = () => new Da
     },
 
     /** Record a scored challenge attempt. Returns updated progress and XP gained by this attempt. */
-    async recordAttempt(challengeId: string, score: number, passed: boolean): Promise<{ progress: ProgressState; xpGained: number }> {
+    async recordAttempt(
+      challengeId: string,
+      score: number,
+      passed: boolean,
+      details: Omit<Submission, "at" | "score" | "passed"> = {},
+    ): Promise<{ progress: ProgressState; xpGained: number }> {
       const p = await this.getProgress();
       const ts = now().toISOString();
       const prev = p.challenges[challengeId];
@@ -128,6 +155,7 @@ export function createRepo(driver: StorageDriver, now: () => Date = () => new Da
         lastAttemptAt: ts,
         xpAwarded: prev?.xpAwarded ?? 0,
         ...(prev?.firstPassedAt ? { firstPassedAt: prev.firstPassedAt } : passed ? { firstPassedAt: ts } : {}),
+        history: [{ at: ts, score, passed, ...details }, ...(prev?.history ?? [])].slice(0, HISTORY_LIMIT),
       };
       const entitled = xpFor(rec.bestScore, rec.passed);
       const xpGained = Math.max(0, entitled - rec.xpAwarded);

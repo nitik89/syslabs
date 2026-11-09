@@ -25,6 +25,7 @@ import {
   Signpost,
   Server,
   ShieldCheck,
+  ShieldEllipsis,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const BASE_ICON: Record<BaseKind, LucideIcon> = {
   loadBalancer: Network,
   apiGateway: ShieldCheck,
   rateLimiter: Gauge,
+  appGateway: ShieldEllipsis,
   websocketGateway: Radio,
   appServer: Server,
   serverless: CloudLightning,
@@ -66,6 +68,7 @@ const BASE_ACCENT: Record<BaseKind, string> = {
   loadBalancer: "text-brand-blue bg-brand-blue/10",
   apiGateway: "text-brand-blue bg-brand-blue/10",
   rateLimiter: "text-brand-blue bg-brand-blue/10",
+  appGateway: "text-brand-cyan bg-brand-cyan/12",
   websocketGateway: "text-brand-blue bg-brand-blue/10",
   appServer: "text-brand-violet bg-brand-violet/10",
   serverless: "text-brand-violet bg-brand-violet/10",
@@ -102,7 +105,7 @@ export const KIND_ACCENT = Object.fromEntries(
 
 /** Palette sections by role. Each lists its generic blocks first, then named services that belong to it. */
 const GROUP_BEHAVIORS: Array<{ title: string; icon: LucideIcon; behaviors: BaseKind[] }> = [
-  { title: "Entry", icon: Globe, behaviors: ["client", "dns", "cdn", "loadBalancer", "apiGateway", "rateLimiter"] },
+  { title: "Entry", icon: Globe, behaviors: ["client", "dns", "cdn", "loadBalancer", "appGateway", "apiGateway", "rateLimiter"] },
   { title: "Compute", icon: Server, behaviors: ["appServer", "serverless", "worker"] },
   { title: "Messaging", icon: ListOrdered, behaviors: ["queue", "websocketGateway"] },
   { title: "Databases", icon: Database, behaviors: ["sqlDb", "nosqlDb", "timeseriesDb"] },

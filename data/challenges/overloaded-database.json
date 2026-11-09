@@ -9,6 +9,20 @@
     "The app servers are fine: you already scaled them out. The single SQL database can only handle about 1,000 queries per second, so about four in five requests are failing.",
     "Get the database back under control. Most of the traffic hits a small set of hot keys, which is a strong clue."
   ],
+  "requirements": {
+    "functional": [
+      "Serve product pages to shoppers",
+      "Read product details from the SQL database",
+      "Keep the existing app servers and data model (no rewrite)"
+    ],
+    "nonFunctional": [
+      "Handle 5,000 reads/s at peak, 90% on a few hot items",
+      "Error rate at or below 1%",
+      "Database load at or below 800 rps (20% headroom)",
+      "Average latency at or below 60 ms",
+      "Cost under $1,200 / month"
+    ]
+  },
   "objectives": [
     { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },
     { "id": "db", "label": "Database load at or below 800 rps (leave 20% headroom)", "metric": "dbLoadRps", "op": "<=", "value": 800 },

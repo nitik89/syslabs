@@ -9,6 +9,20 @@
     "Support is drowning in complaints: two customers arrive with tickets for the same seat. Each app server checks \"is seat F7 free?\" and then writes the booking, and two servers can both see the seat as free in that gap.",
     "Nothing is overloaded and nothing errors. Fix the race without letting one component take the whole booking flow down."
   ],
+  "requirements": {
+    "functional": [
+      "Browse showtimes and seat maps",
+      "Book a seat",
+      "Never let two customers book the same seat"
+    ],
+    "nonFunctional": [
+      "Handle 2,500 requests/s, 20% bookings",
+      "No unsafe contended writes (no double bookings)",
+      "No single points of failure",
+      "Error rate at or below 1%",
+      "Cost under $1,100 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "unsafe",

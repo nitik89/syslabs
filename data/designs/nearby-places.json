@@ -1,0 +1,261 @@
+{
+  "id": "nearby-places",
+  "order": 19,
+  "title": "Nearby Places",
+  "difficulty": "Medium",
+  "summary": "Design a Yelp-style service that finds restaurants and shops near a user in milliseconds.",
+  "scenario": [
+    "People open the app and see places around them, sorted by distance and rating. Businesses occasionally update their details.",
+    "Searching 'within 2 km of here' over 100 million places can't be a table scan; it needs a spatial index."
+  ],
+  "mode": "build",
+  "category": "Maps",
+  "requirements": {
+    "functional": [
+      "Find places within a radius of the user",
+      "Show place details and reviews",
+      "Let businesses add and update places",
+      "Rank results by distance and rating"
+    ],
+    "nonFunctional": [
+      "Handle 15,000 requests/s at peak, 95% reads",
+      "Average latency at or below 60 ms",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $3,000 / month"
+    ]
+  },
+  "estimates": [
+    "15,000 requests/s at peak",
+    "95% are nearby searches and detail views",
+    "Popular areas (city centres) get most of the searches"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3000
+    },
+    {
+      "id": "uses-search",
+      "label": "Nearby queries use a search/geo index",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "search"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Hot areas are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "App Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "App Users",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Places API",
+          "config": {
+            "replicas": 16
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Geo Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "es-1",
+          "kind": "elasticsearch",
+          "label": "Geo Index",
+          "config": {
+            "replicas": 5
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Places",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->es-1",
+          "source": "cache-1",
+          "target": "es-1"
+        },
+        {
+          "id": "e:api->db-1",
+          "source": "api",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "es-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 15000,
+    "readRatio": 0.95,
+    "hotKeyFraction": 0.75,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "A plain database can't answer 'everything within 2 km' quickly. What kind of index can?",
+    "Searches cluster in city centres, so results for popular areas repeat: cache them by area.",
+    "LB (2) → API (16) → Redis (2) → Elasticsearch geo index (5), and API → NoSQL for place details and writes."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2800
+  },
+  "explanation": [
+    "Spatial indexes (geohash, quadtree, S2 cells) turn a radius search into a lookup of a few nearby cells.",
+    "Places change rarely, so the index can be rebuilt or updated asynchronously; reads vastly outnumber writes.",
+    "Cache results per geohash cell: everyone in the same few blocks of a busy area gets the same answer."
+  ]
+}

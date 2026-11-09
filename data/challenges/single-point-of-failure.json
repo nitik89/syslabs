@@ -9,6 +9,19 @@
     "Last week that server was rebooted for a kernel patch and the whole product went down for 4 minutes. Customers noticed.",
     "Make the system survive the loss of any one component, without blowing the budget. The NoSQL database is already replicated."
   ],
+  "requirements": {
+    "functional": [
+      "Serve the SaaS app's reads and writes",
+      "Store data in the replicated NoSQL database",
+      "Keep working while any one component is patched or restarted"
+    ],
+    "nonFunctional": [
+      "Handle 900 requests/s (80% reads)",
+      "No single points of failure",
+      "Error rate at or below 1%",
+      "Cost under $800 / month"
+    ]
+  },
   "objectives": [
     { "id": "spof", "label": "No single points of failure", "metric": "spofCount", "op": "==", "value": 0 },
     { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },

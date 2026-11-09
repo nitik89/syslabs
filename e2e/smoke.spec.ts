@@ -13,8 +13,11 @@ function trackErrors(page: Page) {
 const nodes = (page: Page) => page.locator(".react-flow__node");
 const edges = (page: Page) => page.locator(".react-flow__edge");
 const panel = (page: Page) => page.locator('[role="tabpanel"]').first();
-const category = (page: Page, name: string) =>
-  page.getByRole("navigation", { name: "Component categories" }).getByRole("button", { name, exact: true }).click();
+/** Open a palette group (groups are collapsible; opening one that's open is a no-op). */
+const category = async (page: Page, name: string) => {
+  const toggle = page.getByRole("button", { name: `${name} components`, exact: true });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+};
 
 test("every page renders with honest empty states", async ({ page }) => {
   const errors = trackErrors(page);
@@ -65,28 +68,42 @@ test("challenge: fix the overloaded database and pass", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/challenges/overloaded-database");
   await expect(nodes(page)).toHaveCount(4);
-  await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(panel(page)).toContainText("Not passed yet");
+  // First visit: the on-call page, with a root-cause question.
+  await expect(page.getByText("You are on call")).toBeVisible();
+  await page.getByRole("button", { name: /overloaded by repeated reads/ }).click();
+  await expect(page.getByText("Correct diagnosis.")).toBeVisible();
+  await page.getByRole("button", { name: /Start fixing/ }).click();
+  await expect(page.getByText("You are on call")).toBeHidden();
+  // The system was run as it is: the run console shows it failing.
+  await expect(page.getByText("FAIL", { exact: true }).first()).toBeVisible();
 
   await category(page, "Storage");
   await page.getByRole("button", { name: /^Add Redis Cache/ }).click();
+  await page.locator(".react-flow__node", { hasText: "Redis Cache" }).locator("p").nth(1).dblclick();
   await page.getByLabel("Cache size").fill("32");
-  await page.locator(".react-flow__node", { hasText: "Catalog API" }).click();
+  await page.getByRole("button", { name: "Hide side panel" }).click();
+  await page.locator(".react-flow__node", { hasText: "Catalog API" }).locator("p").nth(1).dblclick(); // double-click opens the inspector drawer
   await page.getByLabel("Send traffic to").selectOption({ label: "Redis Cache" });
   await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.getByRole("button", { name: /Run simulation/ }).click();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
 
-  await expect(page.getByText("How to think about it")).toBeVisible(); // explanation opens on first pass
-  await page.keyboard.press("Escape");
-  await expect(panel(page)).toContainText("Passed");
+  await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
   await expect(page.getByText("Solved", { exact: true }).first()).toBeVisible();
+  await page.getByRole("tab", { name: /Submissions/ }).click();
+  await expect(page.getByText(/score \d+/).first()).toBeVisible();
+
+  // The on-call page doesn't come back once seen (wait for the draft autosave first).
+  await page.waitForTimeout(800);
+  await page.reload();
+  await expect(nodes(page)).toHaveCount(5);
+  await expect(page.getByText("You are on call")).toBeHidden();
 
   // Move on to the next challenge.
-  await page.getByRole("link", { name: "Next challenge" }).click();
+  await page.getByRole("link", { name: /Next: One Server/ }).click();
   await expect(page).toHaveURL(/\/challenges\/single-point-of-failure/);
 
   await page.goto("/progress");
-  await expect(page.getByText("1 / 28")).toBeVisible();
+  await expect(page.getByText("1 / 36")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -151,12 +168,10 @@ test("lab: palette categories, logos, custom component and rename", async ({ pag
   await page.goto("/lab");
   await expect(nodes(page)).toHaveCount(4);
 
-  // Every category fits without scrolling the tile area.
+  // Every category opens and lists its components.
   for (const c of ["Entry", "Compute", "Messaging", "Databases", "Storage", "AI", "Locks", "Delivery", "Ops", "Custom"]) {
     await category(page, c);
-    const scroller = page.locator('[aria-label="Component palette"] .overflow-y-auto').last();
-    const fits = await scroller.evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
-    expect(fits, `${c} should fit without scrolling`).toBe(true);
+    await expect(page.locator('[aria-label="Component palette"] button[aria-label^="Add "]').first()).toBeVisible();
   }
 
   // Custom component: add it, pick a behavior, rename it on the canvas.
@@ -215,31 +230,29 @@ test("build: product problems with requirements and a reference architecture", a
   const errors = trackErrors(page);
   await page.goto("/build");
   await expect(page.getByRole("heading", { name: "Design real products from scratch" })).toBeVisible();
-  await expect(page.locator("main li a")).toHaveCount(12);
+  await expect(page.locator("main li a")).toHaveCount(20);
 
   await page.getByRole("link", { name: /Shopping App/ }).click();
   await expect(page).toHaveURL(/\/build\/shopping-app/);
   await expect(nodes(page)).toHaveCount(1); // blank canvas: just the users
 
-  await page.getByRole("button", { name: /Requirements & hints/ }).click();
   await expect(page.getByText("Place orders without overselling stock")).toBeVisible();
   await expect(page.getByText(/Back-of-envelope/i)).toBeVisible();
-  await page.keyboard.press("Escape");
 
   // The unchanged reference passes but earns nothing.
   await page.getByRole("button", { name: "Reveal solution", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Reveal solution" }).click();
   await expect(nodes(page)).toHaveCount(11);
-  await page.getByRole("button", { name: /Run simulation/ }).click();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(page.getByText(/That's the revealed solution, unchanged/)).toBeVisible();
 
   // Make it yours (add a third LB replica) and it counts.
-  await page.locator(".react-flow__node", { hasText: "Load Balancer" }).click();
+  await page.locator(".react-flow__node", { hasText: "Load Balancer" }).locator("p").nth(1).dblclick();
   const replicas = page.getByLabel("Replicas", { exact: true });
   await replicas.fill("3");
   await replicas.press("Enter");
-  await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(page.getByText(/Solved! Score/)).toBeVisible();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  await expect(page.getByText(/Accepted! Score/)).toBeVisible();
   await page.goto("/build");
   await expect(page.locator("main li a", { hasText: "Shopping App" })).toContainText("Solved");
   expect(errors).toEqual([]);
@@ -247,8 +260,9 @@ test("build: product problems with requirements and a reference architecture", a
 
 test("challenges can reveal their solution", async ({ page }) => {
   await page.goto("/challenges/missing-index");
+  await page.getByRole("button", { name: /Look at the system first/ }).click();
   await page.getByRole("button", { name: "Reveal solution", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Reveal solution" }).click();
-  await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(panel(page)).toContainText("Passed");
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
 });

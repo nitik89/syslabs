@@ -9,6 +9,22 @@
     "The current stack is undersized, has no locking (so it oversells), and puts every purchase on a single SQL primary.",
     "Build a design that doesn't oversell, doesn't drop fans, and keeps average latency at 47 ms or less. Pick your coordination service carefully, because they aren't equally fast."
   ],
+  "requirements": {
+    "functional": [
+      "Check seat availability",
+      "Buy tickets for a section",
+      "Never oversell a seat"
+    ],
+    "nonFunctional": [
+      "Handle 30,000 requests/s, 30% purchases",
+      "90% of purchases fight over the same sections",
+      "No unsafe contended writes (no overselling)",
+      "Error rate at or below 1%",
+      "Average latency at or below 47 ms",
+      "No single points of failure",
+      "Cost under $3,400 / month"
+    ]
+  },
   "objectives": [
     {
       "id": "unsafe",

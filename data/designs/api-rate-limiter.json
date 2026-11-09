@@ -1,0 +1,245 @@
+{
+  "id": "api-rate-limiter",
+  "order": 14,
+  "title": "API Rate Limiter",
+  "difficulty": "Medium",
+  "summary": "Put a rate-limited front door in front of a public API so one abusive client can't take it down for everyone.",
+  "scenario": [
+    "Your public API serves 20,000 requests per second from thousands of API keys. Last week one buggy client sent 10× its normal traffic and everyone else got timeouts.",
+    "Every request must be authenticated and counted against its key's quota, and the counting itself must not become the bottleneck."
+  ],
+  "mode": "build",
+  "category": "Platform",
+  "requirements": {
+    "functional": [
+      "Authenticate every request by API key",
+      "Enforce a per-key quota (requests per minute)",
+      "Reject over-quota requests with HTTP 429",
+      "Serve normal API reads and writes behind the limiter"
+    ],
+    "nonFunctional": [
+      "Handle 20,000 requests/s at peak",
+      "Counter checks add little latency: average at or below 50 ms",
+      "Error rate at or below 1%",
+      "No single points of failure, including the limiter",
+      "Cost under $3,000 / month"
+    ]
+  },
+  "estimates": [
+    "20,000 requests/s across all keys",
+    "85% of API calls are reads, mostly for a few hot resources",
+    "Each request = one counter increment in a shared store"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 50 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 50
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3000
+    },
+    {
+      "id": "uses-limiter",
+      "label": "Requests pass through a rate limiter or API gateway",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "rateLimiter",
+        "apiGateway"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Hot reads and counters live in a cache",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "API Clients",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "API Clients",
+          "config": {}
+        },
+        {
+          "id": "gw-1",
+          "kind": "appGateway",
+          "label": "Application Gateway",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Public API",
+          "config": {
+            "replicas": 24
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Redis (counters + hot reads)",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "API Data",
+          "config": {
+            "replicas": 3
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->gw-1",
+          "source": "client-1",
+          "target": "gw-1"
+        },
+        {
+          "id": "e:gw-1->api",
+          "source": "gw-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "gw-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 60
+      }
+    }
+  },
+  "traffic": {
+    "rps": 20000,
+    "readRatio": 0.85,
+    "hotKeyFraction": 0.7,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "The limiter has to see every request before the API does. Which component sits at the front door and can say no cheaply?",
+    "Counters need a fast shared store that every API replica can increment: an in-memory cache.",
+    "Application Gateway (2) → API (24) → Redis (2) → NoSQL (3)."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2800
+  },
+  "explanation": [
+    "Rate limit at the edge: an Application Gateway authenticates the key and enforces the quota before the request costs you anything.",
+    "Token bucket or sliding window counters live in Redis so every replica shares them; increments are O(1) and sub-millisecond.",
+    "Run the limiter redundantly. If it's a single box, a limiter outage is a full API outage."
+  ]
+}

@@ -9,6 +9,20 @@
     "The orders table has 80 million rows and no index on customer_id, so every request reads the entire table. The team already added two read replicas. It barely helped.",
     "Make order pages fast and reliable without blowing the budget."
   ],
+  "requirements": {
+    "functional": [
+      "Show a customer's \"My orders\" page",
+      "Look up orders by customer_id in an 80M-row table",
+      "Record new orders"
+    ],
+    "nonFunctional": [
+      "Handle 2,000 requests/s, 90% order-page reads",
+      "Average latency at or below 65 ms",
+      "Error rate at or below 1%",
+      "No component above 85% utilization",
+      "Cost under $1,000 / month"
+    ]
+  },
   "objectives": [
     { "id": "errors", "label": "Error rate at or below 1%", "metric": "errorRate", "op": "<=", "value": 0.01 },
     { "id": "headroom", "label": "No component above 85% utilization", "metric": "maxUtilization", "op": "<=", "value": 0.85 },

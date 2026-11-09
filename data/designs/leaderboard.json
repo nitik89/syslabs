@@ -1,0 +1,290 @@
+{
+  "id": "leaderboard",
+  "order": 16,
+  "title": "Gaming Leaderboard",
+  "difficulty": "Medium",
+  "summary": "Show the top players and every player's rank in real time while millions of matches report scores.",
+  "scenario": [
+    "A mobile game's season finale: players refresh the leaderboard constantly, and every finished match reports a new score.",
+    "The top of the board is read far more than anything else, and score updates must never slow down reads."
+  ],
+  "mode": "build",
+  "category": "Gaming",
+  "requirements": {
+    "functional": [
+      "Show the global top 100",
+      "Show a player's own rank",
+      "Record match results as scores",
+      "Update ranks within seconds"
+    ],
+    "nonFunctional": [
+      "Handle 40,000 requests/s at peak, 90% reads",
+      "Feels instant: average latency at or below 45 ms",
+      "Error rate at or below 0.5%",
+      "Score updates processed without backlog",
+      "No single points of failure",
+      "Cost under $4,500 / month"
+    ]
+  },
+  "estimates": [
+    "40,000 requests/s during the finale",
+    "90% are leaderboard reads, 95% of them for the top of the board",
+    "4,000 score updates/s"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 45 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 45
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $4,500",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 4500
+    },
+    {
+      "id": "uses-cache",
+      "label": "Rankings are served from an in-memory store",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Score updates are queued",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Players",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Players",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Leaderboard API",
+          "config": {
+            "replicas": 44
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Redis Sorted Sets",
+          "config": {
+            "replicas": 3,
+            "cacheSizeGb": 16
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Score Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Score Workers",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Scores",
+          "config": {
+            "replicas": 3
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "q-1": {
+        "x": 900,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 40000,
+    "readRatio": 0.9,
+    "hotKeyFraction": 0.95,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Reads are extremely concentrated on the top of the board. What answers those in about a millisecond?",
+    "Score writes shouldn't block reads: accept them into a queue and apply them in the background.",
+    "LB (3) → API (44) → Redis (3) → NoSQL (3), and API → SQS → workers (3) → NoSQL."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 4200
+  },
+  "explanation": [
+    "Redis sorted sets (ZADD / ZREVRANGE) give O(log n) rank updates and instant top-N reads, which is the core of every real leaderboard.",
+    "Queue score updates so a burst of finished matches never competes with reads; workers apply them to Redis and the durable store.",
+    "Shard the board by season or region once one sorted set gets too big for one node."
+  ]
+}

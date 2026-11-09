@@ -1,0 +1,259 @@
+{
+  "id": "pastebin",
+  "order": 13,
+  "title": "Pastebin",
+  "difficulty": "Easy",
+  "summary": "Design a text-sharing service: create a paste, get a short link, and serve it fast to everyone who opens it.",
+  "scenario": [
+    "Developers paste logs and snippets and share the link in chat. Most pastes are read a few times; a few go viral.",
+    "Paste bodies can be large, so they shouldn't live in the database, and the popular ones should never touch it."
+  ],
+  "mode": "build",
+  "category": "Storage",
+  "requirements": {
+    "functional": [
+      "Create a paste and get a short link",
+      "Open a paste by its link",
+      "Download the raw paste body",
+      "Pastes expire after a chosen time"
+    ],
+    "nonFunctional": [
+      "Handle 6,000 requests/s at peak, 90% reads",
+      "Average latency at or below 80 ms (raw downloads come from slower object storage)",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $1,500 / month"
+    ]
+  },
+  "estimates": [
+    "6,000 requests/s at peak",
+    "30% are raw-body downloads (large blobs)",
+    "Of the rest, 90% read paste metadata; 60% of those hit a few popular pastes"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 80 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 80
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,500",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1500
+    },
+    {
+      "id": "uses-blob",
+      "label": "Paste bodies live in object storage",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "objectStorage"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Popular pastes are served from a cache",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Paste API",
+          "config": {
+            "replicas": 6
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Paste Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Paste Metadata",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "s3-1",
+          "kind": "s3",
+          "label": "Paste Bodies",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->s3-1",
+          "source": "api",
+          "target": "s3-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "s3-1": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 6000,
+    "readRatio": 0.9,
+    "hotKeyFraction": 0.6,
+    "staticFraction": 0.3
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Split the paste into small metadata (id, owner, expiry) and a large body. Where does each belong?",
+    "Raw bodies are blobs: object storage is cheap and durable. Popular pastes repeat, so cache their metadata.",
+    "LB (2) → API (6) → Redis (2) → NoSQL (2) for metadata, and API → S3 for bodies."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 60,
+    "costBudget": 1300
+  },
+  "explanation": [
+    "Keep big blobs out of the database: store bodies in object storage and keep only small metadata in a key-value store.",
+    "Reads dominate and a few pastes go viral, so a cache in front of the metadata store absorbs most lookups.",
+    "Expiry is a TTL on the metadata row plus a lifecycle rule on the bucket; no cron job has to scan everything."
+  ]
+}

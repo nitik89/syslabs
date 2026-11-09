@@ -1,0 +1,314 @@
+{
+  "id": "file-storage",
+  "order": 18,
+  "title": "Cloud File Storage",
+  "difficulty": "Hard",
+  "summary": "Design a Dropbox-style service: upload files from any device, keep them in sync, and download them fast.",
+  "scenario": [
+    "Users keep folders in sync across laptops and phones. Files are split into chunks so only changed chunks upload again.",
+    "File contents are huge and must never sit in the database; the metadata (who owns which chunk of which version) must stay consistent."
+  ],
+  "mode": "build",
+  "category": "Storage",
+  "requirements": {
+    "functional": [
+      "Upload and download files of any size",
+      "Sync changes across a user's devices",
+      "Keep version history",
+      "Share a folder with other users"
+    ],
+    "nonFunctional": [
+      "Handle 8,000 requests/s at peak",
+      "Average latency at or below 90 ms (chunks come from object storage)",
+      "Error rate at or below 1%",
+      "Uploads processed without backlog",
+      "No single points of failure",
+      "Cost under $2,000 / month"
+    ]
+  },
+  "estimates": [
+    "8,000 requests/s at peak",
+    "40% are chunk downloads served as blobs",
+    "Of the rest, 60% are metadata/sync reads and 40% are uploads"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 90 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 90
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,000",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2000
+    },
+    {
+      "id": "uses-blob",
+      "label": "File chunks live in object storage",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "objectStorage"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Uploads are processed asynchronously",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-meta",
+      "label": "Metadata is kept in a database",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "sqlDb",
+        "nosqlDb"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Devices",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Devices",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Sync API",
+          "config": {
+            "replicas": 8
+          }
+        },
+        {
+          "id": "s3-1",
+          "kind": "s3",
+          "label": "Chunk Store",
+          "config": {}
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Metadata Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "dynamodb",
+          "label": "File Metadata",
+          "config": {}
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Upload Events",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Chunk Processors",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->s3-1",
+          "source": "api",
+          "target": "s3-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "s3-1": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "q-1": {
+        "x": 900,
+        "y": 400
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 8000,
+    "readRatio": 0.6,
+    "hotKeyFraction": 0.5,
+    "staticFraction": 0.4
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Separate file contents from file metadata. They have completely different sizes, access patterns and consistency needs.",
+    "Uploads can be acknowledged and then processed (hashing, dedup, notifying other devices) by workers.",
+    "LB (2) → API (8) → S3 for chunks, API → Redis → DynamoDB for metadata, API → SQS → workers (2) → DynamoDB."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 60,
+    "costBudget": 1800
+  },
+  "explanation": [
+    "Chunk files (for example 4 MB blocks) and address chunks by their hash: identical chunks are stored once, and a small edit re-uploads one chunk.",
+    "Metadata (folders, versions, chunk lists, sharing) must stay consistent per file: use transactions or conditional writes, and cache the hot parts.",
+    "Clients learn about changes from a notification channel (long polling or WebSockets) and then pull only the chunks they're missing."
+  ]
+}

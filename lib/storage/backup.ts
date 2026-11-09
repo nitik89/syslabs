@@ -52,6 +52,11 @@ function checkDesign(d: unknown, i: number): SavedDesign {
   if (!isObj(t) || !isNum(t.rps) || !isNum(t.readRatio) || !isNum(t.hotKeyFraction) || !isNum(t.staticFraction) || (t.contendedWriteFraction !== undefined && !isNum(t.contendedWriteFraction)) || (t.aiFraction !== undefined && !isNum(t.aiFraction))) {
     throw new BackupError(`${where} ("${d.name}") has an invalid traffic profile.`);
   }
+  const req = d.requirements;
+  const strList = (v: unknown) => Array.isArray(v) && v.every(isStr);
+  if (req !== undefined && (!isObj(req) || !strList(req.functional) || !strList(req.nonFunctional))) {
+    throw new BackupError(`${where} ("${d.name}") has invalid requirements.`);
+  }
   if (d.challengeId !== undefined && !isStr(d.challengeId)) throw new BackupError(`${where} has an invalid challenge id.`);
   return d as unknown as SavedDesign;
 }

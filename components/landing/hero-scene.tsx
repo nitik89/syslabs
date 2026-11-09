@@ -33,7 +33,7 @@ const NODES: { id: string; label: string; sub: string; pos: Vec; color: number; 
 const CACHE_POS: Vec = [3.2, 0, -3.4];
 
 /** A text label drawn to a canvas and shown as a sprite that always faces the camera. */
-function makeLabel(THREE: typeof THREE_NS, text: string, sub: string): THREE_NS.Sprite {
+export function makeLabel(THREE: typeof THREE_NS, text: string, sub: string): THREE_NS.Sprite {
   const scale = 4;
   const w = 220 * scale;
   const h = 64 * scale;
@@ -58,13 +58,59 @@ function makeLabel(THREE: typeof THREE_NS, text: string, sub: string): THREE_NS.
   return sprite;
 }
 
-function webglAvailable(): boolean {
+export function webglAvailable(): boolean {
   try {
     const c = document.createElement("canvas");
     return Boolean(c.getContext("webgl2") ?? c.getContext("webgl"));
   } catch {
     return false;
   }
+}
+
+
+/**
+ * True when 3D should be skipped for a lighter page: no WebGL, a phone-sized screen, a low-power device
+ * (4 or fewer cores, or 4 GB or less memory), or Data Saver on. Those visitors get the 2D fallback.
+ */
+export function skip3D(): boolean {
+  if (typeof window === "undefined" || !webglAvailable()) return true;
+  if (window.matchMedia("(max-width: 767px)").matches) return true;
+  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
+  if ((nav.hardwareConcurrency ?? 8) <= 4) return true;
+  if (nav.deviceMemory !== undefined && nav.deviceMemory <= 4) return true;
+  return nav.connection?.saveData === true;
+}
+
+/** Run `cb` once `el` is near the viewport and the browser is idle, so three.js never competes with page load. */
+export function whenNearAndIdle(el: Element, cb: () => void): () => void {
+  let idle = 0;
+  let timer = 0;
+  const io = new IntersectionObserver(
+    ([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      if ("requestIdleCallback" in window) idle = window.requestIdleCallback(cb, { timeout: 2000 });
+      else timer = globalThis.setTimeout(cb, 300) as unknown as number;
+    },
+    { rootMargin: "200px" },
+  );
+  io.observe(el);
+  return () => {
+    io.disconnect();
+    if (idle) window.cancelIdleCallback(idle);
+    window.clearTimeout(timer);
+  };
+}
+
+/** Frames per second for the 3D scenes: smooth enough for drifting packets, half the GPU work of 60. */
+export const SCENE_FPS = 30;
+
+/** A renderer tuned for light pages: pixel density capped at 1.5, antialiasing only on standard screens. */
+export function lightRenderer(THREE: typeof THREE_NS): THREE_NS.WebGLRenderer {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const renderer = new THREE.WebGLRenderer({ antialias: dpr < 1.5, alpha: true, powerPreference: "low-power" });
+  renderer.setPixelRatio(dpr);
+  return renderer;
 }
 
 /**
@@ -85,19 +131,18 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-    if (!webglAvailable()) {
+    if (skip3D()) {
       void Promise.resolve().then(() => setFailed(true));
       return;
     }
     let disposed = false;
     let cleanup = () => {};
 
-    void import("three").then((THREE) => {
+    const cancelGate = whenNearAndIdle(mount, () => void import("three").then((THREE) => {
       if (disposed) return;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      const renderer = lightRenderer(THREE);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.domElement.style.display = "block";
       renderer.domElement.setAttribute("aria-hidden", "true");
@@ -171,7 +216,7 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
       const packetGeo = track(new THREE.SphereGeometry(0.09, 12, 8));
       type Packet = { mesh: THREE_NS.Mesh; mat: THREE_NS.MeshBasicMaterial; path: THREE_NS.Vector3[]; seg: number; u: number; drop: boolean; fall: number; live: boolean };
       const pool: Packet[] = [];
-      for (let i = 0; i < 90; i++) {
+      for (let i = 0; i < 50; i++) {
         const mat = track(new THREE.MeshBasicMaterial({ color: COLOR.blue, transparent: true }));
         const mesh = new THREE.Mesh(packetGeo, mat);
         mesh.visible = false;
@@ -256,7 +301,7 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
 
         // Traffic.
         if (dt > 0) {
-          const rate = 11;
+          const rate = 8;
           if (Math.random() < rate * dt) spawn(fixed && land > 0.95);
           for (const p of pool) {
             if (!p.live) continue;
@@ -309,11 +354,12 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
       let last = performance.now();
       let t = 0;
       const tick = (now: number) => {
-        const dt = Math.min(0.05, (now - last) / 1000);
+        raf = requestAnimationFrame(tick);
+        if (now - last < 1000 / SCENE_FPS - 2) return;
+        const dt = Math.min(0.1, (now - last) / 1000);
         last = now;
         t = (t + dt) % LOOP;
         frame(t, dt);
-        raf = requestAnimationFrame(tick);
       };
       const start = () => {
         if (raf || reduced || !visible || document.hidden) return;
@@ -350,14 +396,17 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
         for (const d of disposables) d.dispose();
         renderer.domElement.remove();
       };
-    }, () => setFailed(true));
+    }, () => setFailed(true)));
 
     return () => {
       disposed = true;
+      cancelGate();
       cleanup();
     };
   }, []);
 
+  // Skipped (phone, low-power device, no WebGL) and nothing to show instead: take no space.
+  if (failed && !fallback) return null;
   return (
     <div className={className} style={{ position: "relative" }}>
       <div ref={mountRef} className="absolute inset-0" />

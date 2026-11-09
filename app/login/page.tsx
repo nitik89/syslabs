@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Cloud, Share2, Trophy } from "lucide-react";
 import { LoginForm } from "@/components/auth/login-form";
 import { Logo } from "@/components/shell/logo";
+import { HeroScene } from "@/components/landing/hero-scene";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -21,6 +22,7 @@ export default function LoginPage() {
           <div className="relative">
             <Logo />
           </div>
+          <HeroScene className="relative -mx-4 h-56" />
           <div className="relative space-y-4">
             <h1 className="text-2xl font-semibold tracking-tight">Save your progress. Show your work.</h1>
             <ul className="space-y-3">

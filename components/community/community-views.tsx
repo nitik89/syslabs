@@ -15,6 +15,7 @@ import { nodeMonthlyCost } from "@/lib/sim";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MiniArch } from "@/components/challenges/mini-arch";
+import { ArchScene, archFromGraph } from "@/components/landing/arch-scene";
 import { DifficultyPill } from "@/components/challenges/challenge-list";
 import { Avatar } from "@/components/auth/user-menu";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -415,7 +416,11 @@ function Shared({ id }: { id: string }) {
         </div>
       </header>
       <div className="surface overflow-hidden rounded-2xl">
-        <MiniArch graph={d.design.graph} positions={d.design.positions} labels className="h-[420px] bg-black/20" />
+        <ArchScene
+          {...archFromGraph(d.design.graph, d.design.positions)}
+          className="h-[420px] bg-black/20"
+          fallback={<MiniArch graph={d.design.graph} positions={d.design.positions} labels className="h-full" />}
+        />
       </div>
       {d.design.requirements && (d.design.requirements.functional.length > 0 || d.design.requirements.nonFunctional.length > 0) && (
         <section className="grid gap-4 md:grid-cols-2">

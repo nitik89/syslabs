@@ -38,6 +38,7 @@ import { RenameNodeContext, SysNodeComponent } from "./sys-node";
 import { RequirementsEditor } from "./requirements-editor";
 import { ResizeHandle, usePanelWidth } from "./resize-handle";
 import { RunConsole, fmtLatency, type ConsoleTab } from "./run-console";
+import { ArchScene, type ArchNode } from "@/components/landing/arch-scene";
 
 const nodeTypes = { sys: SysNodeComponent };
 const edgeTypes = { flow: FlowEdgeComponent };
@@ -565,6 +566,13 @@ function DesignerInner({
     });
   }, [nodes, edges, shown]);
 
+  // The 3D view follows the canvas: where each component sits, and how they're linked.
+  const archNodes = useMemo<ArchNode[]>(
+    () => nodes.map((n) => ({ id: n.id, kind: n.data.kind, label: n.data.label.trim() || n.id, x: n.position.x, y: n.position.y })),
+    [nodes],
+  );
+  const archEdges = useMemo(() => edges.map((e) => ({ id: e.id, source: e.source, target: e.target })), [edges]);
+
   const renameNode = useCallback((id: string, label: string) => updateNode(id, { label }), [updateNode]);
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
@@ -789,7 +797,28 @@ function DesignerInner({
         onTogglePlay={togglePlay}
         stale={stale}
         status={consoleStatus && result ? <Slot render={consoleStatus} ctx={ctx} /> : undefined}
-        tabs={consoleTabs}
+        tabs={[
+          {
+            id: "3d",
+            label: "3D",
+            content: (
+              <div className="flex h-full min-h-[240px] flex-col gap-2">
+                <p className="text-[11.5px] text-muted-foreground">
+                  {shown
+                    ? "Tower height is how busy each component is; colour is its health. Red requests are dropped. Scrub the timeline to replay."
+                    : "Your design in 3D. Press Run to see load, health and dropped requests."}
+                </p>
+                <ArchScene
+                  nodes={archNodes}
+                  edges={archEdges}
+                  state={shown ? { nodes: shown.nodes, edgeFlows: shown.edgeFlows } : null}
+                  className="min-h-[220px] flex-1 overflow-hidden rounded-xl border border-border bg-black/25"
+                />
+              </div>
+            ),
+          },
+          ...(consoleTabs ?? []),
+        ]}
         badge={consoleBadge && result && !stale ? <Slot render={consoleBadge} ctx={ctx} /> : undefined}
         labels={nodeLabels}
         costs={nodeCosts}

@@ -14,6 +14,7 @@ import { DifficultyPill } from "@/components/challenges/challenge-list";
 import { ErrorBlock, LoadingBlock } from "./bits";
 import { useProgressData } from "./use-progress";
 import { FeatureGrid } from "./feature-grid";
+import { ArchScene, archFromGraph } from "@/components/landing/arch-scene";
 import { DailyRow } from "./daily-row";
 import { Landing } from "@/components/landing/landing";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -174,11 +175,10 @@ export function DashboardView() {
             </div>
           </div>
           {next && (
-            <MiniArch
-              graph={next.startingDesign.graph}
-              positions={next.startingDesign.positions}
-              labels
-              className="hidden h-48 rounded-2xl border border-border bg-black/25 md:block"
+            <ArchScene
+              {...archFromGraph(next.startingDesign.graph, next.startingDesign.positions)}
+              className="hidden h-56 overflow-hidden rounded-2xl border border-border bg-black/25 md:block"
+              fallback={<MiniArch graph={next.startingDesign.graph} positions={next.startingDesign.positions} labels className="h-full" />}
             />
           )}
         </div>

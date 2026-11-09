@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
@@ -28,8 +28,37 @@ function GitHubMark() {
   );
 }
 
+/** Which social providers are switched on in Supabase (so we never show a button that can't work). */
+function useEnabledProviders(): { google: boolean; github: boolean } {
+  const [p, setP] = useState({ google: false, github: false });
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) return;
+    fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
+      .then((r) => r.json())
+      .then((s: { external?: Record<string, boolean> }) => setP({ google: Boolean(s.external?.google), github: Boolean(s.external?.github) }))
+      .catch(() => undefined);
+  }, []);
+  return p;
+}
+
+/** Supabase errors in plain words. */
+function friendly(err: unknown): string {
+  const e = err as { message?: string; code?: string; status?: number };
+  const m = e?.message ?? "";
+  if (e?.code === "invalid_credentials" || /invalid login credentials/i.test(m)) return "Wrong email or password. New here? Switch to Sign up.";
+  if (e?.code === "email_not_confirmed" || /not confirmed/i.test(m)) return "Confirm your email first: open the link we sent you, then sign in.";
+  if (e?.code === "user_already_exists" || /already registered/i.test(m)) return "An account with this email already exists. Sign in instead.";
+  if (e?.code === "email_address_invalid") return "That email address can't be used. Try another one.";
+  if (e?.code === "over_email_send_rate_limit" || /rate limit/i.test(m)) return "Too many emails were sent just now. Wait a few minutes and try again.";
+  if (/error sending|not authorized/i.test(m)) return "We couldn't send the email right now. Try again later or use another sign-in method.";
+  return m || "Something went wrong. Try again.";
+}
+
 export function LoginForm() {
   const { enabled, user } = useAuth();
+  const providers = useEnabledProviders();
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next")?.startsWith("/") ? params.get("next")! : "/";
@@ -65,7 +94,7 @@ export function LoginForm() {
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: redirectUrl() } });
     if (error) {
       setBusy(false);
-      toast.error(error.message);
+      toast.error(friendly(error));
     }
   };
 
@@ -95,7 +124,7 @@ export function LoginForm() {
         setSent(`If ${email} has an account, a password reset link is on its way.`);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      toast.error(friendly(err));
     } finally {
       setBusy(false);
     }
@@ -134,15 +163,19 @@ export function LoginForm() {
         </div>
       )}
 
-      {(mode === "signin" || mode === "signup") && (
+      {(mode === "signin" || mode === "signup") && (providers.google || providers.github) && (
         <>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button variant="outline" disabled={busy} onClick={() => void oauth("google")}>
-              <GoogleMark /> Google
-            </Button>
-            <Button variant="outline" disabled={busy} onClick={() => void oauth("github")}>
-              <GitHubMark /> GitHub
-            </Button>
+          <div className={cn("grid gap-2", providers.google && providers.github && "sm:grid-cols-2")}>
+            {providers.google && (
+              <Button variant="outline" disabled={busy} onClick={() => void oauth("google")}>
+                <GoogleMark /> Continue with Google
+              </Button>
+            )}
+            {providers.github && (
+              <Button variant="outline" disabled={busy} onClick={() => void oauth("github")}>
+                <GitHubMark /> Continue with GitHub
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
             <span className="h-px flex-1 bg-border" /> or with email <span className="h-px flex-1 bg-border" />

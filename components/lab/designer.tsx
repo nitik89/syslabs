@@ -492,7 +492,7 @@ function DesignerInner({
       }
       // Leave native undo to text fields and dialogs.
       if (!mod || inOverlay || isTextEntry(e.target)) return;
-      const k = e.key.toLowerCase();
+      const k = e.key?.toLowerCase() ?? "";
       if (k === "z" || k === "y") {
         e.preventDefault();
         restore(k === "y" || e.shiftKey ? "redo" : "undo");

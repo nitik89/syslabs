@@ -103,7 +103,7 @@ test("challenge: fix the overloaded database and pass", async ({ page }) => {
   await expect(page).toHaveURL(/\/challenges\/single-point-of-failure/);
 
   await page.goto("/progress");
-  await expect(page.getByText("1 / 47")).toBeVisible();
+  await expect(page.getByText("1 / 52")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -230,7 +230,7 @@ test("build: product problems with requirements and a reference architecture", a
   const errors = trackErrors(page);
   await page.goto("/build");
   await expect(page.getByRole("heading", { name: "Design real products from scratch" })).toBeVisible();
-  await expect(page.locator("main li a")).toHaveCount(31);
+  await expect(page.locator("main li a")).toHaveCount(36);
 
   await page.getByRole("link", { name: /Shopping App/ }).click();
   await expect(page).toHaveURL(/\/build\/shopping-app/);

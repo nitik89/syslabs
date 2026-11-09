@@ -31,6 +31,11 @@ import imageHosting from "./image-hosting.json";
 import stockTicker from "./stock-ticker.json";
 import newsAggregator from "./news-aggregator.json";
 import likeCounter from "./like-counter.json";
+import foodDelivery from "./food-delivery.json";
+import digitalWallet from "./digital-wallet.json";
+import meetingScheduler from "./meeting-scheduler.json";
+import productCatalog from "./product-catalog.json";
+import shortVideoFeed from "./short-video-feed.json";
 
 /**
  * "Build" problems: design a product from a blank canvas. Same shape as challenges (so scoring, progress and
@@ -82,6 +87,11 @@ export const DESIGNS: Challenge[] = [
   stockTicker,
   newsAggregator,
   likeCounter,
+  foodDelivery,
+  digitalWallet,
+  meetingScheduler,
+  productCatalog,
+  shortVideoFeed,
 ]
   .map(normalize)
   .sort((a, b) => a.order - b.order);

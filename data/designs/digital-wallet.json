@@ -1,0 +1,306 @@
+{
+  "id": "digital-wallet",
+  "order": 33,
+  "title": "Digital Wallet",
+  "difficulty": "Hard",
+  "summary": "Design a Paytm/Venmo-style wallet: send money between users without ever creating or losing a rupee.",
+  "scenario": [
+    "Users check balances constantly and send money to friends and shops. During festivals, transfers spike.",
+    "Two transfers from the same wallet at once must not overdraw it, and every movement must be recorded in an append-only ledger."
+  ],
+  "mode": "build",
+  "category": "Fintech",
+  "requirements": {
+    "functional": [
+      "Check wallet balance and history",
+      "Send money to another user",
+      "Record every transfer in a ledger",
+      "Reject transfers that would overdraw"
+    ],
+    "nonFunctional": [
+      "Handle 6,000 requests/s at peak, 70% reads",
+      "No unsafe concurrent balance updates",
+      "Ledger writes processed without backlog",
+      "Error rate at or below 0.5%",
+      "No single points of failure",
+      "Cost under $1,800 / month"
+    ]
+  },
+  "estimates": [
+    "6,000 requests/s at peak",
+    "1,800 transfers/s",
+    "Half of all transfers touch a wallet another transfer is also using"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,800",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1800
+    },
+    {
+      "id": "safe",
+      "label": "No unsafe contended writes",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "uses-gateway",
+      "label": "Calls are authenticated and rate-limited at a gateway",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "apiGateway",
+        "rateLimiter"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Ledger entries flow through a queue",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Wallet Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Wallet Users",
+          "config": {}
+        },
+        {
+          "id": "gw-1",
+          "kind": "appGateway",
+          "label": "Application Gateway",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Wallet API",
+          "config": {
+            "replicas": 8
+          }
+        },
+        {
+          "id": "lock-1",
+          "kind": "redisLock",
+          "label": "Wallet Locks",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Balance Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Ledger Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Ledger Writers",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "dynamodb",
+          "label": "Ledger + Balances",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->gw-1",
+          "source": "client-1",
+          "target": "gw-1"
+        },
+        {
+          "id": "e:gw-1->api",
+          "source": "gw-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->lock-1",
+          "source": "api",
+          "target": "lock-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "gw-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "lock-1": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      },
+      "q-1": {
+        "x": 900,
+        "y": 400
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 6000,
+    "readRatio": 0.7,
+    "hotKeyFraction": 0.5,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.5
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Two transfers from the same wallet at the same moment can both see enough balance. How do you make the check and debit one step?",
+    "Money movements belong in an append-only ledger, written reliably even under a spike.",
+    "Application Gateway (2) → API (8) with Redis locks (2); API → Redis (2) → DynamoDB; API → SQS → ledger writers (2) → DynamoDB."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 1656
+  },
+  "explanation": [
+    "Lock the wallet (or use a conditional write on its version) for the check-and-debit, so concurrent transfers can't overdraw it.",
+    "Record every transfer as two ledger entries (debit and credit) with an idempotency key, so retries never move money twice.",
+    "Balances are derived from the ledger and cached for reads; a gateway authenticates every call and rate-limits abusive clients."
+  ]
+}

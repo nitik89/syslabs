@@ -1,0 +1,260 @@
+{
+  "id": "product-catalog",
+  "order": 35,
+  "title": "Product Catalog",
+  "difficulty": "Easy",
+  "summary": "Design a fast product catalog for an online store: browse categories and product pages with lots of images.",
+  "scenario": [
+    "Shoppers browse categories and open product pages. Each page is mostly images.",
+    "A few best-sellers get most of the views, and the catalog changes only when merchants edit products."
+  ],
+  "mode": "build",
+  "category": "E-commerce",
+  "requirements": {
+    "functional": [
+      "Browse categories",
+      "Open a product page with images",
+      "Merchants add and edit products",
+      "Search by name (basic)"
+    ],
+    "nonFunctional": [
+      "Handle 15,000 requests/s at peak, 97% reads",
+      "Average latency at or below 50 ms",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $2,200 / month"
+    ]
+  },
+  "estimates": [
+    "15,000 requests/s at peak",
+    "Half of all requests are product images",
+    "80% of product views are for best-sellers"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 50 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 50
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $2,200",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 2200
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Images are served from a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Product pages are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Shoppers",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Shoppers",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cloudfront",
+          "label": "CDN",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Catalog API",
+          "config": {
+            "replicas": 8
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Product Cache",
+          "config": {
+            "replicas": 2,
+            "cacheSizeGb": 32
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "postgres",
+          "label": "Catalog DB",
+          "config": {
+            "replicas": 4
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:cdn-1->lb-1",
+          "source": "cdn-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 300,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 600,
+        "y": 60
+      },
+      "api": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1500,
+        "y": 60
+      }
+    }
+  },
+  "traffic": {
+    "rps": 15000,
+    "readRatio": 0.97,
+    "hotKeyFraction": 0.8,
+    "staticFraction": 0.5
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Half the traffic is images. Should those ever reach your servers?",
+    "Best-sellers get most views, so a cache in front of the database does most of the work.",
+    "CloudFront → LB (2) → API (8) → Redis (2, 32 GB) → Postgres (4 replicas)."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2024
+  },
+  "explanation": [
+    "Put images (and other static assets) on a CDN with long cache lifetimes and versioned URLs.",
+    "Cache product pages by id; invalidate an entry when a merchant edits that product.",
+    "A relational database with a read replica is plenty once the cache absorbs the hot reads."
+  ]
+}

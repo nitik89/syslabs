@@ -1,0 +1,315 @@
+{
+  "id": "food-delivery",
+  "order": 32,
+  "title": "Food Delivery",
+  "difficulty": "Hard",
+  "summary": "Design a DoorDash-style app: browse restaurants, place orders, and assign each order to exactly one courier.",
+  "scenario": [
+    "At dinner time, hungry users browse menus and track orders, restaurants accept orders, and couriers are matched to pickups.",
+    "Two couriers must never be assigned the same order, and order processing must keep up through the rush."
+  ],
+  "mode": "build",
+  "category": "Mobility",
+  "requirements": {
+    "functional": [
+      "Browse nearby restaurants and menus",
+      "Place an order and pay",
+      "Assign each order to exactly one courier",
+      "Track the order live"
+    ],
+    "nonFunctional": [
+      "Handle 20,000 requests/s at peak, 85% reads",
+      "Average latency at or below 60 ms",
+      "No double-assigned couriers",
+      "Orders processed without backlog",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $3,100 / month"
+    ]
+  },
+  "estimates": [
+    "20,000 requests/s at the dinner peak",
+    "85% are menu browsing and order tracking",
+    "3,000 order and assignment writes/s; 20% race for the same couriers"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,100",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3100
+    },
+    {
+      "id": "safe",
+      "label": "No unsafe contended writes",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "uses-cache",
+      "label": "Menus and tracking are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Orders are processed asynchronously",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Customers + Couriers",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Customers + Couriers",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Delivery API",
+          "config": {
+            "replicas": 20
+          }
+        },
+        {
+          "id": "lock-1",
+          "kind": "redisLock",
+          "label": "Assignment Locks",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Menu + Tracking Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "mongodb",
+          "label": "Orders + Restaurants",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Order Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Order Processors",
+          "config": {
+            "replicas": 3
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->lock-1",
+          "source": "api",
+          "target": "lock-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "lock-1": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "q-1": {
+        "x": 900,
+        "y": 400
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 20000,
+    "readRatio": 0.85,
+    "hotKeyFraction": 0.7,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.2
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Two couriers grabbing the same order is a race. What makes 'is it free? then take it' safe?",
+    "Browsing and tracking are read-heavy and repetitive: cache them. Order processing can happen in the background.",
+    "LB (2) → API (20) with Redis locks (2); API → Redis (2) → MongoDB (3); API → SQS → processors (3) → MongoDB."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 2852
+  },
+  "explanation": [
+    "Lock (or conditionally update) the order when assigning a courier, so exactly one assignment wins.",
+    "Menus change rarely and tracking is polled constantly: a cache absorbs both.",
+    "Place orders into a queue; processors confirm with the restaurant, charge payment and trigger assignment at their own pace."
+  ]
+}

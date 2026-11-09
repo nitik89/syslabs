@@ -1,0 +1,341 @@
+{
+  "id": "short-video-feed",
+  "order": 36,
+  "title": "Short-Video Feed",
+  "difficulty": "Hard",
+  "summary": "Design a TikTok/Reels-style feed: endless short videos that start instantly, and uploads that never slow anyone down.",
+  "scenario": [
+    "Users swipe through a personalised feed of short videos, and creators upload new ones all day.",
+    "Video segments are most of the traffic and must be served from the edge; uploads need transcoding in the background."
+  ],
+  "mode": "build",
+  "category": "Media",
+  "requirements": {
+    "functional": [
+      "Swipe through a personalised video feed",
+      "Play videos instantly",
+      "Upload a video",
+      "Like and comment"
+    ],
+    "nonFunctional": [
+      "Handle 80,000 requests/s at peak, 95% reads",
+      "Average latency at or below 60 ms",
+      "Uploads processed without backlog",
+      "Error rate at or below 0.5%",
+      "No single points of failure",
+      "Cost under $3,600 / month"
+    ]
+  },
+  "estimates": [
+    "80,000 requests/s in the evening",
+    "75% are video segments",
+    "1,000 uploads and interactions/s; feeds are dominated by trending videos"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,600",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3600
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Videos are served from a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Feeds are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-blob",
+      "label": "Videos live in object storage",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "objectStorage"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Uploads are transcoded asynchronously",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Viewers + Creators",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Viewers + Creators",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cloudfront",
+          "label": "Video CDN",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Feed API",
+          "config": {
+            "replicas": 20
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Feed Cache",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "cassandra",
+          "label": "Videos + Interactions",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Transcode Jobs",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Transcoders",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "s3-1",
+          "kind": "s3",
+          "label": "Video Store",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:cdn-1->lb-1",
+          "source": "cdn-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->s3-1",
+          "source": "worker-1",
+          "target": "s3-1"
+        },
+        {
+          "id": "e:api->s3-1",
+          "source": "api",
+          "target": "s3-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 300,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 600,
+        "y": 60
+      },
+      "api": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1500,
+        "y": 60
+      },
+      "q-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1500,
+        "y": 230
+      },
+      "s3-1": {
+        "x": 1200,
+        "y": 400
+      }
+    }
+  },
+  "traffic": {
+    "rps": 80000,
+    "readRatio": 0.95,
+    "hotKeyFraction": 0.9,
+    "staticFraction": 0.75
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Three quarters of requests are video segments. Where should they be served from?",
+    "Feeds are dominated by trending videos: cache them. Transcoding is slow: queue it.",
+    "CloudFront (2) → LB (2) → API (20) → Redis (3) → Cassandra (3); API → SQS → transcoders (2) → S3, and API → S3."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 3312
+  },
+  "explanation": [
+    "Transcode uploads into several bitrates and short segments in the background, store them in object storage and serve them from a CDN.",
+    "Precompute candidate feeds (trending plus personalised) and cache them; ranking re-orders a cached list per user.",
+    "Interactions (likes, comments) are high-volume writes to a write-optimised store; counts can lag by a second."
+  ]
+}

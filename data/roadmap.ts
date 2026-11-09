@@ -20,7 +20,7 @@ export const ROADMAP: Stage[] = [
     blurb: "Read-heavy systems: take load off the database and survive a server going away.",
     tags: ["Request path", "Estimation", "Caching", "Redundancy", "Blob storage"],
     color: "var(--brand-blue)",
-    problems: ["overloaded-database", "single-point-of-failure", "search-autocomplete", "pastebin", "url-shortener"],
+    problems: ["overloaded-database", "single-point-of-failure", "product-catalog", "search-autocomplete", "pastebin", "url-shortener"],
   },
   {
     id: "data",
@@ -44,7 +44,7 @@ export const ROADMAP: Stage[] = [
     blurb: "Correctness under contention: locks, quorums and extreme hot keys.",
     tags: ["Locks", "Consensus & quorum", "Hot keys", "Sagas", "Failure drills"],
     color: "var(--status-warn)",
-    problems: ["double-booked-seats", "lost-quorum", "like-counter", "order-saga", "live-scoreboard", "concert-ticket-drop"],
+    problems: ["double-booked-seats", "meeting-scheduler", "lost-quorum", "like-counter", "order-saga", "digital-wallet", "live-scoreboard", "concert-ticket-drop"],
   },
   {
     id: "products",
@@ -52,7 +52,7 @@ export const ROADMAP: Stage[] = [
     blurb: "Design real products from a blank canvas, from requirements to a scored architecture.",
     tags: ["E-commerce", "Leaderboards", "Chat", "Notifications", "Streaming", "Booking", "Geo search", "Code judging"],
     color: "var(--brand-violet)",
-    problems: ["shopping-app", "leaderboard", "chat-app", "notification-system", "video-streaming", "metrics-dashboard", "hotel-booking", "nearby-places", "image-hosting", "news-aggregator", "online-judge"],
+    problems: ["shopping-app", "leaderboard", "chat-app", "notification-system", "video-streaming", "metrics-dashboard", "hotel-booking", "nearby-places", "image-hosting", "news-aggregator", "food-delivery", "online-judge"],
   },
   {
     id: "advanced",
@@ -60,6 +60,6 @@ export const ROADMAP: Stage[] = [
     blurb: "The hard ones: fan-out at scale, realtime collaboration, geo matching, money and AI.",
     tags: ["Feed fan-out", "Stream processing", "File sync", "Geo matching", "Partitioning", "Market data", "Payments", "AI"],
     color: "var(--status-crit)",
-    problems: ["social-feed", "top-k-trending", "file-storage", "collaborative-docs", "ride-hailing", "ad-click-aggregator", "key-value-store", "stock-ticker", "payments", "ai-chatbot"],
+    problems: ["social-feed", "short-video-feed", "top-k-trending", "file-storage", "collaborative-docs", "ride-hailing", "ad-click-aggregator", "key-value-store", "stock-ticker", "payments", "ai-chatbot"],
   },
 ];

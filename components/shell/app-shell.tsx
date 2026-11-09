@@ -156,27 +156,27 @@ function StatsBar({ progress }: { progress: ProgressState | null }) {
   const solved = progress ? Object.values(progress.challenges).filter((r) => r.passed).length : 0;
   const xp = progress?.xp ?? 0;
   const { level } = levelOf(xp);
-  const chip = "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs ring-1 ring-inset ring-border bg-white/[0.03]";
+  const chip = "flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs sm:px-2.5 ring-1 ring-inset ring-border bg-white/[0.03]";
   const value = (v: string | number) => <span className="font-mono font-semibold text-foreground">{progress ? v : "–"}</span>;
   return (
-    <div className="flex h-12 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-6">
+    <div className="flex h-12 items-center gap-2 border-b border-border bg-background/80 px-3 backdrop-blur-md sm:px-4 md:px-6">
       <span className="hidden shrink-0 text-[13px] font-medium text-foreground/90 lg:block">{here?.label ?? "SysLab"}</span>
       <span className="hidden h-4 w-px bg-border lg:block" aria-hidden="true" />
       <CommandMenu progress={progress} />
-      <div className="ml-auto flex items-center gap-1.5 text-muted-foreground" aria-label="Your stats">
+      <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground sm:gap-1.5" aria-label="Your stats">
         <Link href="/progress" className={cn(chip, "outline-none transition-colors hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring")} title="Days in a row you've run a simulation">
           <Flame className={cn("size-3.5", streak > 0 ? "text-status-warn" : "")} aria-hidden="true" />
-          {value(streak)} <span className="hidden sm:inline">day streak</span>
+          {value(streak)} <span className="hidden xl:inline">day streak</span>
         </Link>
-        <Link href="/progress" className={cn(chip, "outline-none transition-colors hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring")} title={`Level ${level}`}>
+        <Link href="/progress" className={cn(chip, "outline-none transition-colors hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring max-[400px]:hidden")} title={`Level ${level}`}>
           <Sparkles className="size-3.5 text-brand-violet" aria-hidden="true" />
           {value(xp.toLocaleString())} XP
         </Link>
         <Link href="/progress" className={cn(chip, "outline-none transition-colors hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring")} title="Challenges and build problems solved">
           <Trophy className="size-3.5 text-status-ok" aria-hidden="true" />
           {value(solved)}
-          <span>/ {TOTAL}</span>
-          <span className="hidden sm:inline">solved</span>
+          <span className="max-sm:hidden">/ {TOTAL}</span>
+          <span className="hidden xl:inline">solved</span>
         </Link>
         <UserMenu />
       </div>

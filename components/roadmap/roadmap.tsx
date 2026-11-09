@@ -128,7 +128,7 @@ export function RoadmapView() {
                   </h2>
                   <p className="text-[13px] text-muted-foreground">{s.blurb}</p>
                 </div>
-                <div className="w-40 space-y-1.5 text-right">
+                <div className="w-full space-y-1.5 sm:w-40 sm:text-right">
                   <p className={cn("font-mono text-[12px]", done ? "text-status-ok" : "text-muted-foreground")}>
                     {done ? "Stage complete" : `${solved} / ${total} solved`}
                   </p>

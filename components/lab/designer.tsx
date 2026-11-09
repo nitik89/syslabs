@@ -22,7 +22,7 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { Boxes, ChevronsRight, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Boxes, ChevronsRight, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, nodeSpec, simulateTimeline, type NodeConfig, type NodeKind, type SimResult, type Timeline, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc, DesignRequirements } from "@/lib/storage";
@@ -58,6 +58,10 @@ function freeSpot(start: { x: number; y: number }, nodes: SysNode[]): { x: numbe
 }
 
 type Tab = "inspect" | "requirements" | "results";
+
+/** Phones and small tablets show one pane at a time. */
+type MobilePane = "problem" | "design" | "results";
+const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023.98px)").matches;
 
 type Snapshot = { nodes: SysNode[]; edges: FlowEdge[]; traffic: TrafficProfile };
 
@@ -175,6 +179,14 @@ function DesignerInner({
   const [showPanel, setShowPanel] = useState(!workspace);
   const panelSqueezes = !workspace && showPanel;
   const [inspectOpen, setInspectOpen] = useState(false);
+  const [mobilePane, setMobilePane] = useState<MobilePane>(leftPanel ? "problem" : "design");
+  // Small screens: the components list slides over the canvas instead of sitting beside it.
+  const [mobilePalette, setMobilePalette] = useState(false);
+  // Small screens start with the side panel closed so the canvas gets the room.
+  useEffect(() => {
+    if (!isNarrow()) return;
+    void Promise.resolve().then(() => setShowPanel(false));
+  }, []);
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     const sync = () => setFullscreen(document.fullscreenElement === rootRef.current);
@@ -549,6 +561,7 @@ function DesignerInner({
   const showConsoleTab = useCallback((id: string) => {
     setConsoleTab(id);
     setConsoleCollapsed(false);
+    setMobilePane("results");
   }, []);
   const ctx: DesignerContext = { getDoc, loadDoc, result, stale, run, timeline, t, showConsoleTab, monthlyCost };
 
@@ -566,19 +579,46 @@ function DesignerInner({
   return (
     <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background", fullscreen && "h-screen")}>
       {header && <Slot render={header} ctx={ctx} />}
+      <MobilePaneSwitcher
+        pane={mobilePane}
+        onChange={(p) => {
+          setMobilePane(p);
+          setMobilePalette(false);
+          if (p === "results") setConsoleCollapsed(false);
+        }}
+        hasProblem={Boolean(leftPanel)}
+        resultBadge={result !== null && !stale}
+      />
       <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
-      {leftPanel}
+      {leftPanel && (
+        <div className={cn("lg:contents", mobilePane === "problem" ? "max-lg:absolute max-lg:inset-0 max-lg:z-30 max-lg:flex max-lg:flex-col max-lg:bg-background" : "max-lg:hidden")}>
+          {leftPanel}
+        </div>
+      )}
       {/* Palette */}
       <aside
         ref={paletteRef}
-        hidden={!showPalette}
         className={cn(
-          "relative h-72 shrink-0 overflow-hidden border-b border-border bg-sidebar/60 lg:h-auto lg:w-[var(--palette-w)] lg:border-b-0 lg:border-r lg:overflow-visible",
+          "relative shrink-0 bg-sidebar lg:h-auto lg:w-[var(--palette-w)] lg:border-r lg:border-border lg:bg-sidebar/60 lg:overflow-visible",
+          !showPalette && "lg:hidden",
+          mobilePalette && mobilePane === "design"
+            ? "max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(86vw,340px)] max-lg:overflow-hidden max-lg:border-r max-lg:border-border max-lg:shadow-[24px_0_48px_-24px_black]"
+            : "max-lg:hidden",
         )}
         style={{ ["--palette-w" as string]: `${paletteWidth.width ?? (leftPanel ? 220 : 284)}px` }}
       >
         <div className="h-full overflow-hidden">
-          <Palette allowed={allowedKinds} onAdd={addAtCenter} onClose={() => setShowPalette(false)} />
+          <Palette
+            allowed={allowedKinds}
+            onAdd={(kind) => {
+              addAtCenter(kind);
+              if (isNarrow()) {
+                setMobilePalette(false);
+                toast.success("Added to the canvas", { duration: 1500 });
+              }
+            }}
+            onClose={() => (isNarrow() ? setMobilePalette(false) : setShowPalette(false))}
+          />
         </div>
         <ResizeHandle
           label="Resize components panel"
@@ -590,7 +630,7 @@ function DesignerInner({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Canvas */}
-      <div ref={wrapperRef} className="relative min-h-[380px] flex-1" onDragOver={onDragOver} onDrop={onDrop}>
+      <div ref={wrapperRef} className="relative min-h-0 flex-1 lg:min-h-[380px]" onDragOver={onDragOver} onDrop={onDrop}>
         <RenameNodeContext.Provider value={renameNode}>
         <ReactFlow<SysNode, FlowEdge>
           nodes={displayNodes}
@@ -636,18 +676,28 @@ function DesignerInner({
           )}
           <Panel position="top-left" className="!m-3 max-w-[calc(100%-1.5rem)]">
             <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_black] backdrop-blur-md">
+              <Button
+                size="sm"
+                className="lg:hidden"
+                onClick={() => setMobilePalette((o) => !o)}
+                aria-expanded={mobilePalette}
+                aria-label="Add components"
+              >
+                <Shapes /> Add
+              </Button>
+              <span className="mx-1 h-5 w-px bg-border lg:hidden" aria-hidden="true" />
               {!showPalette && (
                 <>
-                  <Button variant="ghost" size="sm" onClick={() => setShowPalette(true)} aria-label="Show components panel" title="Show components panel">
+                  <Button variant="ghost" size="sm" className="max-lg:hidden" onClick={() => setShowPalette(true)} aria-label="Show components panel" title="Show components panel">
                     <Shapes /> Components
                   </Button>
-                  <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                  <span className="mx-1 h-5 w-px bg-border max-lg:hidden" aria-hidden="true" />
                 </>
               )}
               {!header && (
                 <>
                   <Button size="sm" onClick={run} title="Run simulation (⌘↵)">
-                    <Play /> Run simulation
+                    <Play /> Run<span className="max-sm:hidden"> simulation</span>
                   </Button>
                   <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
                 </>
@@ -664,10 +714,11 @@ function DesignerInner({
                   <Slot render={actions} ctx={ctx} />
                 </>
               )}
-              <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+              <span className="mx-1 h-5 w-px bg-border max-lg:hidden" aria-hidden="true" />
               <Button
                 variant="ghost"
                 size="icon-sm"
+                className="max-lg:hidden"
                 onClick={toggleFullscreen}
                 aria-label={fullscreen ? "Exit full screen" : "Full screen"}
                 title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
@@ -676,7 +727,7 @@ function DesignerInner({
               </Button>
               {!panelOpen && (
                 <Button variant="ghost" size="sm" onClick={() => setShowPanel(true)} aria-label="Show side panel" title="Show traffic and results panel">
-                  <SlidersHorizontal /> Details
+                  <SlidersHorizontal /> <span className="max-sm:hidden">Details</span>
                 </Button>
               )}
             </div>
@@ -734,7 +785,11 @@ function DesignerInner({
         onToggleCollapsed={() => setConsoleCollapsed((c) => !c)}
         monthlyCost={monthlyCost}
         latencyTarget={latencyTarget}
-        onFocusNode={focusNode}
+        onFocusNode={(id) => {
+          if (isNarrow()) setMobilePane("design");
+          focusNode(id);
+        }}
+        className={mobilePane === "results" ? "max-lg:absolute max-lg:inset-0 max-lg:z-30 max-lg:!h-auto max-lg:!max-h-none max-lg:border-t-0 max-lg:bg-background" : "max-lg:hidden"}
       />
       </div>
 
@@ -743,6 +798,8 @@ function DesignerInner({
         hidden={!panelOpen}
         className={cn(
           "shrink-0 overflow-y-auto border-t border-border",
+          // Small screens: a bottom sheet over the canvas.
+          "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[70dvh] max-lg:rounded-t-2xl max-lg:bg-sidebar max-lg:shadow-[0_-24px_48px_-12px_black]",
           workspace
             ? "bg-sidebar/95 backdrop-blur-md lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:w-[310px] lg:border-l lg:border-t-0 lg:shadow-[-24px_0_48px_-24px_black]"
             : "bg-sidebar/60 lg:w-[300px] lg:border-l lg:border-t-0",
@@ -805,6 +862,45 @@ function DesignerInner({
         </Tabs>
       </aside>
       </div>
+    </div>
+  );
+}
+
+function MobilePaneSwitcher({
+  pane,
+  onChange,
+  hasProblem,
+  resultBadge,
+}: {
+  pane: MobilePane;
+  onChange: (p: MobilePane) => void;
+  hasProblem: boolean;
+  resultBadge: boolean;
+}) {
+  const items: { id: MobilePane; label: string; icon: typeof FileText }[] = [
+    ...(hasProblem ? [{ id: "problem" as const, label: "Problem", icon: FileText }] : []),
+    { id: "design", label: "Design", icon: Network },
+    { id: "results", label: "Results", icon: Gauge },
+  ];
+  return (
+    <div role="tablist" aria-label="Workspace view" className="flex shrink-0 gap-1 border-b border-border bg-sidebar/80 p-1.5 lg:hidden">
+      {items.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          aria-selected={pane === id}
+          onClick={() => onChange(id)}
+          className={cn(
+            "relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            pane === id ? "bg-brand-blue/15 text-foreground ring-1 ring-inset ring-brand-blue/30" : "text-muted-foreground hover:bg-white/[0.04]",
+          )}
+        >
+          <Icon className={cn("size-4", pane === id && "text-brand-blue")} aria-hidden="true" />
+          {label}
+          {id === "results" && resultBadge && <span className="absolute right-3 top-2 size-1.5 rounded-full bg-status-ok" aria-label="(new run)" />}
+        </button>
+      ))}
     </div>
   );
 }

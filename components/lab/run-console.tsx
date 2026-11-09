@@ -97,7 +97,10 @@ export function RunConsole({
   badge,
   idle,
   costs = {},
+  className,
 }: {
+  /** Extra classes on the console root (e.g. small-screen layout). */
+  className?: string;
   /** Shown in the Run tab before the first run (e.g. the tests that will run). */
   idle?: ReactNode;
   /** Monthly cost per node id, for the components table. */
@@ -181,7 +184,11 @@ export function RunConsole({
   return (
     <div
       ref={rootRef}
-      className={cn("relative flex min-h-0 shrink-0 flex-col border-t border-border bg-sidebar/80", collapsed ? "h-10" : height === null && "h-[44%] min-h-[260px] max-h-[440px]")}
+      className={cn(
+        "relative flex min-h-0 shrink-0 flex-col border-t border-border bg-sidebar/80",
+        collapsed ? "h-10" : height === null && "h-[44%] min-h-[260px] max-h-[440px]",
+        className,
+      )}
       style={!collapsed && height !== null ? { height } : undefined}
     >
       {/* Drag handle: pull up for a bigger console, down for more canvas. Arrow keys work too. */}
@@ -197,14 +204,14 @@ export function RunConsole({
             e.preventDefault();
             resizeTo((height ?? rootRef.current?.offsetHeight ?? 300) + (e.key === "ArrowUp" ? 40 : -40));
           }}
-          className="group absolute inset-x-0 -top-1.5 z-20 flex h-3 cursor-row-resize items-center justify-center outline-none"
+          className="group absolute inset-x-0 -top-1.5 z-20 hidden h-3 cursor-row-resize items-center justify-center outline-none lg:flex"
         >
           <span className="h-1 w-12 rounded-full bg-white/15 transition-colors group-hover:bg-primary group-focus-visible:bg-primary" />
         </div>
       )}
       {/* Tab bar + transport */}
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
-        <div role="tablist" aria-label="Run console" className="flex items-center">
+      <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-1 border-b border-border px-2">
+        <div role="tablist" aria-label="Run console" className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]">
           {allTabs.map((x) => (
             <button
               key={x.id}
@@ -215,7 +222,7 @@ export function RunConsole({
                 if (collapsed) onToggleCollapsed();
               }}
               className={cn(
-                "relative h-10 px-3 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground",
+                "relative h-10 shrink-0 px-3 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground",
                 tab === x.id && "text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary",
               )}
             >
@@ -224,7 +231,7 @@ export function RunConsole({
           ))}
         </div>
         {badge && <div className="ml-2 hidden sm:block">{badge}</div>}
-        <div className="ml-auto flex min-w-0 items-center gap-2">
+        <div className="ml-auto flex min-w-0 items-center gap-2 max-sm:w-full max-sm:pb-1.5">
           {timeline && (
             <>
               <button
@@ -242,7 +249,7 @@ export function RunConsole({
                 value={t}
                 onChange={(e) => onSeek(Number(e.target.value))}
                 aria-label="Simulation time"
-                className="h-1 w-28 cursor-pointer accent-[var(--primary)] sm:w-48"
+                className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--primary)] sm:w-48 sm:flex-none"
               />
               <span className="w-12 font-mono text-[11px] tabular-nums text-muted-foreground">t={t}s</span>
             </>
@@ -251,7 +258,7 @@ export function RunConsole({
             type="button"
             onClick={onToggleCollapsed}
             aria-label={collapsed ? "Show run console" : "Hide run console"}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground max-lg:hidden"
           >
             {collapsed ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
             {collapsed ? "Show" : "Hide"}

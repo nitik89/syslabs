@@ -302,7 +302,7 @@ function Profile({ username }: { username: string }) {
           <div className="grid grid-cols-3 gap-2">
             {byDiff.map((x) => (
               <div key={x.d} className="space-y-1.5 rounded-xl border border-border p-2.5">
-                <p className="flex justify-between text-[12px]">
+                <p className="flex flex-col gap-0.5 text-[12px] sm:flex-row sm:justify-between">
                   <span className="text-muted-foreground">{x.d}</span>
                   <span className="font-mono">
                     {x.got}/{x.total}

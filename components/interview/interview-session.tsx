@@ -292,7 +292,7 @@ export function InterviewSession({ interview, problem }: { interview: MockInterv
   const setAnswers = (a: Partial<InterviewAnswers>) => persist({ ...saved, answers: { ...saved.answers, ...a } });
 
   const panel = (
-    <aside className="max-h-[70vh] shrink-0 overflow-hidden border-b border-border bg-sidebar/40 lg:max-h-none lg:w-[340px] lg:border-b-0 lg:border-r">
+    <aside className="h-full shrink-0 overflow-hidden bg-sidebar/40 lg:h-auto lg:w-[340px] lg:border-r lg:border-border">
       <div className="flex h-full min-h-0 flex-col">
         <div role="tablist" aria-label="Interview" className="flex shrink-0 border-b border-border px-2">
           {tabs.map((t) => (
@@ -396,7 +396,7 @@ export function InterviewSession({ interview, problem }: { interview: MockInterv
   );
 
   return (
-    <div className="flex flex-1 flex-col lg:h-[calc(100dvh-3rem)] lg:flex-none lg:overflow-hidden">
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-none flex-col overflow-hidden md:h-[calc(100dvh-3rem)]">
       <Designer
         key={designKey}
         initial={saved.doc}

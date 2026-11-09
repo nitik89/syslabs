@@ -52,10 +52,11 @@ export function CommandMenu({ progress }: { progress: ProgressState | null }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-8 w-full max-w-72 items-center gap-2 rounded-lg bg-white/[0.03] px-2.5 text-xs text-muted-foreground outline-none ring-1 ring-inset ring-border transition-colors hover:text-foreground hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Search problems and pages"
+        className="flex h-8 w-8 shrink-0 items-center justify-center gap-2 rounded-lg bg-white/[0.03] text-xs sm:w-full sm:min-w-0 sm:max-w-72 sm:shrink sm:justify-start sm:px-2.5 text-muted-foreground outline-none ring-1 ring-inset ring-border transition-colors hover:text-foreground hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Search className="size-3.5" aria-hidden="true" />
-        <span className="flex-1 text-left">Search problems and pages…</span>
+        <span className="hidden flex-1 text-left sm:inline">Search problems and pages…</span>
         <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
       </button>
       <CommandDialog open={open} onOpenChange={setOpen} title="Search SysLab" description="Jump to a page, challenge or build problem">

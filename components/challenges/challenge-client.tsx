@@ -196,7 +196,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
   const visibleTests = (all: TestResult[]) => (testFilter === "all" ? all : all.filter((r) => r.test.id === testFilter));
 
   return (
-    <div className="flex flex-1 flex-col lg:h-[calc(100dvh-3rem)] lg:flex-none lg:overflow-hidden">
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-none flex-col overflow-hidden md:h-[calc(100dvh-3rem)]">
       {state.phase === "loading" && (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
           <Loader2 className="size-4 animate-spin" /> Loading {noun}…
@@ -235,7 +235,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
             return (
               <div className="shrink-0 border-b border-border bg-sidebar/80">
                 <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <Button variant="outline" size="sm" onClick={() => setLeftOpen((o) => !o)} aria-pressed={leftOpen} title="Show or hide the problem panel">
+                  <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setLeftOpen((o) => !o)} aria-pressed={leftOpen} title="Show or hide the problem panel">
                     <PanelLeft /> Layout
                   </Button>
                   <Link href={basePath} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label={isBuild ? "Back to build problems" : "Back to challenges"}>
@@ -276,7 +276,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                         <span className="truncate">Next: {next!.title}</span> <ArrowRight />
                       </Link>
                     )}
-                    <span className={cn("font-mono text-[12px] tabular-nums", overBudget ? "text-status-crit" : "text-muted-foreground")} title="Monthly cost ÷ 730 hours">
+                    <span className={cn("font-mono text-[12px] tabular-nums max-sm:mr-auto", overBudget ? "text-status-crit" : "text-muted-foreground")} title="Monthly cost ÷ 730 hours">
                       ${perHour(ctx.monthlyCost).toFixed(2)}/hr{budget !== undefined && <> of ${perHour(budget).toFixed(2)}</>}
                     </span>
                     <label className="sr-only" htmlFor="test-filter">
@@ -286,7 +286,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                       id="test-filter"
                       value={testFilter}
                       onChange={(e) => setTestFilter(e.target.value)}
-                      className="h-8 rounded-lg border border-border bg-background px-2 text-[12.5px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="h-8 rounded-lg border border-border bg-background px-2 text-[12.5px] outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:hidden"
                     >
                       <option value="all">All tests ({tests.length})</option>
                       {tests.map((t) => (
@@ -331,10 +331,13 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
             );
           }}
           leftPanel={
-            leftOpen ? (
+            (
               <aside
                 ref={problemRef}
-                className="relative max-h-[70vh] shrink-0 overflow-hidden border-b border-border bg-sidebar/40 lg:max-h-none lg:w-[var(--problem-w)] lg:overflow-visible lg:border-b-0 lg:border-r"
+                className={cn(
+                  "relative h-full shrink-0 overflow-hidden bg-sidebar/40 lg:h-auto lg:w-[var(--problem-w)] lg:overflow-visible lg:border-r lg:border-border",
+                  !leftOpen && "lg:hidden",
+                )}
                 style={{ ["--problem-w" as string]: `${problemWidth.width ?? 320}px` }}
               >
                 <ResizeHandle
@@ -359,7 +362,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                 />
                 </div>
               </aside>
-            ) : undefined
+            )
           }
           canvasOverlay={({ getDoc, result }) =>
             incident && pageOpen ? (

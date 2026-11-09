@@ -11,6 +11,7 @@ import { DESIGNS } from "@/data/designs";
 import { ROADMAP } from "@/data/roadmap";
 import { currentStreak, levelOf, localDay, longestStreak } from "@/lib/storage";
 import { fmtDate } from "@/lib/format";
+import { nodeMonthlyCost } from "@/lib/sim";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { MiniArch } from "@/components/challenges/mini-arch";
@@ -382,7 +383,7 @@ function Shared({ id }: { id: string }) {
   if (!d) return <Notice>This shared design doesn&apos;t exist or was deleted.</Notice>;
   const problem = d.challenge_id ? BY_ID.get(d.challenge_id) : undefined;
   const nodes = d.design.graph.nodes.length;
-  const cost = d.design.graph.nodes.reduce((sum, n) => sum + n.config.costPerReplica * n.config.replicas, 0);
+  const cost = d.design.graph.nodes.reduce((sum, n) => sum + nodeMonthlyCost(n), 0);
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4">

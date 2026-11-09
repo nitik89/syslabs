@@ -1,6 +1,6 @@
 import type { Challenge, Objective } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
-import { simulate, type SimGraph, type TrafficProfile } from "@/lib/sim";
+import { lockGraph, simulate, type SimGraph, type TrafficProfile } from "@/lib/sim";
 import type { Twist } from "@/data/interviews";
 
 export interface InterviewAnswers {
@@ -77,6 +77,8 @@ export function twistScenario(problem: Challenge, twist: Twist): { traffic: Traf
 }
 
 export function scoreDesignAndTwist(problem: Challenge, twist: Twist, graph: SimGraph): { design: Part; twist: Part } {
+  // Scored with catalog capacity, latency and cost, whatever the design carries.
+  graph = lockGraph(graph);
   const base = scoreChallenge(problem, simulate(graph, problem.traffic), graph);
   const design: Part = {
     id: "design",

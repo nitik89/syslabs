@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { ArrowRight, Link2, Lock, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatio, nodeSpec, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
+import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatio, nodeMonthlyCost, nodeSpec, replicaCost, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
 import { fmtPct, fmtUsd } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,10 @@ export function NodeInspector({
   onConnect,
   onRemoveEdge,
   onSelect,
+  specsLocked = false,
 }: {
+  /** Graded problems: capacity, latency and cost are the catalog's and can't be edited. */
+  specsLocked?: boolean;
   node: SysNode;
   nodes: SysNode[];
   edges: FlowEdge[];
@@ -136,9 +139,9 @@ export function NodeInspector({
 
       <div className="grid grid-cols-2 gap-3">
         {hasCapacity && (
-          <NumberField label="Capacity / replica" suffix="rps" value={cfg.capacity} min={0} max={10_000_000} integer onCommit={(v) => onChangeConfig({ capacity: v })} />
+          <NumberField label="Capacity / replica" suffix="rps" value={cfg.capacity} min={0} max={10_000_000} integer disabled={specsLocked} onCommit={(v) => onChangeConfig({ capacity: v })} />
         )}
-        <NumberField label="Base latency" suffix="ms" value={cfg.latencyMs} min={0} max={10_000} step={0.5} onCommit={(v) => onChangeConfig({ latencyMs: v })} />
+        <NumberField label="Base latency" suffix="ms" value={cfg.latencyMs} min={0} max={10_000} step={0.5} disabled={specsLocked} onCommit={(v) => onChangeConfig({ latencyMs: v })} />
         {node.data.kind !== "client" && (
           <NumberField
             label={spec.behavior === "sqlDb" ? "Replicas (read)" : "Replicas"}
@@ -150,7 +153,17 @@ export function NodeInspector({
           />
         )}
         {node.data.kind !== "client" && (
-          <NumberField label="Cost / replica" suffix="$/mo" value={cfg.costPerReplica} min={0} max={1_000_000} integer onCommit={(v) => onChangeConfig({ costPerReplica: v })} />
+          <NumberField
+            label="Cost / replica"
+            suffix="$/mo"
+            value={spec.behavior === "cache" ? replicaCost({ kind: node.data.kind, config: cfg }) : cfg.costPerReplica}
+            min={0}
+            max={1_000_000}
+            integer
+            disabled={specsLocked || spec.behavior === "cache"}
+            hint={spec.behavior === "cache" ? "Set by cache size" : undefined}
+            onCommit={(v) => onChangeConfig({ costPerReplica: v })}
+          />
         )}
         {spec.behavior === "cache" && (
           <NumberField
@@ -165,9 +178,15 @@ export function NodeInspector({
           />
         )}
       </div>
+      {specsLocked && node.data.kind !== "client" && (
+        <p className="flex gap-1.5 text-[11px] leading-snug text-muted-foreground">
+          <Lock className="mt-px size-3 shrink-0" aria-hidden="true" />
+          <span>Capacity, latency and cost are fixed to real-world numbers in graded problems. Scale with replicas, a bigger cache or a different component.</span>
+        </p>
+      )}
       {node.data.kind !== "client" && (
         <p className="text-[11px] text-muted-foreground">
-          Monthly: <span className="font-mono text-foreground">{fmtUsd(cfg.costPerReplica * cfg.replicas)}</span>
+          Monthly: <span className="font-mono text-foreground">{fmtUsd(nodeMonthlyCost({ kind: node.data.kind, config: cfg }))}</span>
           {hasCapacity && (
             <>
               {" "}· Total capacity: <span className="font-mono text-foreground">{(cfg.capacity * cfg.replicas).toLocaleString()} rps</span>

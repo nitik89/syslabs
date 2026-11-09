@@ -20,7 +20,7 @@
       "No unsafe contended writes (no double bookings)",
       "No single points of failure",
       "Error rate at or below 1%",
-      "Cost under $1,100 / month"
+      "Cost under $1,200 / month"
     ]
   },
   "objectives": [
@@ -47,10 +47,10 @@
     },
     {
       "id": "cost",
-      "label": "Monthly cost at or below $1,100",
+      "label": "Monthly cost at or below $1,200",
       "metric": "monthlyCost",
       "op": "<=",
-      "value": 1100
+      "value": 1200
     }
   ],
   "startingDesign": {

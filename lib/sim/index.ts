@@ -1,5 +1,5 @@
 export * from "./types";
-export { BUNDLES, CATALOG, CUSTOM_BEHAVIORS, behaviorOf, behaviorSatisfies, defaultConfig, isKindAllowed, isNodeAllowed, nodeSpec, type ComponentSpec, type Vendor } from "./catalog";
+export { BUNDLES, CATALOG, CUSTOM_BEHAVIORS, behaviorOf, behaviorSatisfies, defaultConfig, isKindAllowed, isNodeAllowed, nodeSpec, catalogSpecs, lockConfig, lockGraph, replicaCost, nodeMonthlyCost, type ComponentSpec, type Vendor } from "./catalog";
 export {
   simulate,
   cacheHitRatio,

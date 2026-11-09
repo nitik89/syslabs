@@ -24,7 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Boxes, ChevronsRight, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, nodeSpec, simulateTimeline, type NodeConfig, type NodeKind, type SimResult, type Timeline, type TrafficProfile } from "@/lib/sim";
+import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, lockConfig, lockGraph, nodeMonthlyCost, nodeSpec, simulateTimeline, type NodeConfig, type NodeKind, type SimResult, type Timeline, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc, DesignRequirements } from "@/lib/storage";
 import { checkpoint, emptyHistory, redo as redoHistory, undo as undoHistory, type History } from "@/lib/history";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,11 @@ export interface DesignerProps {
   allowedKinds?: NodeKind[];
   /** Traffic is fixed (challenges). */
   trafficLocked?: boolean;
+  /**
+   * Graded problems: every component keeps the catalog's capacity, latency and cost. Only the choice of
+   * component, replicas, cache size and indexes are yours. Applied on load too, so edited saves can't sneak in.
+   */
+  specsLocked?: boolean;
   /** Toolbar actions rendered next to Run (Save / Load / Reset …). */
   actions?: (ctx: DesignerContext) => ReactNode;
   /** Extra content above metrics in the Results tab (challenge scoring). */
@@ -139,6 +144,7 @@ function DesignerInner({
   initial,
   allowedKinds,
   trafficLocked,
+  specsLocked,
   actions,
   resultsExtra,
   brief,
@@ -154,7 +160,7 @@ function DesignerInner({
   onDocChange,
   onRun,
 }: DesignerProps) {
-  const [initialFlow] = useState(() => docToFlow(initial));
+  const [initialFlow] = useState(() => docToFlow(specsLocked ? { ...initial, graph: lockGraph(initial.graph) } : initial));
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<SysNode>(initialFlow.nodes);
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<FlowEdge>(initialFlow.edges);
   const [traffic, setTraffic] = useState<TrafficProfile>(initial.traffic);
@@ -359,13 +365,22 @@ function DesignerInner({
       setNodes((ns) =>
         ns.map((n) =>
           n.id === id
-            ? { ...n, data: { ...n.data, ...(patch.label !== undefined ? { label: patch.label } : {}), config: { ...n.data.config, ...patch.config } } }
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  ...(patch.label !== undefined ? { label: patch.label } : {}),
+                  config: specsLocked
+                    ? lockConfig({ kind: n.data.kind, config: { ...n.data.config, ...patch.config } })
+                    : { ...n.data.config, ...patch.config },
+                },
+              }
             : n,
         ),
       );
       if (patch.config) markDirty();
     },
-    [setNodes, markDirty, record],
+    [setNodes, markDirty, record, specsLocked],
   );
 
   const deleteNode = useCallback(
@@ -404,7 +419,7 @@ function DesignerInner({
   const loadDoc = useCallback(
     (doc: DesignDoc) => {
       record(); // Reset and Load are undoable.
-      const f = docToFlow(doc);
+      const f = docToFlow(specsLocked ? { ...doc, graph: lockGraph(doc.graph) } : doc);
       setNodes(f.nodes);
       setEdges(f.edges);
       setTraffic(doc.traffic);
@@ -415,7 +430,7 @@ function DesignerInner({
       setTab("inspect");
       requestAnimationFrame(() => void rf.fitView({ padding: 0.08, maxZoom: 1, duration: 250 }));
     },
-    [setNodes, setEdges, rf, record],
+    [setNodes, setEdges, rf, record, specsLocked],
   );
 
   const restore = useCallback(
@@ -555,9 +570,9 @@ function DesignerInner({
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
   // Workspace: the drawer opens on double-click (or from the console), not on every click or drag.
   const panelOpen = showPanel || (workspace && inspectOpen && selected !== null);
-  const nodeCosts = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n.data.config.costPerReplica * n.data.config.replicas])), [nodes]);
+  const nodeCosts = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, nodeMonthlyCost({ kind: n.data.kind, config: n.data.config })])), [nodes]);
   const nodeLabels = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n.data.label.trim() || n.id])), [nodes]);
-  const monthlyCost = nodes.reduce((sum, n) => sum + n.data.config.costPerReplica * n.data.config.replicas, 0);
+  const monthlyCost = nodes.reduce((sum, n) => sum + nodeMonthlyCost({ kind: n.data.kind, config: n.data.config }), 0);
   const showConsoleTab = useCallback((id: string) => {
     setConsoleTab(id);
     setConsoleCollapsed(false);
@@ -841,6 +856,7 @@ function DesignerInner({
                 onConnect={(target) => connect(selected.id, target)}
                 onRemoveEdge={removeEdge}
                 onSelect={focusNode}
+                specsLocked={specsLocked}
               />
             ) : (
               <div className="space-y-5">

@@ -20,7 +20,7 @@
       "Error rate at or below 1%",
       "No single points of failure (including the gateway)",
       "Average latency at or below 65 ms",
-      "Cost under $1,500 / month"
+      "Cost under $1,700 / month"
     ]
   },
   "objectives": [
@@ -47,10 +47,10 @@
     },
     {
       "id": "cost",
-      "label": "Monthly cost at or below $1,500",
+      "label": "Monthly cost at or below $1,700",
       "metric": "monthlyCost",
       "op": "<=",
-      "value": 1500
+      "value": 1700
     }
   ],
   "startingDesign": {

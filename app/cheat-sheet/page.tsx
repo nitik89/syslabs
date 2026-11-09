@@ -118,7 +118,7 @@ export default function CheatSheetPage() {
               })}
             </tbody>
           </table>
-          <p className="mt-3 text-[11.5px] text-muted-foreground">SQL databases: replicas add read capacity only. Every write still goes to one primary.</p>
+          <p className="mt-3 text-[11.5px] text-muted-foreground">SQL databases: replicas add read capacity only. Every write still goes to one primary. Caches: the price is for 8 GB; doubling the memory costs about 41% more (32 GB is twice the price). In graded problems capacity, latency and cost are fixed: you scale with replicas, cache size or a different component.</p>
         </Card>
 
         <div className="grid gap-5">

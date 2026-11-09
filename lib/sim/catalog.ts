@@ -496,3 +496,43 @@ export function isKindAllowed(kind: NodeKind, allowed: ReadonlySet<NodeKind>): b
 export function defaultConfig(kind: NodeKind): NodeConfig {
   return { ...CATALOG[kind].defaults };
 }
+
+/**
+ * The catalog's capacity, latency and cost for a node. In graded problems these are fixed: you choose
+ * which component, how many replicas, the cache size and the index level, not how fast or cheap it is.
+ * Custom components take the numbers of the building block they behave like.
+ */
+export function catalogSpecs(n: { kind: NodeKind; config: NodeConfig }): Pick<NodeConfig, "capacity" | "latencyMs" | "costPerReplica"> {
+  const d = n.kind === "custom" ? BASE[nodeSpec(n).behavior].defaults : CATALOG[n.kind].defaults;
+  return { capacity: d.capacity, latencyMs: d.latencyMs, costPerReplica: d.costPerReplica };
+}
+
+/** A node's config with capacity, latency and cost reset to the catalog's. Replicas, cache size, indexes and behavior are kept. */
+export function lockConfig(n: { kind: NodeKind; config: NodeConfig }): NodeConfig {
+  return { ...n.config, ...catalogSpecs(n) };
+}
+
+/** A graph with every node's capacity, latency and cost reset to the catalog's (see lockConfig). */
+export function lockGraph<G extends { nodes: { kind: NodeKind; config: NodeConfig }[] }>(graph: G): G {
+  return { ...graph, nodes: graph.nodes.map((n) => ({ ...n, config: lockConfig(n) })) };
+}
+
+/**
+ * Monthly cost of one replica. Caches are priced by memory: the cost per replica buys the component's
+ * default size, and the price scales with the square root of size, so each doubling of memory costs
+ * about 41% more (8 GB → 32 GB doubles the price). Sizes below 1 GB are priced as 1 GB.
+ */
+export function replicaCost(n: { kind: NodeKind; config: NodeConfig }): number {
+  const c = n.config;
+  const cost = Number.isFinite(c.costPerReplica) && c.costPerReplica > 0 ? c.costPerReplica : 0;
+  if (nodeSpec(n).behavior !== "cache") return cost;
+  const base = CATALOG[n.kind].defaults.cacheSizeGb ?? BASE.cache.defaults.cacheSizeGb ?? 8;
+  const size = Number.isFinite(c.cacheSizeGb) ? Math.max(1, c.cacheSizeGb ?? base) : base;
+  return Math.round(cost * Math.sqrt(size / base));
+}
+
+/** Monthly cost of a node: replica cost × replicas. */
+export function nodeMonthlyCost(n: { kind: NodeKind; config: NodeConfig }): number {
+  const replicas = Number.isFinite(n.config.replicas) ? Math.max(1, Math.floor(n.config.replicas)) : 1;
+  return replicaCost(n) * replicas;
+}

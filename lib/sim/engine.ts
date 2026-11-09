@@ -1,4 +1,4 @@
-import { CATALOG, behaviorOf, nodeSpec, type ComponentSpec } from "./catalog";
+import { CATALOG, behaviorOf, nodeMonthlyCost, nodeSpec, type ComponentSpec } from "./catalog";
 import {
   TRAFFIC_CLASSES,
   type BaseKind,
@@ -175,10 +175,7 @@ export function simulate(rawGraph: SimGraph, traffic: TrafficProfile): SimResult
     if (k === "llm") aiCalls += n.load;
   }
 
-  const monthlyCost = graph.nodes.reduce((sum, n) => {
-    const c = sanitizeConfig(n.config);
-    return sum + c.costPerReplica * c.replicas;
-  }, 0);
+  const monthlyCost = graph.nodes.reduce((sum, n) => sum + nodeMonthlyCost({ kind: n.kind, config: sanitizeConfig(n.config) }), 0);
 
   const errorRate = base.offered > 0 ? base.errors / base.offered : 0;
 

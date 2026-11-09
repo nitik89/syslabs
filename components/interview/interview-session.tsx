@@ -402,6 +402,7 @@ export function InterviewSession({ interview, problem }: { interview: MockInterv
         initial={saved.doc}
         allowedKinds={problem.allowedComponents}
         trafficLocked
+        specsLocked
         onDocChange={onDocChange}
         leftPanel={panel}
         header={(ctx) => (

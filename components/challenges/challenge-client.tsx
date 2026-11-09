@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Loader2, PanelLeft, Play, Rot
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
-import { percentilesOf, type SimGraph, type SimResult } from "@/lib/sim";
+import { lockGraph, percentilesOf, simulate, type SimGraph, type SimResult } from "@/lib/sim";
 import { perHour, runTests, testCasesFor, type TestResult } from "@/lib/challenges/test-cases";
 import { INCIDENTS } from "@/data/challenges/incidents";
 import { runHiddenTests, type HiddenResult } from "@/lib/challenges/hidden";
@@ -148,7 +148,12 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
 
   /** Grade the design against every test, record the attempt and show the verdict. */
   const submit = useCallback(
-    async (result: SimResult, graph: SimGraph, monthlyCost: number) => {
+    async (submitted: SimResult, submittedGraph: SimGraph, submittedCost: number) => {
+      // Grade with catalog capacity, latency and cost, whatever the design carries (old saves, edited storage).
+      const graph = lockGraph(submittedGraph);
+      const tampered = JSON.stringify(graph) !== JSON.stringify(submittedGraph);
+      const result = tampered ? simulate(graph, challenge.traffic) : submitted;
+      const monthlyCost = tampered ? result.monthlyCost : submittedCost;
       const s = scoreChallenge(challenge, result, graph);
       const results = runTests(tests, s.objectives);
       // Hidden tests only run on Submit; a problem counts as solved only when they pass too.
@@ -226,6 +231,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
           initial={state.doc}
           allowedKinds={challenge.allowedComponents}
           trafficLocked
+          specsLocked
           brief={challenge.requirements}
           onDocChange={saveDraft}
           autoRun={pageOpen}

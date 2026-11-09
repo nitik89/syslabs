@@ -1,4 +1,4 @@
-import { simulate, type SimGraph, type TrafficProfile } from "@/lib/sim";
+import { lockGraph, simulate, type SimGraph, type TrafficProfile } from "@/lib/sim";
 
 /**
  * Hidden tests: extra scenarios run only on Submit, and revealed only if they fail.
@@ -38,8 +38,9 @@ export interface HiddenResult {
 }
 
 export function runHiddenTests(graph: SimGraph, traffic: TrafficProfile): HiddenResult[] {
+  const locked = lockGraph(graph);
   return HIDDEN_TESTS.map((test) => {
-    const r = simulate(graph, test.traffic(traffic));
+    const r = simulate(locked, test.traffic(traffic));
     const errorRate = r.offeredRps > 0 ? r.errorRps / r.offeredRps : 1;
     return { test, errorRate, passed: r.offeredRps > 0 && errorRate <= test.maxErrorRate + 1e-9 };
   });

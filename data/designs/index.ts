@@ -20,6 +20,17 @@ import onlineJudge from "./online-judge.json";
 import fileStorage from "./file-storage.json";
 import nearbyPlaces from "./nearby-places.json";
 import keyValueStore from "./key-value-store.json";
+import liveComments from "./live-comments.json";
+import topKTrending from "./top-k-trending.json";
+import adClickAggregator from "./ad-click-aggregator.json";
+import jobScheduler from "./job-scheduler.json";
+import emailNewsletter from "./email-newsletter.json";
+import orderSaga from "./order-saga.json";
+import logPipeline from "./log-pipeline.json";
+import imageHosting from "./image-hosting.json";
+import stockTicker from "./stock-ticker.json";
+import newsAggregator from "./news-aggregator.json";
+import likeCounter from "./like-counter.json";
 
 /**
  * "Build" problems: design a product from a blank canvas. Same shape as challenges (so scoring, progress and
@@ -60,6 +71,17 @@ export const DESIGNS: Challenge[] = [
   fileStorage,
   nearbyPlaces,
   keyValueStore,
+  liveComments,
+  topKTrending,
+  adClickAggregator,
+  jobScheduler,
+  emailNewsletter,
+  orderSaga,
+  logPipeline,
+  imageHosting,
+  stockTicker,
+  newsAggregator,
+  likeCounter,
 ]
   .map(normalize)
   .sort((a, b) => a.order - b.order);

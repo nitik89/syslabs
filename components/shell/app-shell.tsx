@@ -212,7 +212,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <NavLinks progress={progress} rail={rail} />
         <div className="mt-auto space-y-3">
           <LevelCard progress={progress} rail={rail} />
-          {!rail && <p className="px-1 text-[10.5px] leading-relaxed text-muted-foreground/70">Your data stays in this browser. All metrics are simulated.</p>}
+          {!rail && (
+            <p className="px-1 text-[10.5px] leading-relaxed text-muted-foreground/70">
+              All metrics are simulated.{" "}
+              <Link href="/privacy" className="hover:text-foreground">
+                Privacy
+              </Link>{" "}
+              ·{" "}
+              <Link href="/terms" className="hover:text-foreground">
+                Terms
+              </Link>
+            </p>
+          )}
         </div>
       </aside>
 

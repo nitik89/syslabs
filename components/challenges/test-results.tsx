@@ -6,6 +6,7 @@ import type { TestCase, TestResult } from "@/lib/challenges/test-cases";
 import type { Objective } from "@/lib/challenges/types";
 import { fmtPct, fmtRps } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { HIDDEN_TESTS } from "@/lib/challenges/hidden";
 import { formatMetric } from "./score-card";
 import { fmtLatency } from "@/components/lab/run-console";
 
@@ -92,6 +93,22 @@ export function TestStatusLines({ tests }: { tests: TestResult[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Placeholders for hidden tests: they exist, run on Submit, and are only revealed if they fail. */
+export function HiddenTestCards() {
+  return (
+    <>
+      {HIDDEN_TESTS.map((h, i) => (
+        <div key={h.id} className="space-y-1 rounded-xl border border-dashed border-border bg-white/[0.01] p-3">
+          <p className="flex items-center gap-2 text-[13px] font-semibold">
+            Hidden test {i + 1} <span className="rounded bg-white/[0.06] px-1.5 font-mono text-[10px] font-normal text-muted-foreground">hidden</span>
+          </p>
+          <p className="text-[11.5px] text-muted-foreground">Runs when you submit. Revealed if it fails.</p>
+        </div>
+      ))}
+    </>
   );
 }
 

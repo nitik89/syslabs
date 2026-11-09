@@ -1,0 +1,281 @@
+{
+  "id": "live-comments",
+  "order": 21,
+  "title": "Live Comments",
+  "difficulty": "Medium",
+  "summary": "Stream comments to everyone watching a live event, in real time, without dropping any.",
+  "scenario": [
+    "During a big live stream, viewers post comments and expect to see everyone else's within a second.",
+    "Polling would melt the API: connections stay open, and new comments are pushed out to every viewer."
+  ],
+  "mode": "build",
+  "category": "Messaging",
+  "requirements": {
+    "functional": [
+      "Post a comment on a live stream",
+      "See new comments in real time",
+      "Load recent comments when joining",
+      "Moderators can remove comments"
+    ],
+    "nonFunctional": [
+      "Handle 30,000 requests/s at peak, 80% reads",
+      "Average latency at or below 60 ms",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $4,500 / month"
+    ]
+  },
+  "estimates": [
+    "30,000 requests/s during a final",
+    "6,000 new comments/s",
+    "Most reads are for the same few live streams"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $4,500",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 4500
+    },
+    {
+      "id": "uses-ws",
+      "label": "Viewers hold real-time connections",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "websocketGateway"
+      ]
+    },
+    {
+      "id": "uses-pubsub",
+      "label": "New comments fan out through pub/sub",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Viewers",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Viewers",
+          "config": {}
+        },
+        {
+          "id": "ws-1",
+          "kind": "websocketGateway",
+          "label": "Connection Gateway",
+          "config": {
+            "replicas": 6
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Comments API",
+          "config": {
+            "replicas": 30
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Recent Comments",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "ps-1",
+          "kind": "redisPubsub",
+          "label": "Comment Fan-out",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Comment Writers",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "cassandra",
+          "label": "Comment Store",
+          "config": {
+            "replicas": 3
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->ws-1",
+          "source": "client-1",
+          "target": "ws-1"
+        },
+        {
+          "id": "e:ws-1->api",
+          "source": "ws-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->ps-1",
+          "source": "api",
+          "target": "ps-1"
+        },
+        {
+          "id": "e:ps-1->worker-1",
+          "source": "ps-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "ws-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "ps-1": {
+        "x": 900,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 30000,
+    "readRatio": 0.8,
+    "hotKeyFraction": 0.9,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Viewers shouldn't poll. What holds open connections and pushes updates to them?",
+    "Each new comment has to reach every gateway with viewers of that stream: that's pub/sub.",
+    "WebSocket gateway (6) → API (30) → Redis (2) → Cassandra (3); API → Redis Pub/Sub → writers (4) → Cassandra."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 4140
+  },
+  "explanation": [
+    "Connection gateways hold the sockets; a pub/sub channel per stream delivers each comment to every gateway with subscribers.",
+    "Writes go through pub/sub to writers that persist them, so a viewer joining late can load recent comments from the store (cached).",
+    "Huge streams sample or batch comments: nobody can read 5,000 comments a second anyway."
+  ]
+}

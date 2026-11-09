@@ -1,0 +1,279 @@
+{
+  "id": "email-newsletter",
+  "order": 25,
+  "title": "Email Newsletter Platform",
+  "difficulty": "Medium",
+  "summary": "Send campaigns to millions of subscribers through slow email providers, and let readers browse the archive.",
+  "scenario": [
+    "A creator hits Send on a newsletter with 2 million subscribers. Every email must go out, without timing out the dashboard.",
+    "Email providers are slow and rate-limited, so delivery fans out to many background senders."
+  ],
+  "mode": "build",
+  "category": "Messaging",
+  "requirements": {
+    "functional": [
+      "Create and send a campaign",
+      "Deliver one email per subscriber",
+      "Track opens and bounces",
+      "Browse past issues online"
+    ],
+    "nonFunctional": [
+      "Handle 8,000 requests/s at peak, 85% sends",
+      "Delivery keeps up: no backlog",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $1,700 / month"
+    ]
+  },
+  "estimates": [
+    "8,000 requests/s while a campaign sends",
+    "6,800 email sends/s",
+    "Archive reads concentrate on the latest issue"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,700",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1700
+    },
+    {
+      "id": "uses-fanout",
+      "label": "Sends fan out through a topic or queue",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Background senders deliver email",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Creators + Readers",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Creators + Readers",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Campaign API",
+          "config": {
+            "replicas": 8
+          }
+        },
+        {
+          "id": "sns-1",
+          "kind": "sns",
+          "label": "Send Fan-out",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Email Senders",
+          "config": {
+            "replicas": 5
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "dynamodb",
+          "label": "Delivery Log",
+          "config": {}
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Archive Cache",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->sns-1",
+          "source": "api",
+          "target": "sns-1"
+        },
+        {
+          "id": "e:sns-1->worker-1",
+          "source": "sns-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "sns-1": {
+        "x": 900,
+        "y": 60
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 8000,
+    "readRatio": 0.15,
+    "hotKeyFraction": 0.6,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Sending 2 million emails can't happen inside one request. Where does the work go?",
+    "6,800 sends/s need enough senders with headroom; providers are slow.",
+    "LB (2) → API (8) → SNS → senders (5) → DynamoDB; archive reads through Redis."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 1564
+  },
+  "explanation": [
+    "Split a campaign into batches of recipients and publish them; senders pull batches and call the email provider, retrying with backoff.",
+    "Respect provider rate limits per sender; scale senders horizontally rather than pushing one harder.",
+    "Record each delivery idempotently (campaign id + recipient) so retries never send twice."
+  ]
+}

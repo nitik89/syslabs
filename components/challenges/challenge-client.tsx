@@ -10,6 +10,7 @@ import { scoreChallenge } from "@/lib/challenges/score";
 import { percentilesOf, type SimGraph, type SimResult } from "@/lib/sim";
 import { perHour, runTests, testCasesFor, type TestResult } from "@/lib/challenges/test-cases";
 import { INCIDENTS } from "@/data/challenges/incidents";
+import { runHiddenTests, type HiddenResult } from "@/lib/challenges/hidden";
 import { PROGRESS_EVENT, getRepo, type ChallengeRecord, type DesignDoc } from "@/lib/storage";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Designer } from "@/components/lab/designer";
@@ -59,7 +60,15 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
   const problemRef = useRef<HTMLElement>(null);
   const problemWidth = usePanelWidth({ min: 260, max: 560 });
   const [testFilter, setTestFilter] = useState<string>("all");
-  const [submission, setSubmission] = useState<{ tests: TestResult[]; score: number; passed: boolean; xp: number; p99: number; cost: number } | null>(null);
+  const [submission, setSubmission] = useState<{
+    tests: TestResult[];
+    hidden: HiddenResult[];
+    score: number;
+    passed: boolean;
+    xp: number;
+    p99: number;
+    cost: number;
+  } | null>(null);
   const incident = challenge.mode === "build" ? undefined : INCIDENTS[challenge.id];
   // The on-call page opens by itself only on the first visit to an unsolved challenge.
   const [pageOpen, setPageOpen] = useState(false);
@@ -142,8 +151,11 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
     async (result: SimResult, graph: SimGraph, monthlyCost: number) => {
       const s = scoreChallenge(challenge, result, graph);
       const results = runTests(tests, s.objectives);
+      // Hidden tests only run on Submit; a problem counts as solved only when they pass too.
+      const hidden = runHiddenTests(graph, challenge.traffic);
+      const passed = s.passed && hidden.every((h) => h.passed);
       const p99 = percentilesOf(result).p99;
-      const verdict = { tests: results, score: s.total, passed: s.passed, xp: 0, p99, cost: monthlyCost };
+      const verdict = { tests: results, hidden, score: s.total, passed, xp: 0, p99, cost: monthlyCost };
       // The reference design, run unchanged, is a worked example: grade it, but don't record it or award XP.
       if (challenge.reference && sameGraph(graph, challenge.reference.graph)) {
         setSubmission(verdict);
@@ -151,14 +163,14 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
         return;
       }
       try {
-        const { progress, xpGained } = await getRepo().recordAttempt(challenge.id, s.total, s.passed, {
-          testsPassed: results.filter((r) => r.passed).length,
-          testsTotal: results.length,
+        const { progress, xpGained } = await getRepo().recordAttempt(challenge.id, s.total, passed, {
+          testsPassed: results.filter((r) => r.passed).length + hidden.filter((h) => h.passed).length,
+          testsTotal: results.length + hidden.length,
           p99Ms: p99,
           monthlyCost,
         });
         const rec = progress.challenges[challenge.id];
-        const firstPass = s.passed && rec.firstPassedAt === rec.lastAttemptAt;
+        const firstPass = passed && rec.firstPassedAt === rec.lastAttemptAt;
         setRecord(rec);
         setSubmission({ ...verdict, xp: xpGained });
         window.dispatchEvent(new Event(PROGRESS_EVENT));
@@ -385,7 +397,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                         {submission.passed ? "Accepted" : "Failed"}
                       </p>
                       <p className="font-mono text-[12px] text-muted-foreground">
-                        {submission.tests.filter((t) => t.passed).length}/{submission.tests.length} tests · score {submission.score} · ${perHour(submission.cost).toFixed(2)}/hr · p99{" "}
+                        {submission.tests.filter((t) => t.passed).length + submission.hidden.filter((h) => h.passed).length}/{submission.tests.length + submission.hidden.length} tests · score {submission.score} · ${perHour(submission.cost).toFixed(2)}/hr · p99{" "}
                         {submission.p99 >= 1000 ? `${(submission.p99 / 1000).toFixed(1)} s` : `${Math.round(submission.p99)} ms`}
                       </p>
                       {submission.xp > 0 && <span className="rounded bg-brand-blue/15 px-1.5 py-px font-mono text-[11px] text-brand-blue">+{submission.xp} XP</span>}
@@ -404,10 +416,21 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                         </div>
                       </li>
                     ))}
+                    {submission.hidden.map((h, i) => (
+                      <li key={h.test.id} className="rounded-xl border border-border bg-white/[0.02] px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <PassBadge passed={h.passed} />
+                          <span className="text-[13px] font-semibold">{h.passed ? `Hidden test ${i + 1}` : h.test.title}</span>
+                          <span className="rounded bg-white/[0.06] px-1.5 font-mono text-[10px] text-muted-foreground">hidden</span>
+                          <span className="text-[11.5px] text-muted-foreground">{h.passed ? "Passed" : `Revealed because it failed · error rate ${(h.errorRate * 100).toFixed(1)}%`}</span>
+                        </div>
+                        {!h.passed && <p className="mt-1.5 text-[12px] text-status-crit">{h.test.detail}</p>}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               ) : (
-                <p className="py-6 text-center text-[12.5px] text-muted-foreground">Press Submit to grade your design against every test and record your score.</p>
+                <p className="py-6 text-center text-[12.5px] text-muted-foreground">Press Submit to grade your design against every test, including hidden ones, and record your score.</p>
               ),
             },
           ]}

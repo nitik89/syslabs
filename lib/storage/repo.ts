@@ -1,4 +1,5 @@
 import type { SimGraph, TrafficProfile } from "@/lib/sim";
+import { scheduleCard, type CardState, type Rating } from "./cards";
 import type { StorageDriver } from "./driver";
 import { BACKUP_APP, BACKUP_VERSION, mergeDesigns, mergeProgress, type BackupFile } from "./backup";
 
@@ -71,6 +72,7 @@ const KEYS = {
   designs: "designs",
   progress: "progress",
   draft: (scope: string) => `draft:${scope}`,
+  cards: "cards",
 };
 
 /* ----------------------------- Repository ----------------------------- */
@@ -118,6 +120,19 @@ export function createRepo(driver: StorageDriver, now: () => Date = () => new Da
     },
     async clearDraft(scope: string): Promise<void> {
       await driver.remove(KEYS.draft(scope));
+    },
+
+    async getCards(): Promise<CardState> {
+      const c = await driver.get<CardState>(KEYS.cards);
+      return c && typeof c === "object" && !Array.isArray(c) ? c : {};
+    },
+    /** Record a flashcard review and count today as an active day. */
+    async reviewCard(id: string, rating: Rating): Promise<CardState> {
+      const cards = await this.getCards();
+      cards[id] = scheduleCard(cards[id], rating, localDay(now()));
+      await driver.set(KEYS.cards, cards);
+      await this.markActive();
+      return cards;
     },
 
     async getProgress(): Promise<ProgressState> {

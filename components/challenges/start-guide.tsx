@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import type { Challenge } from "@/lib/challenges/types";
 import type { TestCase } from "@/lib/challenges/test-cases";
 import { CATALOG } from "@/lib/sim";
-import { TestCaseCard } from "./test-results";
+import { HiddenTestCards, TestCaseCard } from "./test-results";
 
 /** Building blocks the requirement checks ask for, by name. */
 function requiredBlocks(ch: Challenge): string[] {
@@ -67,6 +67,7 @@ export function TestsPreview({ tests }: { tests: TestCase[] }) {
         {tests.map((t) => (
           <TestCaseCard key={t.id} test={t} />
         ))}
+        <HiddenTestCards />
       </div>
     </div>
   );

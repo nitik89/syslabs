@@ -1,0 +1,289 @@
+{
+  "id": "like-counter",
+  "order": 31,
+  "title": "Like Counter at Scale",
+  "difficulty": "Medium",
+  "summary": "Count likes on viral posts in real time without one hot post melting the database.",
+  "scenario": [
+    "A celebrity post gets hundreds of thousands of likes a minute, and everyone sees the count update.",
+    "A naive counter (UPDATE likes = likes + 1) turns one row into a bottleneck."
+  ],
+  "mode": "build",
+  "category": "Social",
+  "requirements": {
+    "functional": [
+      "Like and unlike a post",
+      "Show live like counts",
+      "Never lose a like",
+      "One user likes a post at most once"
+    ],
+    "nonFunctional": [
+      "Handle 50,000 requests/s at peak, 60% reads",
+      "Average latency at or below 60 ms",
+      "Likes processed without backlog",
+      "Error rate at or below 0.5%",
+      "No single points of failure",
+      "Cost under $7,700 / month"
+    ]
+  },
+  "estimates": [
+    "50,000 requests/s on a viral post",
+    "20,000 likes/s",
+    "95% of traffic is for one hot post"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $7,700",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 7700
+    },
+    {
+      "id": "uses-cache",
+      "label": "Counts are served from memory",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Likes are buffered and batched",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Likes API",
+          "config": {
+            "replicas": 48
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Count Cache",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "kafka-1",
+          "kind": "kafka",
+          "label": "Like Events",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Batch Counters",
+          "config": {
+            "replicas": 14
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "cassandra",
+          "label": "Likes + Counts",
+          "config": {
+            "replicas": 6
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->kafka-1",
+          "source": "api",
+          "target": "kafka-1"
+        },
+        {
+          "id": "e:kafka-1->worker-1",
+          "source": "kafka-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "kafka-1": {
+        "x": 900,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 50000,
+    "readRatio": 0.6,
+    "hotKeyFraction": 0.95,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "One row being incremented 20,000 times a second is the problem. How do you avoid hammering it?",
+    "Reads of a hot count belong in memory; writes can be buffered and applied in batches.",
+    "LB (4) → API (48) → Redis (3) → Cassandra (6); likes → Kafka → batch counters (14) → Cassandra."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 7084
+  },
+  "explanation": [
+    "Record each like as an event (user, post) so a user can like only once, then aggregate counts in batches instead of incrementing one row per like.",
+    "Serve counts from a cache; for extreme hot keys, shard the counter into N sub-counters and sum them.",
+    "The displayed count can lag by a second; the set of who liked what must be exact."
+  ]
+}

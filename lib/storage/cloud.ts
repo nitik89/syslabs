@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { StorageError, type StorageDriver } from "./driver";
 import type { ChallengeRecord, ProgressState, SavedDesign } from "./repo";
+import { mergeCards, type CardState } from "./cards";
 
 /** Key-value storage in the `user_data` table, one row per key, visible only to its owner (row-level security). */
 export function createSupabaseDriver(sb: SupabaseClient, userId: string): StorageDriver {
@@ -71,4 +72,6 @@ export async function migrateGuestData(local: StorageDriver, cloud: StorageDrive
   ]);
   if (lp) await cloud.set("progress", mergeProgress(cp, lp));
   if (ld?.length) await cloud.set("designs", mergeDesigns(cd, ld));
+  const [lc, cc] = await Promise.all([local.get<CardState>("cards"), cloud.get<CardState>("cards")]);
+  if (lc && Object.keys(lc).length) await cloud.set("cards", mergeCards(cc, lc));
 }

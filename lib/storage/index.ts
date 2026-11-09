@@ -4,6 +4,7 @@ import { createRepo, type Repo } from "./repo";
 export * from "./driver";
 export * from "./repo";
 export * from "./backup";
+export * from "./cards";
 export { createSupabaseDriver, mergeDesigns, mergeProgress, migrateGuestData } from "./cloud";
 
 /*

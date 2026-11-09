@@ -1,0 +1,306 @@
+{
+  "id": "news-aggregator",
+  "order": 30,
+  "title": "News Aggregator",
+  "difficulty": "Medium",
+  "summary": "Collect articles from thousands of sources, rank them, and serve a fast personalised front page.",
+  "scenario": [
+    "The app pulls articles from publishers all day, de-duplicates stories and serves a ranked feed.",
+    "Readers far outnumber new articles, and breaking news makes everyone read the same stories."
+  ],
+  "mode": "build",
+  "category": "Media",
+  "requirements": {
+    "functional": [
+      "Ingest articles from many sources",
+      "De-duplicate and categorise stories",
+      "Serve a ranked front page and search",
+      "Show article pages fast"
+    ],
+    "nonFunctional": [
+      "Handle 12,000 requests/s at peak, 95% reads",
+      "Average latency at or below 60 ms",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $1,900 / month"
+    ]
+  },
+  "estimates": [
+    "12,000 requests/s at peak",
+    "30% are images and scripts",
+    "Breaking news: 85% of reads hit a handful of stories"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,900",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1900
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Static assets come from a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Hot stories are cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-search",
+      "label": "Articles are searchable",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "search"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Readers",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Readers",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cdn",
+          "label": "CDN",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Feed API",
+          "config": {
+            "replicas": 8
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Story Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "es-1",
+          "kind": "elasticsearch",
+          "label": "Article Index",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Ingest Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Ingesters",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:cdn-1->lb-1",
+          "source": "cdn-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->es-1",
+          "source": "cache-1",
+          "target": "es-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->es-1",
+          "source": "worker-1",
+          "target": "es-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 300,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 600,
+        "y": 60
+      },
+      "api": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "es-1": {
+        "x": 1500,
+        "y": 60
+      },
+      "q-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1500,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 12000,
+    "readRatio": 0.95,
+    "hotKeyFraction": 0.85,
+    "staticFraction": 0.3
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Breaking news means everyone reads the same few stories. How do you keep that off the index?",
+    "New articles arrive continuously: ingest them in the background.",
+    "CDN → LB (2) → API (8) → Redis (2) → Elasticsearch (3); API → SQS → ingesters (2) → Elasticsearch."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 1748
+  },
+  "explanation": [
+    "Ingesters fetch feeds, de-duplicate with content hashes and index articles for search and ranking.",
+    "Cache the front page and hot stories; personalisation can re-rank a cached candidate list per user.",
+    "Push images and scripts to a CDN so the app servers only handle feeds and article data."
+  ]
+}

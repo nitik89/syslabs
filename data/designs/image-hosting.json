@@ -1,0 +1,321 @@
+{
+  "id": "image-hosting",
+  "order": 28,
+  "title": "Image Hosting",
+  "difficulty": "Medium",
+  "summary": "Design an Imgur-style service: fast uploads, thumbnails generated in the background, and images served worldwide.",
+  "scenario": [
+    "Users upload images and share links. Popular images are viewed millions of times.",
+    "Images are large and immutable, perfect for a CDN; thumbnails are generated after upload."
+  ],
+  "mode": "build",
+  "category": "Media",
+  "requirements": {
+    "functional": [
+      "Upload an image and get a link",
+      "Serve images and thumbnails fast worldwide",
+      "Generate thumbnails in the background",
+      "Show image pages with metadata"
+    ],
+    "nonFunctional": [
+      "Handle 25,000 requests/s at peak, 70% image downloads",
+      "Average latency at or below 50 ms",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $1,900 / month"
+    ]
+  },
+  "estimates": [
+    "25,000 requests/s at peak",
+    "70% are image downloads",
+    "Of the rest, 90% are page reads and 10% uploads"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 50 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 50
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,900",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1900
+    },
+    {
+      "id": "uses-cdn",
+      "label": "Images are served from a CDN",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cdn"
+      ]
+    },
+    {
+      "id": "uses-blob",
+      "label": "Images live in object storage",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "objectStorage"
+      ]
+    },
+    {
+      "id": "uses-queue",
+      "label": "Thumbnails are generated asynchronously",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Users",
+          "config": {}
+        },
+        {
+          "id": "cdn-1",
+          "kind": "cloudfront",
+          "label": "CDN",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Image API",
+          "config": {
+            "replicas": 8
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Metadata Cache",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "nosqlDb",
+          "label": "Image Metadata",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Thumbnail Jobs",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Thumbnailers",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "s3-1",
+          "kind": "s3",
+          "label": "Image Store",
+          "config": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->cdn-1",
+          "source": "client-1",
+          "target": "cdn-1"
+        },
+        {
+          "id": "e:cdn-1->lb-1",
+          "source": "cdn-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->s3-1",
+          "source": "worker-1",
+          "target": "s3-1"
+        },
+        {
+          "id": "e:api->s3-1",
+          "source": "api",
+          "target": "s3-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "cdn-1": {
+        "x": 300,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 600,
+        "y": 60
+      },
+      "api": {
+        "x": 900,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1500,
+        "y": 60
+      },
+      "q-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1500,
+        "y": 230
+      },
+      "s3-1": {
+        "x": 1200,
+        "y": 400
+      }
+    }
+  },
+  "traffic": {
+    "rps": 25000,
+    "readRatio": 0.9,
+    "hotKeyFraction": 0.8,
+    "staticFraction": 0.7
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Most traffic is image downloads. Should those ever reach your servers?",
+    "Thumbnails are slow to make: accept the upload, then generate them in the background.",
+    "CloudFront → LB (2) → API (8) → Redis (2) → NoSQL (2); API → SQS → thumbnailers (2) → S3, and API → S3."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 1748
+  },
+  "explanation": [
+    "Store originals and thumbnails in object storage and serve them through a CDN with long cache lifetimes: images never change once uploaded.",
+    "Uploads go straight to storage (presigned URLs) and a queue triggers thumbnail generation.",
+    "Keep only small metadata in the database and cache it: page views then barely touch the backend."
+  ]
+}

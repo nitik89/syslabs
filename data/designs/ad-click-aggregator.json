@@ -1,0 +1,291 @@
+{
+  "id": "ad-click-aggregator",
+  "order": 23,
+  "title": "Ad Click Aggregator",
+  "difficulty": "Hard",
+  "summary": "Ingest a firehose of ad clicks, aggregate them per campaign per minute, and power billing dashboards.",
+  "scenario": [
+    "Advertisers pay per click, so every click must be counted exactly once, and dashboards must be close to real time.",
+    "Clicks arrive in huge bursts; reads are a small number of dashboard queries."
+  ],
+  "mode": "build",
+  "category": "Data",
+  "requirements": {
+    "functional": [
+      "Record every ad click",
+      "Aggregate clicks per ad and campaign per minute",
+      "Show advertisers near-real-time dashboards",
+      "Never lose or double-count a click"
+    ],
+    "nonFunctional": [
+      "Handle 40,000 requests/s at peak, 95% clicks",
+      "Aggregation keeps up: no backlog",
+      "Error rate at or below 0.5%",
+      "No single points of failure",
+      "Cost under $6,900 / month"
+    ]
+  },
+  "estimates": [
+    "40,000 click events/s at peak",
+    "2,000 dashboard reads/s",
+    "Clicks for a few big campaigns dominate"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $6,900",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 6900
+    },
+    {
+      "id": "uses-stream",
+      "label": "Clicks are buffered in a stream",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Aggregators run as stream workers",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    },
+    {
+      "id": "uses-tsdb",
+      "label": "Aggregates live in a time-series store",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "timeseriesDb"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Ad Clicks",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Ad Clicks",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Click Collector",
+          "config": {
+            "replicas": 40
+          }
+        },
+        {
+          "id": "kin-1",
+          "kind": "kinesis",
+          "label": "Click Stream",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Aggregators",
+          "config": {
+            "replicas": 26
+          }
+        },
+        {
+          "id": "ts-1",
+          "kind": "influxdb",
+          "label": "Per-minute Aggregates",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Dashboard Cache",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->kin-1",
+          "source": "api",
+          "target": "kin-1"
+        },
+        {
+          "id": "e:kin-1->worker-1",
+          "source": "kin-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->ts-1",
+          "source": "worker-1",
+          "target": "ts-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->ts-1",
+          "source": "cache-1",
+          "target": "ts-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "kin-1": {
+        "x": 900,
+        "y": 60
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "ts-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 40000,
+    "readRatio": 0.05,
+    "hotKeyFraction": 0.5,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "The collector should acknowledge a click and hand it off. To what?",
+    "38,000 clicks/s must be aggregated with headroom for spikes. Size the workers and the store for that.",
+    "LB (3) → collectors (40) → Kinesis → aggregators (26) → InfluxDB (4); dashboards read through Redis."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 6348
+  },
+  "explanation": [
+    "Write clicks to a durable stream with a click id; aggregators deduplicate by id so retries never double-bill.",
+    "Aggregate per minute in the stream workers and store the results in a time-series database: dashboards then read tiny pre-aggregated rows.",
+    "Keep raw clicks in cheap storage for audits and to recompute if an aggregation bug is found."
+  ]
+}

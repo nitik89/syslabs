@@ -1,0 +1,279 @@
+{
+  "id": "job-scheduler",
+  "order": 24,
+  "title": "Distributed Job Scheduler",
+  "difficulty": "Medium",
+  "summary": "Accept millions of background jobs, run each one reliably, and let users check their status.",
+  "scenario": [
+    "Teams submit jobs (reports, exports, emails) that must run once, even if a worker crashes halfway.",
+    "Submitting a job must be instant; status checks are frequent."
+  ],
+  "mode": "build",
+  "category": "Platform",
+  "requirements": {
+    "functional": [
+      "Submit a job with a payload",
+      "Run every job at least once, with retries",
+      "Check a job's status",
+      "Cancel a queued job"
+    ],
+    "nonFunctional": [
+      "Handle 3,000 requests/s at peak, 60% submissions",
+      "Jobs are picked up without backlog",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $1,100 / month"
+    ]
+  },
+  "estimates": [
+    "3,000 requests/s at peak",
+    "1,800 job submissions/s",
+    "1,200 status checks/s, mostly for recent jobs"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,100",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1100
+    },
+    {
+      "id": "uses-queue",
+      "label": "Jobs wait in a queue",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Workers execute jobs",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Services",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Services",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Jobs API",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Job Queue",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Job Runners",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "dynamodb",
+          "label": "Job State",
+          "config": {}
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Status Cache",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "q-1": {
+        "x": 900,
+        "y": 60
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 3000,
+    "readRatio": 0.4,
+    "hotKeyFraction": 0.6,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Submitting should only enqueue. What runs the jobs?",
+    "Jobs must survive a crashed runner: the queue redelivers anything not acknowledged.",
+    "LB (2) → API (4) → SQS → runners (2) → DynamoDB; status reads through Redis."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 1012
+  },
+  "explanation": [
+    "The queue gives at-least-once delivery with visibility timeouts: a job a crashed runner never finished reappears for another runner.",
+    "Store job state transitions (queued → running → done) with conditional writes so two runners can't both claim a job.",
+    "Delayed jobs use a time-ordered index or scheduled messages; a dead-letter queue catches jobs that keep failing."
+  ]
+}

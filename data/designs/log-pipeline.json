@@ -1,0 +1,296 @@
+{
+  "id": "log-pipeline",
+  "order": 27,
+  "title": "Log Ingestion Pipeline",
+  "difficulty": "Medium",
+  "summary": "Collect logs from thousands of services, make recent ones searchable, and archive everything cheaply.",
+  "scenario": [
+    "Every service ships log lines. Engineers search the last few days during incidents; older logs are kept for audits.",
+    "Ingestion is a firehose; searches are rare but must be fast."
+  ],
+  "mode": "build",
+  "category": "Observability",
+  "requirements": {
+    "functional": [
+      "Ingest log lines from every service",
+      "Search recent logs by text and fields",
+      "Archive all logs cheaply",
+      "Never block a service that's logging"
+    ],
+    "nonFunctional": [
+      "Handle 25,000 requests/s at peak, 95% ingestion",
+      "Ingestion keeps up: no backlog",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $4,400 / month"
+    ]
+  },
+  "estimates": [
+    "25,000 log batches/s at peak",
+    "1,250 searches/s during an incident",
+    "Searches spread across many services"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $4,400",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 4400
+    },
+    {
+      "id": "uses-stream",
+      "label": "Logs are buffered in a stream",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Workers process and ship logs",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    },
+    {
+      "id": "uses-search",
+      "label": "Recent logs are searchable",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "search"
+      ]
+    },
+    {
+      "id": "uses-archive",
+      "label": "Logs are archived in object storage",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "objectStorage"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Services",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Services",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Log Collectors",
+          "config": {
+            "replicas": 22
+          }
+        },
+        {
+          "id": "kafka-1",
+          "kind": "kafka",
+          "label": "Log Stream",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Log Processors",
+          "config": {
+            "replicas": 16
+          }
+        },
+        {
+          "id": "s3-1",
+          "kind": "s3",
+          "label": "Log Archive",
+          "config": {
+            "replicas": 4
+          }
+        },
+        {
+          "id": "es-1",
+          "kind": "opensearch",
+          "label": "Search Index",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->kafka-1",
+          "source": "api",
+          "target": "kafka-1"
+        },
+        {
+          "id": "e:kafka-1->worker-1",
+          "source": "kafka-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->s3-1",
+          "source": "worker-1",
+          "target": "s3-1"
+        },
+        {
+          "id": "e:api->es-1",
+          "source": "api",
+          "target": "es-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "kafka-1": {
+        "x": 900,
+        "y": 60
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "s3-1": {
+        "x": 1500,
+        "y": 60
+      },
+      "es-1": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 25000,
+    "readRatio": 0.05,
+    "hotKeyFraction": 0.2,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Services must never wait on log storage. What absorbs the firehose?",
+    "Two destinations with different jobs: a search index for recent logs, object storage for everything.",
+    "LB (2) → collectors (22) → Kafka → processors (16) → S3 (4); searches go to OpenSearch (2)."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 4048
+  },
+  "explanation": [
+    "Agents batch and compress logs; collectors write them to a durable stream so a slow index never backs up services.",
+    "Index only recent logs (hot tier) for search, and keep everything in object storage (cold tier) with lifecycle rules.",
+    "Sample noisy debug logs at the source; it's the cheapest way to cut cost."
+  ]
+}

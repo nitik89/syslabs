@@ -14,6 +14,9 @@ import { DifficultyPill } from "@/components/challenges/challenge-list";
 import { ErrorBlock, LoadingBlock } from "./bits";
 import { useProgressData } from "./use-progress";
 import { FeatureGrid } from "./feature-grid";
+import { DailyRow } from "./daily-row";
+import { Landing } from "@/components/landing/landing";
+import { useAuth } from "@/components/auth/auth-provider";
 import { RoadmapSection } from "@/components/roadmap/roadmap";
 
 function greeting(d: Date): string {
@@ -113,6 +116,7 @@ function Track({
 
 export function DashboardView() {
   const { data, reload } = useProgressData();
+  const { user } = useAuth();
 
   if (data.status === "loading") return <LoadingBlock label="Loading…" />;
   if (data.status === "error") return <ErrorBlock message={data.message} onRetry={reload} />;
@@ -126,6 +130,8 @@ export function DashboardView() {
   const streak = currentStreak(progress.activeDays, today);
   const { level } = levelOf(progress.xp);
   const isNew = progress.activeDays.length === 0 && designs.length === 0 && Object.keys(progress.challenges).length === 0;
+  // First-time visitors who aren't signed in see what SysLab is before a dashboard full of zeros.
+  if (isNew && !user) return <Landing />;
 
   return (
     <div className="space-y-6">
@@ -138,6 +144,8 @@ export function DashboardView() {
           Design architectures, push real traffic through them, and see exactly where they fail.
         </p>
       </header>
+
+      <DailyRow progress={progress} today={today} />
 
       {/* Continue */}
       <section className="surface relative overflow-hidden rounded-3xl">

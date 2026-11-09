@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NODE_KINDS, simulate, type SimGraph } from "@/lib/sim";
 import { scoreChallenge } from "@/lib/challenges/score";
+import { runHiddenTests } from "@/lib/challenges/hidden";
 import { CHALLENGES } from "@/data/challenges";
 import { DESIGNS, DESIGN_CATEGORIES, getDesign } from "./index";
 
@@ -47,6 +48,8 @@ describe("build problems", () => {
         const failing = s.objectives.filter((o) => !o.met).map((o) => `${o.objective.id}=${o.actual}`);
         expect(failing).toEqual([]);
         expect(s.total).toBeGreaterThanOrEqual(75);
+        const hidden = runHiddenTests(getDesign(d.id)!.reference!.graph, d.traffic).filter((h) => !h.passed).map((h) => h.test.id);
+        expect(hidden).toEqual([]);
       });
     });
   }

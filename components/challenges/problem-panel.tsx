@@ -11,7 +11,8 @@ import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { fmtLatency } from "@/components/lab/run-console";
-import { TestCaseCard } from "./test-results";
+import { HiddenTestCards, TestCaseCard } from "./test-results";
+import { HIDDEN_TESTS } from "@/lib/challenges/hidden";
 
 export type ProblemTab = "description" | "hints" | "editorial" | "submissions";
 
@@ -137,11 +138,12 @@ export function ProblemPanel({
                 </ul>
               </Collapsible>
             )}
-            <Collapsible title="Test cases" count={`${testResults ? `${testResults.filter((r) => r.passed).length}/` : ""}${tests.length}`}>
+            <Collapsible title="Test cases" count={`${testResults ? `${testResults.filter((r) => r.passed).length}/` : ""}${tests.length} + ${HIDDEN_TESTS.length} hidden`}>
               <div className="space-y-2">
                 {tests.map((t) => (
                   <TestCaseCard key={t.id} test={t} result={testResults?.find((r) => r.test.id === t.id)} />
                 ))}
+                <HiddenTestCards />
                 {budget !== undefined && (
                   <p className="pt-1 font-mono text-[11.5px] text-muted-foreground">
                     Budget: <span className="text-foreground">${perHour(budget).toFixed(2)}/hr</span> (${budget.toLocaleString("en-US")}/mo)

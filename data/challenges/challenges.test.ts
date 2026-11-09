@@ -286,6 +286,16 @@ describe("missing index", () => {
   });
 });
 
+describe("hidden tests", () => {
+  it("every reference solution passes them", async () => {
+    const { runHiddenTests } = await import("@/lib/challenges/hidden");
+    for (const c of CHALLENGES) {
+      const failing = runHiddenTests(c.reference!.graph, c.traffic).filter((h) => !h.passed).map((h) => `${c.id}:${h.test.id}`);
+      expect(failing).toEqual([]);
+    }
+  });
+});
+
 describe("test cases", () => {
   it("cover every objective exactly once", async () => {
     const { testCasesFor } = await import("@/lib/challenges/test-cases");

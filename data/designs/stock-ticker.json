@@ -1,0 +1,291 @@
+{
+  "id": "stock-ticker",
+  "order": 29,
+  "title": "Live Stock Ticker",
+  "difficulty": "Hard",
+  "summary": "Push live prices to millions of traders with sub-second freshness, and keep the price history.",
+  "scenario": [
+    "During market hours traders watch live quotes. Everyone watches the same few hundred symbols.",
+    "Price updates stream in from exchanges; quotes must reach every open screen fast."
+  ],
+  "mode": "build",
+  "category": "Fintech",
+  "requirements": {
+    "functional": [
+      "Stream live prices for watched symbols",
+      "Show intraday price history",
+      "Ingest exchange price updates",
+      "Survive a node failure without dropping traders"
+    ],
+    "nonFunctional": [
+      "Handle 60,000 requests/s at peak, 97% reads",
+      "Average latency at or below 60 ms",
+      "Error rate at or below 0.5%",
+      "No single points of failure",
+      "Cost under $7,200 / month"
+    ]
+  },
+  "estimates": [
+    "60,000 requests/s at the market open",
+    "1,800 price updates/s from exchanges",
+    "98% of reads are for the most popular symbols"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $7,200",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 7200
+    },
+    {
+      "id": "uses-ws",
+      "label": "Traders hold real-time connections",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "websocketGateway"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "Latest quotes come from memory",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    },
+    {
+      "id": "uses-stream",
+      "label": "Exchange updates flow through a stream",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Traders",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Traders",
+          "config": {}
+        },
+        {
+          "id": "ws-1",
+          "kind": "websocketGateway",
+          "label": "Quote Gateway",
+          "config": {
+            "replicas": 12
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Quote Service",
+          "config": {
+            "replicas": 56
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Latest Quotes",
+          "config": {
+            "replicas": 3
+          }
+        },
+        {
+          "id": "ts-1",
+          "kind": "influxdb",
+          "label": "Price History",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "kin-1",
+          "kind": "kinesis",
+          "label": "Price Feed",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Feed Processors",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->ws-1",
+          "source": "client-1",
+          "target": "ws-1"
+        },
+        {
+          "id": "e:ws-1->api",
+          "source": "ws-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->ts-1",
+          "source": "cache-1",
+          "target": "ts-1"
+        },
+        {
+          "id": "e:api->kin-1",
+          "source": "api",
+          "target": "kin-1"
+        },
+        {
+          "id": "e:kin-1->worker-1",
+          "source": "kin-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->ts-1",
+          "source": "worker-1",
+          "target": "ts-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "ws-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 60
+      },
+      "ts-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "kin-1": {
+        "x": 900,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 60000,
+    "readRatio": 0.97,
+    "hotKeyFraction": 0.98,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Traders need pushed updates, not polling. And they all watch the same symbols.",
+    "Latest quotes belong in memory; history belongs in a time-series database.",
+    "WebSocket gateway (12) → quote service (56) → Redis (3) → InfluxDB (2); price feed → Kinesis → processors (2) → InfluxDB."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 35,
+    "costBudget": 6624
+  },
+  "explanation": [
+    "Gateways hold connections and subscribe to per-symbol channels; each price tick is published once and fanned out.",
+    "Keep the latest quote per symbol in memory and the history in a time-series store with downsampling for older data.",
+    "Conflate updates per client: a trader only needs the newest price, not every tick in between."
+  ]
+}

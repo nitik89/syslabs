@@ -1,0 +1,305 @@
+{
+  "id": "order-saga",
+  "order": 26,
+  "title": "Order Checkout Saga",
+  "difficulty": "Hard",
+  "summary": "Place orders across inventory, payment and shipping services without overselling or losing an order.",
+  "scenario": [
+    "Checkout touches three services. If payment fails after stock was reserved, the reservation must be released.",
+    "Popular items are contended: many buyers race for the last units, so reservations need coordination."
+  ],
+  "mode": "build",
+  "category": "E-commerce",
+  "requirements": {
+    "functional": [
+      "Reserve stock, charge payment, create shipment",
+      "Compensate (release stock, refund) when a step fails",
+      "Never oversell contended items",
+      "Show order status"
+    ],
+    "nonFunctional": [
+      "Handle 5,000 requests/s at peak, 50% orders",
+      "No unsafe contended writes (no overselling)",
+      "Order steps processed without backlog",
+      "Error rate at or below 0.5%",
+      "No single points of failure",
+      "Cost under $1,400 / month"
+    ]
+  },
+  "estimates": [
+    "5,000 requests/s during a sale",
+    "2,500 order steps/s",
+    "30% of orders fight over hot items"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 0.5%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.005
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $1,400",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 1400
+    },
+    {
+      "id": "safe",
+      "label": "No unsafe contended writes (no overselling)",
+      "metric": "unsafeWriteRps",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "uses-queue",
+      "label": "Saga steps flow through a queue",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Workers run the saga steps",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Shoppers",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Shoppers",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Order API",
+          "config": {
+            "replicas": 6
+          }
+        },
+        {
+          "id": "lock-1",
+          "kind": "redisLock",
+          "label": "Inventory Locks",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "q-1",
+          "kind": "sqs",
+          "label": "Saga Steps",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Saga Orchestrator",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "db-1",
+          "kind": "dynamodb",
+          "label": "Orders + Outbox",
+          "config": {}
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Order Status Cache",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->lock-1",
+          "source": "api",
+          "target": "lock-1"
+        },
+        {
+          "id": "e:api->q-1",
+          "source": "api",
+          "target": "q-1"
+        },
+        {
+          "id": "e:q-1->worker-1",
+          "source": "q-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->db-1",
+          "source": "worker-1",
+          "target": "db-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->db-1",
+          "source": "cache-1",
+          "target": "db-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "lock-1": {
+        "x": 900,
+        "y": 60
+      },
+      "q-1": {
+        "x": 900,
+        "y": 230
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "db-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 400
+      }
+    }
+  },
+  "traffic": {
+    "rps": 5000,
+    "readRatio": 0.5,
+    "hotKeyFraction": 0.6,
+    "staticFraction": 0,
+    "contendedWriteFraction": 0.3
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Reserving the last units is a race. What makes 'check stock, then reserve' safe?",
+    "The rest of the checkout can continue asynchronously as a saga, step by step through a queue.",
+    "LB (2) → API (6) with Redis locks (2); API → SQS → orchestrator (2) → DynamoDB; status through Redis."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 1288
+  },
+  "explanation": [
+    "Lock (or conditionally update) contended inventory so two buyers can't take the same unit.",
+    "Run the checkout as a saga: each step is a local transaction that emits the next step's event; failures trigger compensations in reverse.",
+    "Write the order change and its outgoing event in one transaction (the outbox) so nothing is lost between the database and the queue."
+  ]
+}

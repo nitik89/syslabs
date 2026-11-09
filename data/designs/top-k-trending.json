@@ -1,0 +1,299 @@
+{
+  "id": "top-k-trending",
+  "order": 22,
+  "title": "Top-K Trending",
+  "difficulty": "Hard",
+  "summary": "Count billions of views and show the top trending items, updated every few seconds.",
+  "scenario": [
+    "Every video view, search or hashtag use is an event. The home page shows what's trending right now.",
+    "Counting must never slow the request that triggered it, and the trending list is read constantly."
+  ],
+  "mode": "build",
+  "category": "Data",
+  "requirements": {
+    "functional": [
+      "Record every view event",
+      "Count events per item over sliding windows",
+      "Serve the current top-K list",
+      "Update the list within seconds"
+    ],
+    "nonFunctional": [
+      "Handle 20,000 requests/s at peak, 70% events",
+      "Event counting keeps up: no backlog",
+      "Average latency at or below 60 ms",
+      "Error rate at or below 1%",
+      "No single points of failure",
+      "Cost under $3,800 / month"
+    ]
+  },
+  "estimates": [
+    "20,000 requests/s at peak",
+    "14,000 view events/s",
+    "Trending reads all ask for the same few lists"
+  ],
+  "objectives": [
+    {
+      "id": "errors",
+      "label": "Error rate at or below 1%",
+      "metric": "errorRate",
+      "op": "<=",
+      "value": 0.01
+    },
+    {
+      "id": "latency",
+      "label": "Average latency at or below 60 ms",
+      "metric": "avgLatencyMs",
+      "op": "<=",
+      "value": 60
+    },
+    {
+      "id": "backlog",
+      "label": "Queues keep up (no backlog)",
+      "metric": "backlogRps",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "id": "spof",
+      "label": "No single points of failure",
+      "metric": "spofCount",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "id": "cost",
+      "label": "Monthly cost at or below $3,800",
+      "metric": "monthlyCost",
+      "op": "<=",
+      "value": 3800
+    },
+    {
+      "id": "uses-queue",
+      "label": "Events flow through a stream",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "queue"
+      ]
+    },
+    {
+      "id": "uses-workers",
+      "label": "Counters run as stream workers",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "worker"
+      ]
+    },
+    {
+      "id": "uses-cache",
+      "label": "The top-K list is cached",
+      "metric": "componentLoad",
+      "op": ">=",
+      "value": 1,
+      "kinds": [
+        "cache"
+      ]
+    }
+  ],
+  "startingDesign": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Apps",
+          "config": {}
+        }
+      ],
+      "edges": []
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 200
+      }
+    }
+  },
+  "reference": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "client-1",
+          "kind": "client",
+          "label": "Apps",
+          "config": {}
+        },
+        {
+          "id": "lb-1",
+          "kind": "loadBalancer",
+          "label": "Load Balancer",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "api",
+          "kind": "appServer",
+          "label": "Events API",
+          "config": {
+            "replicas": 20
+          }
+        },
+        {
+          "id": "kafka-1",
+          "kind": "kafka",
+          "label": "View Events",
+          "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Window Counters",
+          "config": {
+            "replicas": 10
+          }
+        },
+        {
+          "id": "ts-1",
+          "kind": "influxdb",
+          "label": "Counts by Window",
+          "config": {
+            "replicas": 2
+          }
+        },
+        {
+          "id": "cache-1",
+          "kind": "cache",
+          "label": "Top-K Cache",
+          "config": {
+            "replicas": 2
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e:client-1->lb-1",
+          "source": "client-1",
+          "target": "lb-1"
+        },
+        {
+          "id": "e:lb-1->api",
+          "source": "lb-1",
+          "target": "api"
+        },
+        {
+          "id": "e:api->kafka-1",
+          "source": "api",
+          "target": "kafka-1"
+        },
+        {
+          "id": "e:kafka-1->worker-1",
+          "source": "kafka-1",
+          "target": "worker-1"
+        },
+        {
+          "id": "e:worker-1->ts-1",
+          "source": "worker-1",
+          "target": "ts-1"
+        },
+        {
+          "id": "e:api->cache-1",
+          "source": "api",
+          "target": "cache-1"
+        },
+        {
+          "id": "e:cache-1->ts-1",
+          "source": "cache-1",
+          "target": "ts-1"
+        }
+      ]
+    },
+    "positions": {
+      "client-1": {
+        "x": 0,
+        "y": 60
+      },
+      "lb-1": {
+        "x": 300,
+        "y": 60
+      },
+      "api": {
+        "x": 600,
+        "y": 60
+      },
+      "kafka-1": {
+        "x": 900,
+        "y": 60
+      },
+      "worker-1": {
+        "x": 1200,
+        "y": 60
+      },
+      "ts-1": {
+        "x": 1200,
+        "y": 230
+      },
+      "cache-1": {
+        "x": 900,
+        "y": 230
+      }
+    }
+  },
+  "traffic": {
+    "rps": 20000,
+    "readRatio": 0.3,
+    "hotKeyFraction": 0.95,
+    "staticFraction": 0
+  },
+  "allowedComponents": [
+    "client",
+    "dns",
+    "cdn",
+    "loadBalancer",
+    "apiGateway",
+    "rateLimiter",
+    "appGateway",
+    "websocketGateway",
+    "appServer",
+    "serverless",
+    "worker",
+    "cache",
+    "sqlDb",
+    "nosqlDb",
+    "timeseriesDb",
+    "search",
+    "objectStorage",
+    "queue",
+    "redisLock",
+    "zookeeper",
+    "llm",
+    "monitoring",
+    "codeRepo",
+    "ciPipeline",
+    "containerRegistry",
+    "fineTune"
+  ],
+  "hints": [
+    "Recording a view must be cheap. Where do events go so counting happens elsewhere?",
+    "Counts per time window are time-series data. And everyone reads the same top-K list.",
+    "LB (2) → API (20) → Kafka → counters (10) → InfluxDB (2); API → Redis → InfluxDB for the list."
+  ],
+  "scoring": {
+    "weights": {
+      "performance": 0.35,
+      "reliability": 0.3,
+      "cost": 0.15,
+      "architecture": 0.2
+    },
+    "latencyTargetMs": 40,
+    "costBudget": 3496
+  },
+  "explanation": [
+    "Stream events into Kafka; workers keep per-window counts (or approximate ones with count-min sketch) and a heap of the current top K.",
+    "Publish the computed top-K list to a cache: millions of readers hit one small, hot key.",
+    "Exact counts can be reconciled later in a batch job; trending only needs to be roughly right, quickly."
+  ]
+}

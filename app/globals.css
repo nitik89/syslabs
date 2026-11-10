@@ -216,6 +216,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .diagram-flow {
+    display: none;
+  }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;

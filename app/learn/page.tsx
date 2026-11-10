@@ -4,6 +4,7 @@ import { BookOpen, Clock } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { LESSONS } from "@/data/lessons";
 import { ROADMAP } from "@/data/roadmap";
+import { readingMinutes } from "@/data/lesson-deep";
 
 export const metadata: Metadata = { title: "Learn" };
 
@@ -35,7 +36,7 @@ export default function LearnPage() {
                         <BookOpen className="size-4" style={{ color: stage.color }} aria-hidden="true" />
                         <h3 className="flex-1 text-[14.5px] font-semibold tracking-tight">{l.title}</h3>
                         <span className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground">
-                          <Clock className="size-3" aria-hidden="true" /> {l.minutes} min
+                          <Clock className="size-3" aria-hidden="true" /> {readingMinutes(l)} min
                         </span>
                       </div>
                       <p className="text-[13px] leading-relaxed text-muted-foreground">{l.summary}</p>

@@ -22,7 +22,7 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { Boxes, ChevronsRight, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Activity, Boxes, ChevronsRight, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, lockConfig, lockGraph, nodeMonthlyCost, nodeSpec, simulateTimeline, type NodeConfig, type NodeKind, type SimResult, type Timeline, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc, DesignRequirements } from "@/lib/storage";
@@ -30,7 +30,8 @@ import { checkpoint, emptyHistory, redo as redoHistory, undo as undoHistory, typ
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlowEdgeComponent } from "./flow-edge";
-import { NodeInspector, TrafficEditor } from "./inspector";
+import { NodeInspector } from "./inspector";
+import { TrafficControls, TrafficPanel } from "./traffic-panel";
 import { MetricsPanel } from "./metrics-panel";
 import { connectionProblem, docToFlow, edgeId, flowToDoc, makeNode, type FlowEdge, type SysNode } from "./model";
 import { DRAG_MIME, Palette } from "./palette";
@@ -166,13 +167,18 @@ function DesignerInner({
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<SysNode>(initialFlow.nodes);
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<FlowEdge>(initialFlow.edges);
   const [traffic, setTraffic] = useState<TrafficProfile>(initial.traffic);
+  // Problem pages: the brief's traffic. Edits there are a what-if; Submit always grades against the brief.
+  const [briefTraffic] = useState<TrafficProfile | undefined>(() => (trafficLocked ? { ...initial.traffic } : undefined));
+  const [trafficOpen, setTrafficOpen] = useState(false);
+  const whatIf = briefTraffic !== undefined && JSON.stringify(briefTraffic) !== JSON.stringify(traffic);
   const [requirements, setRequirements] = useState<DesignRequirements>(initial.requirements ?? NO_REQUIREMENTS);
   const [result, setResult] = useState<SimResult | null>(null);
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [consoleTab, setConsoleTab] = useState("run");
-  const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+  // Problem pages: the console is a slim bar until the first run (the problem panel already lists the tests).
+  const [consoleCollapsed, setConsoleCollapsed] = useState(Boolean(header));
   const [stale, setStale] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("inspect");
@@ -190,8 +196,20 @@ function DesignerInner({
   const [mobilePane, setMobilePane] = useState<MobilePane>(leftPanel ? "problem" : "design");
   // Small screens: the components list slides over the canvas instead of sitting beside it.
   const [mobilePalette, setMobilePalette] = useState(false);
+  // Escape closes the components drawer.
+  useEffect(() => {
+    if (!mobilePalette) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobilePalette(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobilePalette]);
   // Small screens start with the side panel closed so the canvas gets the room.
   useEffect(() => {
+    // Tablets (below 1280px): start with the components column collapsed so the canvas isn't squeezed;
+    // the toolbar's Components button brings it back.
+    if (window.matchMedia("(max-width: 1279.98px)").matches) void Promise.resolve().then(() => setShowPalette(false));
     if (!isNarrow()) return;
     void Promise.resolve().then(() => setShowPanel(false));
   }, []);
@@ -601,6 +619,57 @@ function DesignerInner({
   const tickErr = tick && tick.offeredRps > 0 ? tick.errorRps / tick.offeredRps : 0;
   const paging = tick !== null && (tickErr > 0.01 || tick.p99 >= 1000 || (hottest?.[1] ?? 0) > 1);
 
+
+  const paletteList = (
+    <Palette
+      allowed={allowedKinds}
+      onAdd={(kind) => {
+        addAtCenter(kind);
+        if (isNarrow()) {
+          setMobilePalette(false);
+          toast.success("Added to the canvas", { duration: 1500 });
+        }
+      }}
+      onClose={() => (workspace || isNarrow() ? setMobilePalette(false) : setShowPalette(false))}
+    />
+  );
+  // Lab: a resizable column beside the canvas (on phones it slides over the canvas instead).
+  const paletteColumn = (
+    <aside
+      ref={paletteRef}
+      className={cn(
+        "relative shrink-0 bg-sidebar lg:h-auto lg:w-[var(--palette-w)] lg:border-r lg:border-border lg:bg-sidebar/60 lg:overflow-visible",
+        !showPalette && "lg:hidden",
+        mobilePalette && mobilePane === "design"
+          ? "max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(86vw,340px)] max-lg:overflow-hidden max-lg:border-r max-lg:border-border max-lg:shadow-[24px_0_48px_-24px_var(--shadow)]"
+          : "max-lg:hidden",
+      )}
+      style={{ ["--palette-w" as string]: `${paletteWidth.width ?? 284}px` }}
+    >
+      <div className="h-full overflow-hidden">{paletteList}</div>
+      <ResizeHandle
+        label="Resize components panel"
+        getWidth={() => paletteRef.current?.offsetWidth ?? 240}
+        onResize={paletteWidth.setWidth}
+        onReset={paletteWidth.reset}
+      />
+    </aside>
+  );
+  // Problem pages: a drawer over the canvas, opened from "Add component". It stays open while you add
+  // several on larger screens; on phones it closes after each add.
+  const paletteDrawer = (
+    <aside
+      aria-label="Components"
+      hidden={!mobilePalette}
+      className={cn(
+        "absolute inset-y-0 left-0 z-30 w-[min(86vw,320px)] overflow-hidden border-r border-border bg-sidebar shadow-[24px_0_48px_-24px_var(--shadow)]",
+        mobilePane !== "design" && "max-lg:hidden",
+      )}
+    >
+      {paletteList}
+    </aside>
+  );
+
   return (
     <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background", fullscreen && "h-screen")}>
       {header && <Slot render={header} ctx={ctx} />}
@@ -620,40 +689,12 @@ function DesignerInner({
           {leftPanel}
         </div>
       )}
-      {/* Palette */}
-      <aside
-        ref={paletteRef}
-        className={cn(
-          "relative shrink-0 bg-sidebar lg:h-auto lg:w-[var(--palette-w)] lg:border-r lg:border-border lg:bg-sidebar/60 lg:overflow-visible",
-          !showPalette && "lg:hidden",
-          mobilePalette && mobilePane === "design"
-            ? "max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(86vw,340px)] max-lg:overflow-hidden max-lg:border-r max-lg:border-border max-lg:shadow-[24px_0_48px_-24px_var(--shadow)]"
-            : "max-lg:hidden",
-        )}
-        style={{ ["--palette-w" as string]: `${paletteWidth.width ?? (leftPanel ? 220 : 284)}px` }}
-      >
-        <div className="h-full overflow-hidden">
-          <Palette
-            allowed={allowedKinds}
-            onAdd={(kind) => {
-              addAtCenter(kind);
-              if (isNarrow()) {
-                setMobilePalette(false);
-                toast.success("Added to the canvas", { duration: 1500 });
-              }
-            }}
-            onClose={() => (isNarrow() ? setMobilePalette(false) : setShowPalette(false))}
-          />
-        </div>
-        <ResizeHandle
-          label="Resize components panel"
-          getWidth={() => paletteRef.current?.offsetWidth ?? 240}
-          onResize={paletteWidth.setWidth}
-          onReset={paletteWidth.reset}
-        />
-      </aside>
+      {/* Lab: the palette is a resizable column. Problem pages: a drawer over the canvas (see below). */}
+      {!workspace && paletteColumn}
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {workspace && paletteDrawer}
+      <TrafficPanel open={trafficOpen} onClose={() => setTrafficOpen(false)} traffic={traffic} onChange={changeTraffic} base={briefTraffic} />
       {/* Canvas */}
       <div ref={wrapperRef} className="relative min-h-0 flex-1 lg:min-h-[380px]" onDragOver={onDragOver} onDrop={onDrop}>
         <RenameNodeContext.Provider value={renameNode}>
@@ -666,6 +707,12 @@ function DesignerInner({
           onConnectEnd={onConnectEnd}
           connectionRadius={40}
           onSelectionChange={onSelectionChange}
+          // Double-click a connection to delete it (undoable).
+          onEdgeDoubleClick={(_, e) => {
+            removeEdge(e.id);
+            toast("Connection removed", { action: { label: "Undo", onClick: () => restore("undo") }, duration: 4000 });
+          }}
+          zoomOnDoubleClick={false}
           onNodeDoubleClick={(_, n) => {
             selectOnly(n.id);
             setTab("inspect");
@@ -699,19 +746,24 @@ function DesignerInner({
               maskColor="color-mix(in oklch, var(--shade) 45%, transparent)"
             />
           )}
-          <Panel position="top-left" className="!m-3 max-w-[calc(100%-1.5rem)]">
+          <Panel position="top-left" className={cn(
+              "!m-3 max-w-[calc(100%-1.5rem)] transition-[margin]",
+              workspace && mobilePalette && "lg:!ml-[332px]",
+              trafficOpen && "sm:max-w-[calc(100%-370px)]",
+            )}>
             <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_var(--shadow)] backdrop-blur-md">
               <Button
                 size="sm"
-                className="lg:hidden"
+                variant={workspace && mobilePalette ? "secondary" : "default"}
+                className={cn(!workspace && "lg:hidden")}
                 onClick={() => setMobilePalette((o) => !o)}
                 aria-expanded={mobilePalette}
-                aria-label="Add components"
+                aria-label={mobilePalette ? "Close components" : "Add components"}
               >
-                <Shapes /> Add
+                <Shapes /> {mobilePalette ? "Done" : <>Add<span className="max-sm:hidden"> component</span></>}
               </Button>
-              <span className="mx-1 h-5 w-px bg-border lg:hidden" aria-hidden="true" />
-              {!showPalette && (
+              <span className={cn("mx-1 h-5 w-px bg-border", !workspace && "lg:hidden")} aria-hidden="true" />
+              {!workspace && !showPalette && (
                 <>
                   <Button variant="ghost" size="sm" className="max-lg:hidden" onClick={() => setShowPalette(true)} aria-label="Show components panel" title="Show components panel">
                     <Shapes /> Components
@@ -749,6 +801,22 @@ function DesignerInner({
                 title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
               >
                 {fullscreen ? <Minimize2 /> : <Maximize2 />}
+              </Button>
+              <Button
+                variant={trafficOpen ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setTrafficOpen((o) => !o);
+                  setInspectOpen(false);
+                  if (workspace) setShowPanel(false);
+                }}
+                aria-expanded={trafficOpen}
+                aria-label="Traffic"
+                title={whatIf ? "Traffic: what-if load (Submit uses the brief)" : "Traffic: reads, writes and more"}
+                className="relative"
+              >
+                <Activity /> <span className="max-sm:hidden">Traffic</span>
+                {whatIf && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-status-warn" aria-hidden="true" />}
               </Button>
               {!panelOpen && (
                 <Button variant="ghost" size="sm" onClick={() => setShowPanel(true)} aria-label="Show side panel" title="Show traffic and results panel">
@@ -891,7 +959,7 @@ function DesignerInner({
               />
             ) : (
               <div className="space-y-5">
-                <TrafficEditor traffic={traffic} onChange={changeTraffic} locked={trafficLocked} />
+                <TrafficControls traffic={traffic} onChange={changeTraffic} base={briefTraffic} />
                 <p className="flex gap-2.5 rounded-xl border border-dashed border-border p-3 text-[11.5px] leading-relaxed text-muted-foreground">
                   <MousePointerClick className="mt-0.5 size-4 shrink-0 text-brand-blue" aria-hidden="true" />
                   <span>Select a component to tune its capacity, replicas and cost, or connect it by keyboard. Double-click a name to rename it.</span>

@@ -312,3 +312,17 @@
 .react-flow .react-flow__edge-path {
   stroke-linecap: round;
 }
+
+/* Touch screens: bigger targets for connecting components and zooming. */
+@media (pointer: coarse) {
+  /* No hover on touch: keep handles visible so there's something to drag from. */
+  .react-flow .react-flow__node .react-flow__handle {
+    width: 16px;
+    height: 16px;
+    opacity: 0.85;
+  }
+  .react-flow .react-flow__controls-button {
+    width: 36px;
+    height: 36px;
+  }
+}

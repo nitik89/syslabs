@@ -18,7 +18,7 @@ From **Project Settings → API**, copy the project URL and the publishable (or 
 - Vercel: `vercel env add NEXT_PUBLIC_SUPABASE_URL` and `vercel env add NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
   (Production and Preview), then redeploy.
 
-Never put the `service_role` / secret key in the app; it isn't needed.
+Never expose the secret / `service_role` key to the browser (no `NEXT_PUBLIC_` prefix). It's only read on the server by `/api/grade` (as `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`); the Vercel Supabase integration sets it for you.
 
 ## 3. Auth settings (Authentication → URL Configuration)
 
@@ -69,3 +69,12 @@ If emails point at `localhost`, fix the URL configuration first.
 | Invite user | `invite.html` | You're invited to SysLab |
 
 Emails already sent keep their old link: request a new one after changing the settings.
+
+## Server-verified scores (leaderboard integrity)
+
+Run `supabase/migrations/0002_verified_scores.sql` in the SQL editor once. It adds `verified_scores` (readable by
+its owner, writable only by the server) and switches the `leaderboard` and `public_profile` functions to count only
+results graded by `POST /api/grade`, which re-runs the simulation and hidden tests on the server.
+
+Until it's run, the app behaves as before: `/api/grade` answers 503 and the leaderboard uses self-reported progress.
+After it's run, the leaderboard starts from verified results only, so existing users need to submit again.

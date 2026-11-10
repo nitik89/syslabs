@@ -22,12 +22,15 @@ export type FlowEdgeData = {
 export type FlowEdge = Edge<FlowEdgeData, "flow">;
 
 export function docToFlow(doc: DesignDoc): { nodes: SysNode[]; edges: FlowEdge[] } {
-  const nodes: SysNode[] = doc.graph.nodes.map((n, i) => ({
-    id: n.id,
-    type: "sys",
-    position: doc.positions[n.id] ?? { x: 80 + (i % 4) * 240, y: 80 + Math.floor(i / 4) * 140 },
-    data: { kind: n.kind, label: n.label ?? CATALOG[n.kind].label, config: { ...n.config } },
-  }));
+  const nodes: SysNode[] = doc.graph.nodes.map((n, i) => {
+    const p = doc.positions[n.id];
+    return {
+      id: n.id,
+      type: "sys",
+      position: p ? { x: p.x, y: p.y } : { x: 80 + (i % 4) * 240, y: 80 + Math.floor(i / 4) * 140 },
+      data: { kind: n.kind, label: n.label ?? CATALOG[n.kind].label, config: { ...n.config } },
+    };
+  });
   const edges: FlowEdge[] = doc.graph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: "flow" }));
   return { nodes, edges };
 }
@@ -46,7 +49,9 @@ export function flowToGraph(nodes: SysNode[], edges: FlowEdge[]): SimGraph {
 
 export function flowToDoc(nodes: SysNode[], edges: FlowEdge[], traffic: DesignDoc["traffic"], requirements?: DesignDoc["requirements"]): DesignDoc {
   const positions: DesignDoc["positions"] = {};
-  for (const n of nodes) positions[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+  for (const n of nodes) {
+    positions[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+  }
   const hasReqs = requirements && (requirements.functional.length > 0 || requirements.nonFunctional.length > 0);
   return {
     graph: flowToGraph(nodes, edges),

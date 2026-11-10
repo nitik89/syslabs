@@ -1,9 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /** Fail any test that logs a console error/warning or throws in the page. */
+/**
+ * React's development build records component timings with performance.measure(). When a page is left while a
+ * prerendered component is still measuring, it throws "… cannot have a negative time stamp". It's a dev-only
+ * React quirk (production builds don't include the timing code), not an app error, so it doesn't fail a test.
+ */
+const DEV_ONLY_NOISE = /Failed to execute 'measure' on 'Performance': .* cannot have a negative time stamp/;
+
 function trackErrors(page: Page) {
   const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  page.on("pageerror", (e) => {
+    if (!DEV_ONLY_NOISE.test(e.message)) errors.push(`pageerror: ${e.message}`);
+  });
   page.on("console", (m) => {
     if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`);
   });
@@ -77,8 +86,11 @@ test("challenge: fix the overloaded database and pass", async ({ page }) => {
   // The system was run as it is: the run console shows it failing.
   await expect(page.getByText("FAIL", { exact: true }).first()).toBeVisible();
 
+  // Problem pages keep components in a drawer over the canvas.
+  await page.getByRole("button", { name: "Add components" }).click();
   await category(page, "Storage");
   await page.getByRole("button", { name: /^Add Redis Cache/ }).click();
+  await page.getByRole("button", { name: "Close components" }).click();
   await page.locator(".react-flow__node", { hasText: "Redis Cache" }).locator("p").nth(1).dblclick();
   await page.getByLabel("Cache size").fill("32");
   await page.getByRole("button", { name: "Hide side panel" }).click();

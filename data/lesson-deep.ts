@@ -11,8 +11,9 @@ export interface LessonDeep {
 
 import { DEEP_1 } from "./lesson-deep-1";
 import { DEEP_2 } from "./lesson-deep-2";
+import { DEEP_3 } from "./lesson-deep-3";
 
-export const LESSON_DEEP: Record<string, LessonDeep> = { ...DEEP_1, ...DEEP_2 };
+export const LESSON_DEEP: Record<string, LessonDeep> = { ...DEEP_1, ...DEEP_2, ...DEEP_3 };
 
 const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
 

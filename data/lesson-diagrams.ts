@@ -615,4 +615,183 @@ export const LESSON_DIAGRAMS: Record<string, Diagram> = {
     ],
     notes: [{ x: 230, y: 205, text: "✕ blocked here", tone: "crit", bold: true }],
   },
+  "blob-storage": {
+    w: W,
+    h: 300,
+    caption: "The app only hands out a short-lived signed URL; the phone uploads the bytes straight to object storage. Storage fires an event for thumbnails, and a CDN serves the files back to everyone.",
+    nodes: [
+      { id: "phone", x: 70, y: 150, label: "Phone", sub: "8 MB photo", tone: "violet", shape: "client", w: 110, h: 46 },
+      { id: "api", x: 270, y: 60, label: "API", sub: "metadata only" },
+      { id: "db", x: 470, y: 60, label: "Database", sub: "owner, key, size", tone: "ok", shape: "db", w: 130, h: 56 },
+      { id: "s3", x: 330, y: 220, label: "Object storage", sub: "the bytes", tone: "cyan", solid: true, w: 150, h: 54 },
+      { id: "worker", x: 560, y: 160, label: "Thumbnailer", sub: "on upload event", tone: "warn", w: 140 },
+      { id: "cdn", x: 600, y: 260, label: "CDN", sub: "serves views", tone: "cyan", w: 110 },
+    ],
+    edges: [
+      { from: "phone", to: "api", label: "1 · ask for URL", flow: 1, bend: -20 },
+      { from: "api", to: "db", flow: 1, tone: "ok" },
+      { from: "phone", to: "s3", label: "2 · PUT bytes", flow: 2, dur: 1.6, tone: "cyan" },
+      { from: "s3", to: "worker", label: "3 · event", dashed: true, flow: 1, tone: "warn" },
+      { from: "s3", to: "cdn", flow: 1, tone: "cyan" },
+    ],
+  },
+
+  "storage-engines": {
+    w: W,
+    h: 310,
+    caption: "A B-tree finds the right page and rewrites it in place. An LSM tree appends to memory and a log, flushes sorted files, and merges them later, which turns random writes into fast sequential ones.",
+    zones: [
+      { x: 12, y: 12, w: 300, h: 286, label: "B-tree · update in place", tone: "blue" },
+      { x: 330, y: 12, w: 378, h: 286, label: "LSM tree · append, then merge", tone: "violet" },
+    ],
+    nodes: [
+      { id: "w1", x: 162, y: 62, label: "write k=42", tone: "muted", w: 120, h: 32 },
+      { id: "root", x: 162, y: 125, label: "root page", w: 120, h: 36 },
+      { id: "p1", x: 92, y: 200, label: "page", tone: "muted", w: 80, h: 34 },
+      { id: "p2", x: 232, y: 200, label: "page 42 ✎", tone: "ok", w: 100, h: 34, emphasis: true },
+      { id: "w2", x: 420, y: 62, label: "write k=42", tone: "muted", w: 120, h: 32 },
+      { id: "mem", x: 420, y: 140, label: "Memtable", sub: "in memory", tone: "violet", w: 120 },
+      { id: "wal", x: 600, y: 62, label: "Log", sub: "append-only", tone: "muted", shape: "queue", w: 120, h: 44 },
+      { id: "sst1", x: 400, y: 240, label: "SST 1", tone: "violet", w: 70, h: 34 },
+      { id: "sst2", x: 480, y: 240, label: "SST 2", tone: "violet", w: 70, h: 34 },
+      { id: "merged", x: 630, y: 240, label: "Merged SST", tone: "ok", w: 120, h: 38 },
+    ],
+    edges: [
+      { from: "w1", to: "root", flow: 1 },
+      { from: "root", to: "p2", flow: 1, tone: "ok" },
+      { from: "root", to: "p1", tone: "muted" },
+      { from: "w2", to: "mem", flow: 2, dur: 1.2, tone: "violet" },
+      { from: "w2", to: "wal", flow: 1, tone: "muted" },
+      { from: "mem", to: "sst2", label: "flush", tone: "violet" },
+      { from: "sst2", to: "merged", label: "compact", dashed: true, tone: "ok" },
+    ],
+    notes: [
+      { x: 162, y: 270, text: "Fast reads · random writes", tone: "blue" },
+      { x: 519, y: 288, text: "Very fast writes · reads check a few files", tone: "violet" },
+    ],
+  },
+
+  "search-indexes": {
+    w: W,
+    h: 290,
+    caption: "Each word points to the documents that contain it. The query 'red shoes' fetches two short lists and intersects them, instead of reading every document.",
+    nodes: [
+      { id: "q", x: 85, y: 145, label: "red shoes", sub: "query", tone: "violet", shape: "client", w: 130, h: 46 },
+      { id: "t1", x: 300, y: 70, label: "red", sub: "→ 3, 8, 14, 21", tone: "blue", w: 150 },
+      { id: "t2", x: 300, y: 145, label: "shoe", sub: "→ 8, 9, 21, 40", tone: "blue", w: 150 },
+      { id: "t3", x: 300, y: 220, label: "blue", sub: "→ 2, 9, 40", tone: "muted", w: 150 },
+      { id: "and", x: 490, y: 145, label: "intersect", sub: "8, 21", tone: "warn", w: 120 },
+      { id: "res", x: 640, y: 145, label: "Ranked", sub: "#21, #8", tone: "ok", solid: true, w: 110 },
+    ],
+    edges: [
+      { from: "q", to: "t1", flow: 1 },
+      { from: "q", to: "t2", flow: 1 },
+      { from: "t1", to: "and", flow: 1, tone: "warn" },
+      { from: "t2", to: "and", flow: 1, tone: "warn" },
+      { from: "and", to: "res", flow: 1, tone: "ok" },
+    ],
+    notes: [{ x: 300, y: 275, text: "Inverted index: word → document ids", tone: "muted" }],
+  },
+
+  backpressure: {
+    w: W,
+    h: 300,
+    caption: "Without limits, the queue grows until every request is too slow to be useful. With a bounded queue, low-priority work is shed early and the rest stays fast.",
+    zones: [
+      { x: 12, y: 12, w: 340, h: 276, label: "Unbounded · everyone times out", tone: "crit" },
+      { x: 368, y: 12, w: 340, h: 276, label: "Bounded + shedding", tone: "ok" },
+    ],
+    nodes: [
+      { id: "in1", x: 100, y: 80, label: "3,000 req/s in", tone: "violet", shape: "client", w: 140 },
+      { id: "q1", x: 182, y: 160, label: "Queue", sub: "200k · 70 s wait", tone: "crit", shape: "queue", w: 160, h: 50 },
+      { id: "s1", x: 262, y: 245, label: "1,000 req/s", sub: "served too late", tone: "crit", w: 140, h: 46 },
+      { id: "in2", x: 435, y: 100, label: "Checkout", tone: "violet", shape: "client", w: 100 },
+      { id: "in3", x: 435, y: 205, label: "Recommend", tone: "muted", shape: "client", w: 110 },
+      { id: "q2", x: 560, y: 100, label: "Queue", sub: "max 500", tone: "ok", shape: "queue", w: 100, h: 48 },
+      { id: "s2", x: 660, y: 100, label: "Served", sub: "fast", tone: "ok", w: 72, h: 46 },
+      { id: "shed", x: 590, y: 220, label: "503 · shed", tone: "warn", w: 110, h: 36 },
+    ],
+    edges: [
+      { from: "in1", to: "q1", flow: 4, dur: 0.8, tone: "crit" },
+      { from: "q1", to: "s1", flow: 1, dur: 2.4, tone: "crit" },
+      { from: "in2", to: "q2", flow: 2, dur: 1.2 },
+      { from: "q2", to: "s2", flow: 2, dur: 1.2, tone: "ok" },
+      { from: "in3", to: "shed", flow: 2, dur: 1, tone: "warn" },
+    ],
+  },
+
+  "leader-election": {
+    w: W,
+    h: 300,
+    caption: "Schedulers race for a lease in etcd; the winner leads while it keeps renewing. When it stops, the lease expires and another takes over with a higher fencing token, so the old leader's late writes are rejected.",
+    nodes: [
+      { id: "a", x: 90, y: 70, label: "Scheduler A", sub: "leader · token 7", tone: "ok", solid: true, w: 150, h: 50 },
+      { id: "b", x: 90, y: 160, label: "Scheduler B", sub: "standby", tone: "muted", w: 150 },
+      { id: "c", x: 90, y: 250, label: "Scheduler C", sub: "standby", tone: "muted", w: 150 },
+      { id: "etcd", x: 360, y: 160, label: "etcd lease", sub: "expires in 10 s", tone: "warn", w: 150, h: 56 },
+      { id: "store", x: 610, y: 160, label: "Job store", sub: "accepts token ≥ 7", tone: "blue", shape: "db", w: 150, h: 60 },
+    ],
+    edges: [
+      { from: "a", to: "etcd", label: "renew every 3 s", flow: 1, tone: "ok" },
+      { from: "b", to: "etcd", label: "waiting", dashed: true, tone: "muted" },
+      { from: "c", to: "etcd", dashed: true, tone: "muted" },
+      { from: "a", to: "store", label: "write with token 7", bend: -60, flow: 1, tone: "ok" },
+    ],
+    notes: [{ x: 360, y: 280, text: "Lease lapses → B leads with token 8; A's writes are refused", tone: "warn" }],
+  },
+
+  "geo-indexing": {
+    w: W,
+    h: 310,
+    caption: "The map is divided into cells. To find nearby drivers, look up the rider's cell and its eight neighbours, then filter those few candidates by real distance.",
+    nodes: [
+      ...[0, 1, 2, 3, 4].flatMap((r) =>
+        [0, 1, 2, 3, 4].map((c) => {
+          const near = Math.abs(r - 2) <= 1 && Math.abs(c - 2) <= 1;
+          return { id: `c${r}${c}`, x: 70 + c * 66, y: 40 + r * 56, label: "", tone: (near ? (r === 2 && c === 2 ? "blue" : "cyan") : "muted") as Tone, w: 62, h: 52 };
+        }),
+      ),
+      { id: "rider", x: 202, y: 152, label: "", tone: "violet", shape: "dot", w: 14 },
+      { id: "d1", x: 168, y: 120, label: "", tone: "ok", shape: "dot", w: 10 },
+      { id: "d2", x: 248, y: 196, label: "", tone: "ok", shape: "dot", w: 10 },
+      { id: "d3", x: 140, y: 186, label: "", tone: "ok", shape: "dot", w: 10 },
+      { id: "d4", x: 320, y: 60, label: "", tone: "muted", shape: "dot", w: 10 },
+      { id: "d5", x: 76, y: 270, label: "", tone: "muted", shape: "dot", w: 10 },
+    ],
+    edges: [],
+    notes: [
+      { x: 420, y: 90, text: "1 · rider's cell: 9q8yy", anchor: "start", tone: "blue", bold: true },
+      { x: 420, y: 125, text: "2 · plus its 8 neighbours (a driver", anchor: "start", tone: "cyan" },
+      { x: 420, y: 143, text: "    can be just across an edge)", anchor: "start", tone: "cyan" },
+      { x: 420, y: 178, text: "3 · filter 3 candidates by distance", anchor: "start", tone: "ok" },
+      { x: 420, y: 213, text: "Grey drivers are never even read.", anchor: "start", tone: "muted" },
+    ],
+  },
+
+  "bloom-filters": {
+    w: W,
+    h: 290,
+    caption: "Three hash functions set three bits per URL. Checking a new URL: any 0 bit means 'definitely not seen', skipping the expensive lookup; all 1s means 'probably seen'.",
+    nodes: [
+      { id: "u1", x: 90, y: 60, label: "a.com/x", sub: "add", tone: "blue", shape: "client", w: 120, h: 46 },
+      { id: "u2", x: 90, y: 240, label: "b.com/y", sub: "check", tone: "violet", shape: "client", w: 120, h: 46 },
+      ...Array.from({ length: 12 }, (_, i) => {
+        const set = [1, 4, 9].includes(i);
+        const probe = [4, 6, 10].includes(i);
+        return { id: `b${i}`, x: 220 + i * 40, y: 150, label: set ? "1" : "0", tone: (set ? "blue" : probe ? "crit" : "muted") as Tone, w: 34, h: 38, emphasis: probe && !set };
+      }),
+    ],
+    edges: [
+      { from: "u1", to: "b1", tone: "blue", flow: 1 },
+      { from: "u1", to: "b4", tone: "blue", flow: 1 },
+      { from: "u1", to: "b9", tone: "blue", flow: 1 },
+      { from: "u2", to: "b4", tone: "violet", dashed: true },
+      { from: "u2", to: "b6", tone: "crit", dashed: true },
+      { from: "u2", to: "b10", tone: "crit", dashed: true },
+    ],
+    notes: [
+      { x: 470, y: 250, text: "Bit 6 is 0 → b.com/y was never added", tone: "crit", bold: true, anchor: "start" },
+      { x: 470, y: 270, text: "skip the database lookup", tone: "crit", anchor: "start" },
+    ],
+  },
 };

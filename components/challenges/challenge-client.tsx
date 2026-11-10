@@ -23,23 +23,10 @@ import { StartGuide, TestsPreview } from "./start-guide";
 import { ProblemPanel, type ProblemTab } from "./problem-panel";
 import { PassBadge, TestStatusLines } from "./test-results";
 import { cn } from "@/lib/utils";
+import { sameGraph } from "@/lib/grading/grade";
+import { verifySubmission, type Verification } from "@/lib/grading/client";
 
 type Phase = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; doc: DesignDoc; key: number };
-
-/** Same components (kind + config) and same connections, ignoring ids' order, labels and positions. */
-function sameGraph(a: SimGraph, b: SimGraph): boolean {
-  const nodes = (g: SimGraph) =>
-    g.nodes
-      .map((n) => `${n.id}|${n.kind}|${JSON.stringify(Object.entries(n.config).sort(([x], [y]) => x.localeCompare(y)))}`)
-      .sort()
-      .join("\n");
-  const edges = (g: SimGraph) =>
-    g.edges
-      .map((e) => `${e.source}>${e.target}`)
-      .sort()
-      .join("\n");
-  return nodes(a) === nodes(b) && edges(a) === edges(b);
-}
 
 function startingDoc(ch: Challenge): DesignDoc {
   return { ...structuredClone(ch.startingDesign), traffic: { ...ch.traffic } };
@@ -60,6 +47,8 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
   const problemRef = useRef<HTMLElement>(null);
   const problemWidth = usePanelWidth({ min: 260, max: 560 });
   const [testFilter, setTestFilter] = useState<string>("all");
+  // Server-side check of the last submission (what the leaderboard counts).
+  const [verification, setVerification] = useState<Verification | "checking" | null>(null);
   const [submission, setSubmission] = useState<{
     tests: TestResult[];
     hidden: HiddenResult[];
@@ -148,12 +137,12 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
 
   /** Grade the design against every test, record the attempt and show the verdict. */
   const submit = useCallback(
-    async (submitted: SimResult, submittedGraph: SimGraph, submittedCost: number) => {
+    async (submittedGraph: SimGraph) => {
       // Grade with catalog capacity, latency and cost, whatever the design carries (old saves, edited storage).
+      // ...and always against the brief's traffic, even if the canvas ran a what-if load.
       const graph = lockGraph(submittedGraph);
-      const tampered = JSON.stringify(graph) !== JSON.stringify(submittedGraph);
-      const result = tampered ? simulate(graph, challenge.traffic) : submitted;
-      const monthlyCost = tampered ? result.monthlyCost : submittedCost;
+      const result = simulate(graph, challenge.traffic);
+      const monthlyCost = result.monthlyCost;
       const s = scoreChallenge(challenge, result, graph);
       const results = runTests(tests, s.objectives);
       // Hidden tests only run on Submit; a problem counts as solved only when they pass too.
@@ -164,6 +153,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
       // The reference design, run unchanged, is a worked example: grade it, but don't record it or award XP.
       if (challenge.reference && sameGraph(graph, challenge.reference.graph)) {
         setSubmission(verdict);
+        setVerification(null);
         toast.info("That's the revealed solution, unchanged. Change something to make it yours and mark it solved.");
         return;
       }
@@ -178,6 +168,9 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
         const firstPass = passed && rec.firstPassedAt === rec.lastAttemptAt;
         setRecord(rec);
         setSubmission({ ...verdict, xp: xpGained });
+        // Signed-in users: re-grade on the server so the result counts on the leaderboard.
+        setVerification("checking");
+        void verifySubmission(challenge.id, graph).then(setVerification);
         window.dispatchEvent(new Event(PROGRESS_EVENT));
         if (firstPass) {
           toast.success(`Accepted! Score ${s.total}. +${xpGained} XP`, {
@@ -310,7 +303,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                         const r = ctx.run();
                         if (!r) return;
                         ctx.showConsoleTab("submission");
-                        void submit(r, ctx.getDoc().graph, ctx.monthlyCost);
+                        void submit(ctx.getDoc().graph);
                       }}
                       title="Grade your design against every test"
                     >
@@ -410,6 +403,22 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                         {submission.p99 >= 1000 ? `${(submission.p99 / 1000).toFixed(1)} s` : `${Math.round(submission.p99)} ms`}
                       </p>
                       {submission.xp > 0 && <span className="rounded bg-brand-blue/15 px-1.5 py-px font-mono text-[11px] text-brand-blue">+{submission.xp} XP</span>}
+                      {verification && verification !== "unavailable" && (
+                        <span
+                          className={cn(
+                            "w-full text-[11.5px]",
+                            verification === "verified" ? "text-status-ok" : verification === "failed" ? "text-status-warn" : "text-muted-foreground",
+                          )}
+                        >
+                          {verification === "checking"
+                            ? "Verifying on the server…"
+                            : verification === "verified"
+                              ? "✓ Verified on the server · counts on the leaderboard"
+                              : verification === "failed"
+                                ? "Couldn't verify on the server. Submit again to count on the leaderboard."
+                                : "Saved in this browser. Sign in to count on the leaderboard."}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <ul className="space-y-1.5">

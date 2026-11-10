@@ -18,7 +18,7 @@ export function StartGuide({ challenge }: { challenge: Challenge }) {
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
   const blocks = requiredBlocks(challenge);
-  const steps = ["Read the requirements", "Add components from the palette", "Connect them from Users outward", "Run, then Submit"];
+  const steps = ["Read the requirements", "Press Add component and pick what you need", "Connect them from Users outward", "Run, then Submit"];
   return (
     <div className="pointer-events-none absolute bottom-4 left-16 right-4 z-10 flex justify-center">
       <section

@@ -203,6 +203,48 @@ function ThemeToggle() {
   );
 }
 
+/** The five main destinations as a thumb-reachable tab bar on phones. Everything else is in the ☰ menu. */
+const BOTTOM_TABS: NavItem["href"][] = ["/", "/learn", "/build", "/challenges", "/progress"];
+
+function BottomNav({ progress }: { progress: ProgressState | null }) {
+  const pathname = usePathname();
+  const tabs = BOTTOM_TABS.map((href) => NAV_ITEMS.find((i) => i.href === href)!);
+  return (
+    <nav
+      aria-label="Main sections"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-sidebar-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+    >
+      <ul className="grid grid-cols-5">
+        {tabs.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Icon = item.icon;
+          const count = countFor(item, progress);
+          return (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-16 flex-col items-center justify-center gap-1 text-[10.5px] font-medium outline-none transition-colors focus-visible:bg-white/[0.06]",
+                  active ? "text-brand-blue" : "text-muted-foreground",
+                )}
+              >
+                <span className={cn("flex h-7 w-12 items-center justify-center rounded-full transition-colors", active && "bg-brand-blue/15")}>
+                  <Icon className="size-[19px]" aria-hidden="true" />
+                </span>
+                <span className="max-w-full truncate px-1">
+                  {item.href === "/" ? "Home" : item.label}
+                  {count && <span className="sr-only"> ({count} solved)</span>}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -218,20 +260,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
 
-      {/* Desktop sidebar: full on browsing pages, an icon rail on design canvases. */}
+      {/* Icon rail: on design canvases at any width, and on tablets (md) for every page. */}
       <aside
         className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex",
-          rail ? "w-16 items-center gap-4 px-2 py-4" : "w-60 gap-2 p-4",
+          "sticky top-0 hidden h-dvh w-16 shrink-0 flex-col items-center gap-4 border-r border-sidebar-border bg-sidebar px-2 py-4 md:flex",
+          !rail && "lg:hidden",
         )}
       >
-        <div className={cn(rail ? "pb-2" : "px-2 pb-2 pt-1")}>
-          <Logo compact={rail} />
+        <div className="pb-2">
+          <Logo compact />
         </div>
-        <NavLinks progress={progress} rail={rail} />
+        <NavLinks progress={progress} rail />
+        <div className="mt-auto">
+          <LevelCard progress={progress} rail />
+        </div>
+      </aside>
+
+      {/* Full sidebar on browsing pages from lg up. */}
+      <aside className={cn("sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-2 border-r border-sidebar-border bg-sidebar p-4", !rail && "lg:flex")}>
+        <div className="px-2 pb-2 pt-1">
+          <Logo />
+        </div>
+        <NavLinks progress={progress} />
         <div className="mt-auto space-y-3">
-          <LevelCard progress={progress} rail={rail} />
-          {!rail && (
+          <LevelCard progress={progress} />
+          {(
             <p className="px-1 text-[10.5px] leading-relaxed text-muted-foreground/70">
               All metrics are simulated.{" "}
               <Link href="/privacy" className="hover:text-foreground">
@@ -271,9 +324,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <StatsBar progress={progress} />
         </div>
 
-        <main id="main" className="flex min-w-0 flex-1 flex-col">
+        <main id="main" className={cn("flex min-w-0 flex-1 flex-col", !rail && "max-md:pb-[calc(4rem+env(safe-area-inset-bottom))]")}>
           {children}
         </main>
+        {!rail && <BottomNav progress={progress} />}
       </div>
     </div>
   );

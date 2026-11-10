@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Your sign-in link</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0b0e14;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Your SysLab sign-in link. It works once and expires soon.&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0b0e14;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+
+        <!-- Brand -->
+        <tr>
+          <td style="padding:0 4px 20px 4px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="36" height="36" align="center" valign="middle" style="width:36px;height:36px;background-color:#2f8cff;border-radius:9px;font-family:Arial,Helvetica,sans-serif;font-size:19px;font-weight:700;color:#ffffff;line-height:36px;">S</td>
+                <td style="padding-left:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:18px;font-weight:700;color:#f2f5fa;letter-spacing:-0.2px;">Sys<span style="color:#4ea3ff;">Lab</span></td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Card -->
+        <tr>
+          <td style="background-color:#121722;border:1px solid #232b3a;border-radius:16px;padding:32px 28px;">
+            <p style="margin:0 0 10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:#4ea3ff;">Sign in</p>
+            <h1 style="margin:0 0 14px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:24px;line-height:1.25;font-weight:700;color:#f2f5fa;letter-spacing:-0.3px;">Your sign-in link</h1>
+            <p style="margin:0 0 26px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:15px;line-height:1.6;color:#a9b3c4;">Click below to sign in to SysLab. No password needed. The link works once and expires in an hour.</p>
+
+            <!-- Button -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" bgcolor="#2f8cff" style="border-radius:10px;">
+                  <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">Sign in to SysLab &rarr;</a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:22px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:13px;line-height:1.6;color:#7d889b;">Didn't ask to sign in? Someone may have typed your email by mistake. You can ignore this email; your account is safe.</p>
+            <p style="margin:14px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:12px;line-height:1.6;color:#7d889b;">Button not working? Paste this link into your browser:<br><a href="{{ .ConfirmationURL }}" style="color:#4ea3ff;word-break:break-all;text-decoration:underline;">{{ .ConfirmationURL }}</a></p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:22px 4px 0 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:12px;line-height:1.6;color:#5f6a7d;">
+            SysLab: design systems, push real traffic through them, and learn why they break.<br>
+            <a href="https://syslab-blond.vercel.app" style="color:#7d889b;text-decoration:underline;">syslab-blond.vercel.app</a>
+            &nbsp;&middot;&nbsp; <a href="https://syslab-blond.vercel.app/privacy" style="color:#7d889b;text-decoration:underline;">Privacy</a>
+            &nbsp;&middot;&nbsp; <a href="https://syslab-blond.vercel.app/terms" style="color:#7d889b;text-decoration:underline;">Terms</a>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

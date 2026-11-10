@@ -49,3 +49,23 @@ built-in mailer is rate-limited; add custom SMTP under Authentication → Emails
   (best score per problem, union of designs and active days).
 - Public: `profiles` rows with `is_public = true`, totals from the `leaderboard` / `public_profile`
   functions (XP, solved count, solved problem ids, active days), and `shared_designs` snapshots.
+
+## Branded emails and the localhost link
+
+Auth emails link to whatever **Site URL** is set in Supabase when the app's redirect isn't on the allow list.
+If emails point at `localhost`, fix the URL configuration first.
+
+1. **Authentication → URL Configuration**
+   - Site URL: `https://syslab-blond.vercel.app`
+   - Redirect URLs: `https://syslab-blond.vercel.app/**` (add `http://localhost:3000/**` for local testing)
+2. **Authentication → Email Templates**: paste each file from `supabase/templates/` and set its subject:
+
+| Template | File | Subject |
+|---|---|---|
+| Confirm signup | `confirmation.html` | Confirm your SysLab account |
+| Magic Link | `magic_link.html` | Your SysLab sign-in link |
+| Reset Password | `recovery.html` | Reset your SysLab password |
+| Change Email Address | `email_change.html` | Confirm your new SysLab email |
+| Invite user | `invite.html` | You're invited to SysLab |
+
+Emails already sent keep their old link: request a new one after changing the settings.

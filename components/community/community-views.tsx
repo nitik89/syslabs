@@ -353,7 +353,7 @@ function Profile({ username }: { username: string }) {
                   </div>
                   <div className="flex gap-0.5">
                     {st.problems.map((id) => (
-                      <span key={id} className="h-1.5 flex-1 rounded-full" title={BY_ID.get(id)?.title} style={{ background: solved.has(id) ? st.color : "oklch(1 0 0 / 7%)" }} />
+                      <span key={id} className="h-1.5 flex-1 rounded-full" title={BY_ID.get(id)?.title} style={{ background: solved.has(id) ? st.color : "color-mix(in oklch, var(--ink) 7%, transparent)" }} />
                     ))}
                   </div>
                 </li>

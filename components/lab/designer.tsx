@@ -39,6 +39,7 @@ import { RequirementsEditor } from "./requirements-editor";
 import { ResizeHandle, usePanelWidth } from "./resize-handle";
 import { RunConsole, fmtLatency, type ConsoleTab } from "./run-console";
 import { ArchScene, type ArchNode } from "@/components/landing/arch-scene";
+import { useTheme } from "@/components/shell/use-theme";
 
 const nodeTypes = { sys: SysNodeComponent };
 const edgeTypes = { flow: FlowEdgeComponent };
@@ -205,6 +206,7 @@ function DesignerInner({
     else void rootRef.current?.requestFullscreen?.();
   }, []);
   const rf = useReactFlow<SysNode, FlowEdge>();
+  const { theme } = useTheme();
   // Re-fit when a drawer opens or closes, so the design uses the space it gains (skip the first render).
   const drawersReady = useRef(false);
   useEffect(() => {
@@ -625,7 +627,7 @@ function DesignerInner({
           "relative shrink-0 bg-sidebar lg:h-auto lg:w-[var(--palette-w)] lg:border-r lg:border-border lg:bg-sidebar/60 lg:overflow-visible",
           !showPalette && "lg:hidden",
           mobilePalette && mobilePane === "design"
-            ? "max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(86vw,340px)] max-lg:overflow-hidden max-lg:border-r max-lg:border-border max-lg:shadow-[24px_0_48px_-24px_black]"
+            ? "max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:z-30 max-lg:w-[min(86vw,340px)] max-lg:overflow-hidden max-lg:border-r max-lg:border-border max-lg:shadow-[24px_0_48px_-24px_var(--shadow)]"
             : "max-lg:hidden",
         )}
         style={{ ["--palette-w" as string]: `${paletteWidth.width ?? (leftPanel ? 220 : 284)}px` }}
@@ -675,14 +677,14 @@ function DesignerInner({
           edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           deleteKeyCode={["Backspace", "Delete"]}
-          colorMode="dark"
+          colorMode={theme}
           fitView
           fitViewOptions={{ padding: 0.06, maxZoom: 1 }}
           minZoom={0.25}
           maxZoom={2}
           ariaLabelConfig={{ "node.a11yDescription.default": "Press Enter or Space to select. Use arrow keys to move. Press Delete to remove." }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1.3} color="oklch(1 0 0 / 11%)" />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1.3} color="color-mix(in oklch, var(--ink) 11%, transparent)" />
           <Controls showInteractive={false} position="bottom-left" />
           {/* Only worth the space once a design outgrows the screen. */}
           {nodes.length > 8 && (
@@ -694,11 +696,11 @@ function DesignerInner({
               style={{ width: 168, height: 104 }}
               nodeBorderRadius={8}
               nodeColor="color-mix(in oklch, var(--brand-blue) 45%, var(--card))"
-              maskColor="oklch(0 0 0 / 45%)"
+              maskColor="color-mix(in oklch, var(--shade) 45%, transparent)"
             />
           )}
           <Panel position="top-left" className="!m-3 max-w-[calc(100%-1.5rem)]">
-            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_black] backdrop-blur-md">
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_var(--shadow)] backdrop-blur-md">
               <Button
                 size="sm"
                 className="lg:hidden"
@@ -812,7 +814,7 @@ function DesignerInner({
                   nodes={archNodes}
                   edges={archEdges}
                   state={shown ? { nodes: shown.nodes, edgeFlows: shown.edgeFlows } : null}
-                  className="min-h-[220px] flex-1 overflow-hidden rounded-xl border border-border bg-black/25"
+                  className="min-h-[220px] flex-1 overflow-hidden rounded-xl border border-border bg-black/25 light:bg-secondary/60"
                 />
               </div>
             ),
@@ -843,9 +845,9 @@ function DesignerInner({
         className={cn(
           "shrink-0 overflow-y-auto border-t border-border",
           // Small screens: a bottom sheet over the canvas.
-          "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[70dvh] max-lg:rounded-t-2xl max-lg:bg-sidebar max-lg:shadow-[0_-24px_48px_-12px_black]",
+          "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[70dvh] max-lg:rounded-t-2xl max-lg:bg-sidebar max-lg:shadow-[0_-24px_48px_-12px_var(--shadow)]",
           workspace
-            ? "bg-sidebar/95 backdrop-blur-md lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:w-[310px] lg:border-l lg:border-t-0 lg:shadow-[-24px_0_48px_-24px_black]"
+            ? "bg-sidebar/95 backdrop-blur-md lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:w-[310px] lg:border-l lg:border-t-0 lg:shadow-[-24px_0_48px_-24px_var(--shadow)]"
             : "bg-sidebar/60 lg:w-[300px] lg:border-l lg:border-t-0",
         )}
       >

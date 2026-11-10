@@ -117,9 +117,9 @@ const LOGOS: Partial<Record<NodeKind, SimpleIcon>> = {
 
 /** Marks Simple Icons doesn't carry (OpenAI, Groq...), with the color to draw mono marks in. */
 const EXTRA: Partial<Record<NodeKind, { svg: BrandSvg; color: string }>> = {
-  openai: { svg: BRAND_SVGS.openai, color: "#f4f4f5" },
-  embeddings: { svg: BRAND_SVGS.openai, color: "#f4f4f5" },
-  openaiFineTune: { svg: BRAND_SVGS.openai, color: "#f4f4f5" },
+  openai: { svg: BRAND_SVGS.openai, color: "var(--mono-mark)" },
+  embeddings: { svg: BRAND_SVGS.openai, color: "var(--mono-mark)" },
+  openaiFineTune: { svg: BRAND_SVGS.openai, color: "var(--mono-mark)" },
   codex: { svg: BRAND_SVGS.codex, color: "" },
   groq: { svg: BRAND_SVGS.groq, color: "#F55036" },
 };
@@ -129,7 +129,7 @@ function visibleColor(hex: string): string {
   const n = parseInt(hex, 16);
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luminance < 0.28 ? "#f4f4f5" : `#${hex}`;
+  return luminance < 0.28 ? "var(--mono-mark)" : `#${hex}`;
 }
 
 const SIZES = {

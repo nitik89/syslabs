@@ -26,7 +26,7 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
   return (
     <div
       className={cn(
-        "relative w-[204px] rounded-2xl border bg-card/95 px-3 py-2.5 shadow-[0_10px_30px_-14px_black] text-card-foreground backdrop-blur transition-[border-color,box-shadow]",
+        "relative w-[204px] rounded-2xl border bg-card/95 px-3 py-2.5 shadow-[0_10px_30px_-14px_var(--shadow)] text-card-foreground backdrop-blur transition-[border-color,box-shadow]",
         status ? STATUS_RING[status] : "border-border",
         selected && "outline-2 outline-offset-2 outline-ring",
       )}

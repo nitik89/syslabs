@@ -84,7 +84,7 @@ function FlowEdgeView({ id, source, target, sourceX, sourceY, targetX, targetY, 
         path={path}
         markerEnd={markerEnd}
         style={{
-          stroke: selected ? "var(--ring)" : active ? color : "oklch(1 0 0 / 22%)",
+          stroke: selected ? "var(--ring)" : active ? color : "color-mix(in oklch, var(--ink) 22%, transparent)",
           strokeWidth: selected ? 2.25 : active ? 1.75 : 1.5,
           opacity: rps === 0 ? 0.35 : 1,
         }}

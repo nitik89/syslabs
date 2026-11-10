@@ -74,7 +74,7 @@ function ScoreRing({ value, passed }: { value: number; passed: boolean }) {
   return (
     <div className="relative size-[68px] shrink-0">
       <svg viewBox="0 0 64 64" className="size-full -rotate-90" aria-hidden="true">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="oklch(1 0 0 / 8%)" strokeWidth="6" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="color-mix(in oklch, var(--ink) 8%, transparent)" strokeWidth="6" />
         <circle
           cx="32"
           cy="32"

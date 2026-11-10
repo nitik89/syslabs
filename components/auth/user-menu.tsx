@@ -13,7 +13,7 @@ export function Avatar({ name, url, className }: { name: string; url?: string | 
     // eslint-disable-next-line @next/next/no-img-element -- avatars come from many OAuth hosts
     <img src={url} alt="" className={cn("size-7 rounded-full object-cover", className)} referrerPolicy="no-referrer" />
   ) : (
-    <span className={cn("flex size-7 items-center justify-center rounded-full bg-brand-blue font-mono text-[11px] font-bold text-white", className)}>{initials}</span>
+    <span className={cn("flex size-7 items-center justify-center rounded-full bg-brand-blue font-mono text-[11px] font-bold text-primary-foreground", className)}>{initials}</span>
   );
 }
 
@@ -60,7 +60,7 @@ export function UserMenu() {
         <Avatar name={name} url={profile?.avatar_url} />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-9 z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1 shadow-[0_16px_40px_-12px_black]">
+        <div role="menu" className="absolute right-0 top-9 z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1 shadow-[0_16px_40px_-12px_var(--shadow)]">
           <div className="border-b border-border px-3 py-2">
             <p className="truncate text-[13px] font-semibold">{name}</p>
             <p className="truncate text-[11.5px] text-muted-foreground">{profile ? `@${profile.username}` : user.email}</p>

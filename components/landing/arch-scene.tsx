@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type * as THREE_NS from "three";
 import { behaviorOf, type NodeKind, type NodeStatus } from "@/lib/sim";
-import { SCENE_FPS, lightRenderer, makeLabel, skip3D, whenNearAndIdle } from "./hero-scene";
+import { SCENE_FPS, SCENE_THEME, lightRenderer, makeLabel, skip3D, whenNearAndIdle } from "./hero-scene";
+import { useTheme } from "@/components/shell/use-theme";
 
 export interface ArchNode {
   id: string;
@@ -62,6 +63,7 @@ export function ArchScene({
   const stateRef = useRef(state);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const { theme } = useTheme();
   // Rebuild the scene only when the design's shape changes, not on every tick.
   const shape = JSON.stringify([nodes.map((n) => [n.id, n.kind, n.label, Math.round(n.x), Math.round(n.y)]), edges.map((e) => [e.id, e.source, e.target])]);
 
@@ -120,7 +122,8 @@ export function ArchScene({
       const spanZ = (Math.max(...ys) - Math.min(...ys)) * SCALE + 2.5;
       const world = (x: number, y: number) => new THREE.Vector3((x - cx) * SCALE, 0, (y - cy) * SCALE);
 
-      const grid = new THREE.GridHelper(Math.max(spanX, spanZ) + 8, Math.round(Math.max(spanX, spanZ) + 8), 0x1d2636, 0x141b27);
+      const pal = SCENE_THEME[theme];
+      const grid = new THREE.GridHelper(Math.max(spanX, spanZ) + 8, Math.round(Math.max(spanX, spanZ) + 8), pal.grid[0], pal.grid[1]);
       grid.position.y = -0.01;
       scene.add(grid);
       track(grid.geometry);
@@ -133,11 +136,11 @@ export function ArchScene({
         const n = shapeNodes.find((x) => x[0] === id)!;
         const behavior = behaviorOf(kind);
         const base = KIND_COLOR[behavior] ?? DEFAULT_COLOR;
-        const mat = track(new THREE.MeshStandardMaterial({ color: base, transparent: true, opacity: 0.32, roughness: 0.35, metalness: 0.1, emissive: base, emissiveIntensity: 0.25 }));
+        const mat = track(new THREE.MeshStandardMaterial({ color: base, transparent: true, opacity: pal.glass, roughness: 0.35, metalness: 0.1, emissive: base, emissiveIntensity: 0.25 }));
         const body = new THREE.Mesh(boxGeo, mat);
         const edge = track(new THREE.LineBasicMaterial({ color: base, transparent: true, opacity: 0.95 }));
         body.add(new THREE.LineSegments(edgeGeo, edge));
-        const lbl = makeLabel(THREE, label.length > 22 ? `${label.slice(0, 21)}…` : label, "");
+        const lbl = makeLabel(THREE, label.length > 22 ? `${label.slice(0, 21)}…` : label, "", theme);
         lbl.scale.multiplyScalar(0.8);
         track(lbl.material);
         track((lbl.material as THREE_NS.SpriteMaterial).map!);
@@ -149,7 +152,7 @@ export function ArchScene({
         towers.set(id, { id, pos, body, mat, edge, label: lbl, base, client: behavior === "client" });
       }
 
-      const linkMat = track(new THREE.LineBasicMaterial({ color: 0x2a3446 }));
+      const linkMat = track(new THREE.LineBasicMaterial({ color: pal.link }));
       const links = shapeEdges
         .filter(([, s, t]) => towers.has(s) && towers.has(t))
         .map(([id, s, t]) => {
@@ -315,7 +318,7 @@ export function ArchScene({
       cancelGate();
       cleanup();
     };
-  }, [built]);
+  }, [built, theme]);
 
   // Skipped (phone, low-power device, no WebGL) and nothing to show instead: take no space.
   if (failed && !fallback) return null;

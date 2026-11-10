@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Flame, Menu, Sparkles, Trophy } from "lucide-react";
+import { Flame, Menu, Moon, Sparkles, Sun, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CHALLENGES } from "@/data/challenges";
 import { DESIGNS } from "@/data/designs";
@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Logo } from "./logo";
 import { CommandMenu } from "./command-menu";
 import { UserMenu } from "@/components/auth/user-menu";
+import { useTheme } from "./use-theme";
 import { NAV_ITEMS, isActive, isWorkspace, type NavItem } from "./nav";
 
 const TOTAL = CHALLENGES.length + DESIGNS.length;
@@ -114,7 +115,7 @@ function LevelCard({ progress, rail = false }: { progress: ProgressState | null;
             <Link
               href="/progress"
               aria-label={`Level ${level}, ${xp} XP`}
-              className="flex size-10 items-center justify-center rounded-full bg-brand-blue font-mono text-xs font-bold text-white outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-10 items-center justify-center rounded-full bg-brand-blue font-mono text-xs font-bold text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           }
         >
@@ -131,7 +132,7 @@ function LevelCard({ progress, rail = false }: { progress: ProgressState | null;
       href="/progress"
       className="surface flex items-center gap-3 rounded-xl p-3 outline-none transition-colors hover:border-brand-blue/40 focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue font-mono text-xs font-bold text-white">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-blue font-mono text-xs font-bold text-primary-foreground">
         L{level}
       </span>
       <span className="min-w-0 flex-1 space-y-1.5">
@@ -178,9 +179,27 @@ function StatsBar({ progress }: { progress: ProgressState | null }) {
           <span className="max-sm:hidden">/ {TOTAL}</span>
           <span className="hidden xl:inline">solved</span>
         </Link>
+        <ThemeToggle />
         <UserMenu />
       </div>
     </div>
+  );
+}
+
+/** Sun/moon button in the top bar: switches between light and dark, remembered in this browser. */
+function ThemeToggle() {
+  const { theme, setChoice } = useTheme();
+  const next = theme === "dark" ? "light" : "dark";
+  return (
+    <button
+      type="button"
+      onClick={() => setChoice(next)}
+      aria-label={`Switch to ${next} theme`}
+      title={`Switch to ${next} theme`}
+      className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground ring-1 ring-inset ring-border transition-colors hover:text-foreground hover:ring-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {theme === "dark" ? <Sun className="size-3.5" aria-hidden="true" /> : <Moon className="size-3.5" aria-hidden="true" />}
+    </button>
   );
 }
 

@@ -103,7 +103,7 @@ export function FeatureGrid({ progress, today }: { progress: ProgressState; toda
                           key={id}
                           className="h-2 flex-1 rounded-[3px]"
                           style={{
-                            background: progress.challenges[id]?.passed ? st.color : "oklch(1 0 0 / 7%)",
+                            background: progress.challenges[id]?.passed ? st.color : "color-mix(in oklch, var(--ink) 7%, transparent)",
                             boxShadow: id === nextId ? `inset 0 0 0 1.5px ${st.color}` : undefined,
                           }}
                         />

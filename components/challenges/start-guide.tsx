@@ -23,7 +23,7 @@ export function StartGuide({ challenge }: { challenge: Challenge }) {
     <div className="pointer-events-none absolute bottom-4 left-16 right-4 z-10 flex justify-center">
       <section
         aria-label="How to start"
-        className="pointer-events-auto flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-border bg-popover/90 py-1.5 pl-3 pr-1.5 text-[12px] shadow-[0_12px_32px_-14px_black] backdrop-blur-md"
+        className="pointer-events-auto flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-border bg-popover/90 py-1.5 pl-3 pr-1.5 text-[12px] shadow-[0_12px_32px_-14px_var(--shadow)] backdrop-blur-md"
       >
         <ol className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
           {steps.map((s, i) => (

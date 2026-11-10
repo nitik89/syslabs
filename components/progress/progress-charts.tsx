@@ -29,7 +29,7 @@ export function ScoreChart({ progress }: { progress: ProgressState }) {
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis dataKey="short" tickLine={false} axisLine={false} tickMargin={8} interval={0} tick={{ fontSize: 10 }} />
         <YAxis domain={[0, 100]} ticks={[0, 50, 75, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-        <ChartTooltip cursor={{ fill: "oklch(1 0 0 / 4%)" }} content={<ChartTooltipContent labelKey="name" nameKey="score" />} />
+        <ChartTooltip cursor={{ fill: "color-mix(in oklch, var(--ink) 4%, transparent)" }} content={<ChartTooltipContent labelKey="name" nameKey="score" />} />
         <Bar dataKey="score" radius={[6, 6, 2, 2]} maxBarSize={36}>
           {rows.map((r) => (
             <Cell key={r.name} fill={r.passed ? "var(--status-ok)" : "var(--brand-blue)"} fillOpacity={r.passed ? 0.9 : 0.75} />
@@ -42,7 +42,7 @@ export function ScoreChart({ progress }: { progress: ProgressState }) {
 
 const diffConfig = {
   solved: { label: "Solved", color: "var(--status-ok)" },
-  open: { label: "Not yet", color: "oklch(1 0 0 / 10%)" },
+  open: { label: "Not yet", color: "color-mix(in oklch, var(--ink) 10%, transparent)" },
 } satisfies ChartConfig;
 
 /** Solved vs remaining, per difficulty. */

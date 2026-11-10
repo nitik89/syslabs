@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type * as THREE_NS from "three";
+import type { Theme } from "@/lib/theme";
+import { useTheme } from "@/components/shell/use-theme";
 
 export type HeroPhase = "broken" | "fixed";
 
@@ -33,7 +35,14 @@ const NODES: { id: string; label: string; sub: string; pos: Vec; color: number; 
 const CACHE_POS: Vec = [3.2, 0, -3.4];
 
 /** A text label drawn to a canvas and shown as a sprite that always faces the camera. */
-export function makeLabel(THREE: typeof THREE_NS, text: string, sub: string): THREE_NS.Sprite {
+/** Scene colours that change with the light/dark theme. */
+export const SCENE_THEME = {
+  dark: { label: "rgba(235,240,250,0.92)", sub: "rgba(160,172,192,0.85)", grid: [0x1d2636, 0x141b27] as const, fog: 0x07090d, link: 0x2a3446, glass: 0.32 },
+  light: { label: "rgba(28,36,52,0.92)", sub: "rgba(88,99,118,0.9)", grid: [0xc3ccda, 0xdfe5ee] as const, fog: 0xf4f6f9, link: 0xb3bfd0, glass: 0.5 },
+};
+
+export function makeLabel(THREE: typeof THREE_NS, text: string, sub: string, theme: Theme = "dark"): THREE_NS.Sprite {
+  const pal = SCENE_THEME[theme];
   const scale = 4;
   const w = 220 * scale;
   const h = 64 * scale;
@@ -42,11 +51,11 @@ export function makeLabel(THREE: typeof THREE_NS, text: string, sub: string): TH
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
   ctx.textAlign = "center";
-  ctx.fillStyle = COLOR.label;
+  ctx.fillStyle = pal.label;
   ctx.font = `600 ${24 * scale}px ui-sans-serif, system-ui, sans-serif`;
   ctx.fillText(text, w / 2, 26 * scale);
   if (sub) {
-    ctx.fillStyle = COLOR.sub;
+    ctx.fillStyle = pal.sub;
     ctx.font = `500 ${15 * scale}px ui-monospace, SFMono-Regular, monospace`;
     ctx.fillText(sub, w / 2, 50 * scale);
   }
@@ -123,6 +132,8 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
   const phaseRef = useRef(onPhase);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Rebuilt when the theme changes, so labels and the floor match the page.
+  const { theme } = useTheme();
 
   useEffect(() => {
     phaseRef.current = onPhase;
@@ -149,7 +160,8 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
       mount.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(0x07090d, 14, 26);
+      const pal = SCENE_THEME[theme];
+      scene.fog = new THREE.Fog(pal.fog, 14, 26);
       const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
 
       scene.add(new THREE.HemisphereLight(0xbcd2ff, 0x0b0f17, 1.1));
@@ -158,7 +170,7 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
       scene.add(key);
 
       // Floor: a faint grid on a dark plate.
-      const grid = new THREE.GridHelper(22, 22, 0x1d2636, 0x141b27);
+      const grid = new THREE.GridHelper(22, 22, pal.grid[0], pal.grid[1]);
       grid.position.y = -0.01;
       scene.add(grid);
 
@@ -174,12 +186,12 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
       type NodeMesh = { group: THREE_NS.Group; body: THREE_NS.Mesh; mat: THREE_NS.MeshStandardMaterial; edge: THREE_NS.LineBasicMaterial; label: THREE_NS.Sprite };
       const makeNode = (color: number, label: string, sub: string): NodeMesh => {
         const group = new THREE.Group();
-        const mat = track(new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.32, roughness: 0.35, metalness: 0.1, emissive: color, emissiveIntensity: 0.25 }));
+        const mat = track(new THREE.MeshStandardMaterial({ color, transparent: true, opacity: pal.glass, roughness: 0.35, metalness: 0.1, emissive: color, emissiveIntensity: 0.25 }));
         const body = new THREE.Mesh(boxGeo, mat);
         const edge = track(new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95 }));
         body.add(new THREE.LineSegments(edgeGeo, edge));
         group.add(body);
-        const lbl = makeLabel(THREE, label, sub);
+        const lbl = makeLabel(THREE, label, sub, theme);
         track(lbl.material);
         track((lbl.material as THREE_NS.SpriteMaterial).map!);
         group.add(lbl);
@@ -198,7 +210,7 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
       };
 
       // Links between components.
-      const linkMat = track(new THREE.LineBasicMaterial({ color: COLOR.dim, transparent: true, opacity: 0.9 }));
+      const linkMat = track(new THREE.LineBasicMaterial({ color: pal.link, transparent: true, opacity: 0.9 }));
       const link = (a: Vec, b: Vec) => {
         const g = track(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a[0], 0.08, a[2]), new THREE.Vector3(b[0], 0.08, b[2])]));
         const line = new THREE.Line(g, linkMat);
@@ -293,7 +305,7 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
         const lift = THREE.MathUtils.smoothstep(t, LIFT_AT, LOOP);
         cache.group.position.y = (1 - land) * 5 + lift * 5;
         cache.group.visible = t > FIX_AT - 0.1;
-        cache.mat.opacity = 0.32 * (1 - lift);
+        cache.mat.opacity = pal.glass * (1 - lift);
         cache.edge.opacity = 0.95 * (1 - lift);
         (cache.label.material as THREE_NS.SpriteMaterial).opacity = land * (1 - lift);
         setHeight(cache, 1.1);
@@ -403,7 +415,7 @@ export function HeroScene({ onPhase, fallback, className }: { onPhase?: (p: Hero
       cancelGate();
       cleanup();
     };
-  }, []);
+  }, [theme]);
 
   // Skipped (phone, low-power device, no WebGL) and nothing to show instead: take no space.
   if (failed && !fallback) return null;

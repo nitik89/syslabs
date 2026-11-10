@@ -53,7 +53,7 @@ export function RoadmapStrip({ progress, compact }: { progress: ProgressState | 
               {/* Station: a ring that fills with the stage's progress. */}
               <div
                 className="relative z-10 flex size-11 items-center justify-center rounded-full"
-                style={{ background: `conic-gradient(${s.color} ${pct * 360}deg, oklch(1 0 0 / 10%) 0deg)` }}
+                style={{ background: `conic-gradient(${s.color} ${pct * 360}deg, color-mix(in oklch, var(--ink) 10%, transparent) 0deg)` }}
               >
                 <span className="flex size-8 items-center justify-center rounded-full bg-card font-mono text-[13px] font-bold" style={{ color: s.color }}>
                   {done ? <CheckCircle2 className="size-4" aria-label="Stage complete" /> : i + 1}

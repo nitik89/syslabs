@@ -90,7 +90,7 @@ function HeroPreview() {
       </div>
       <HeroScene
         onPhase={setPhase}
-        className="h-64 bg-[radial-gradient(ellipse_at_50%_40%,oklch(0.25_0.03_250/0.5),transparent_70%)] sm:h-72"
+        className="h-64 bg-[radial-gradient(ellipse_at_50%_40%,color-mix(in_oklch,var(--brand-blue)_9%,transparent),transparent_70%)] sm:h-72"
         fallback={<MiniArch graph={demo.startingDesign.graph} positions={demo.startingDesign.positions} labels className="h-full bg-black/20" />}
       />
       <div className="space-y-3 border-t border-border p-4">

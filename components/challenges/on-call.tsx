@@ -26,7 +26,7 @@ export function OnCallCard({
     <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex justify-center px-4">
       <section
         aria-label="On-call page"
-        className="pointer-events-auto w-full max-w-xl space-y-3 rounded-2xl border border-status-crit/40 bg-popover/95 p-4 shadow-[0_24px_60px_-20px_black] backdrop-blur-md"
+        className="pointer-events-auto w-full max-w-xl space-y-3 rounded-2xl border border-status-crit/40 bg-popover/95 p-4 shadow-[0_24px_60px_-20px_var(--shadow)] backdrop-blur-md"
       >
         <div className="flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-status-crit">

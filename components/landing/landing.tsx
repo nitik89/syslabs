@@ -15,6 +15,7 @@ import { RoadmapStrip } from "@/components/roadmap/roadmap";
 import { LogoMark } from "@/components/shell/logo";
 import { useAuth } from "@/components/auth/auth-provider";
 import { HeroScene, type HeroPhase } from "./hero-scene";
+import { APP_VERSION, CREATOR } from "@/lib/version";
 
 const PROBLEMS = CHALLENGES.length + DESIGNS.length;
 const demo = CHALLENGES[0];
@@ -245,7 +246,7 @@ export function Landing() {
         </Link>
       </section>
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6 text-[12.5px] text-muted-foreground">
-        <span>© 2026 SysLab · All metrics are simulated.</span>
+        <span>© 2026 SysLab · Built by <span className="text-foreground">{CREATOR}</span> · v{APP_VERSION} · All metrics are simulated.</span>
         <nav className="flex gap-4" aria-label="Legal">
           <Link href="/privacy" className="hover:text-foreground">
             Privacy

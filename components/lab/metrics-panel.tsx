@@ -132,8 +132,8 @@ export function MetricsPanel({
           </p>
         ) : (
           <ul className="space-y-1">
-            {result.spofs.map((s) => (
-              <li key={s.nodeId}>
+            {result.spofs.map((s, i) => (
+              <li key={`${s.nodeId}-${i}`}>
                 <button
                   type="button"
                   onClick={() => onFocusNode(s.nodeId)}
@@ -152,8 +152,8 @@ export function MetricsPanel({
         <section className="space-y-1.5">
           <h3 className="text-xs font-semibold">Idle components ({result.idle.length})</h3>
           <ul className="space-y-1">
-            {result.idle.map((x) => (
-              <li key={x.nodeId}>
+            {result.idle.map((x, i) => (
+              <li key={`${x.nodeId}-${i}`}>
                 <button
                   type="button"
                   onClick={() => onFocusNode(x.nodeId)}

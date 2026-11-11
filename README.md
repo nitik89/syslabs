@@ -165,3 +165,7 @@ docs/                guides (below) and screenshots
 | [docs/deployment.md](docs/deployment.md) | Deploying to Vercel with Supabase: env vars, migrations, emails |
 | [docs/testing.md](docs/testing.md) | What the tests cover and how to run them |
 | [docs/accounts-setup.md](docs/accounts-setup.md) | Supabase project, sign-in providers, URL configuration, email templates |
+
+## Credits
+
+SysLab **v1.0.0**, designed and built by **Nitik Narang**.

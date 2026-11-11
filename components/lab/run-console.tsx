@@ -430,16 +430,16 @@ export function RunConsole({
               {(tick.result.bottlenecks.length > 0 || tick.result.spofs.length > 0 || tick.result.issues.length > 0) && (
                 <Section title="What to fix">
                   <ul className="space-y-1.5">
-                    {tick.result.bottlenecks.map((b) => (
-                      <li key={`b-${b.nodeId}`} className="flex gap-2 rounded-lg border border-status-warn/25 bg-status-warn/[0.05] px-3 py-2 text-[12.5px]">
+                    {tick.result.bottlenecks.map((b, i) => (
+                      <li key={`b-${b.nodeId}-${i}`} className="flex gap-2 rounded-lg border border-status-warn/25 bg-status-warn/[0.05] px-3 py-2 text-[12.5px]">
                         <span className="font-mono text-[10.5px] font-semibold uppercase text-status-warn">Hot</span>
                         <button type="button" onClick={() => onFocusNode(b.nodeId)} className="text-left hover:underline">
                           {b.reason}
                         </button>
                       </li>
                     ))}
-                    {tick.result.spofs.map((x) => (
-                      <li key={`s-${x.nodeId}`} className="flex gap-2 rounded-lg border border-status-crit/25 bg-status-crit/[0.05] px-3 py-2 text-[12.5px]">
+                    {tick.result.spofs.map((x, i) => (
+                      <li key={`s-${x.nodeId}-${i}`} className="flex gap-2 rounded-lg border border-status-crit/25 bg-status-crit/[0.05] px-3 py-2 text-[12.5px]">
                         <span className="font-mono text-[10.5px] font-semibold uppercase text-status-crit">SPOF</span>
                         <button type="button" onClick={() => onFocusNode(x.nodeId)} className="text-left hover:underline">
                           {x.reason}

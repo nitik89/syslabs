@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Logo } from "./logo";
 import { CommandMenu } from "./command-menu";
 import { UserMenu } from "@/components/auth/user-menu";
+import { APP_VERSION, CREATOR } from "@/lib/version";
 import { useTheme } from "./use-theme";
 import { SITE_TOUR_DONE_KEY, SiteTour } from "./site-tour";
 import { NAV_ITEMS, isActive, isWorkspace, type NavItem } from "./nav";
@@ -322,6 +323,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             </p>
           )}
+          {(
+            <p className="px-1 text-[10.5px] leading-relaxed text-muted-foreground/70">
+              v{APP_VERSION} · Built by <span className="text-muted-foreground">{CREATOR}</span>
+            </p>
+          )}
         </div>
       </aside>
 
@@ -339,8 +345,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Logo />
               </div>
               <NavLinks progress={progress} onNavigate={() => setMobileOpen(false)} />
-              <div className="mt-auto">
+              <div className="mt-auto space-y-3">
                 <LevelCard progress={progress} />
+                <p className="px-1 text-[10.5px] text-muted-foreground/70">
+                  v{APP_VERSION} · Built by <span className="text-muted-foreground">{CREATOR}</span>
+                </p>
               </div>
             </SheetContent>
           </Sheet>

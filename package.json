@@ -1,6 +1,7 @@
 {
   "name": "syslab",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "author": "Nitik Narang",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -45,7 +45,7 @@ Now try the next problem on your own.
 | --- | --- |
 | **Header** | Problem name and difficulty, live cost per hour against the budget, **Run**, **Submit**, reset, **Tour** and (on the first challenge) **Solve it with me**. **Layout** hides the problem panel for a bigger canvas. |
 | **Problem panel** (left) | *Description* (scenario, functional and non-functional requirements, back-of-envelope numbers, test cases), *Articles* (lessons this problem uses), *Hints* (revealed one at a time), *Editorial*, *Submissions*. |
-| **Components** and **Tune** | On desktop, **Add component** opens the components list as a column beside the canvas (press it again, or Done, to close it). The settings panel on the right closes to a narrow *Tune* strip; click it to bring the panel back. Settings shows the selected component's knobs (each group folds open) and, with nothing picked, a grid of quick moves. |
+| **Components** and **Settings** | On desktop, **Add component** opens the components list as a column beside the canvas; press it again (or the list's close arrow) to hide it. The settings panel on the right hides with its arrow and comes back from **Details** in the toolbar. It shows the selected component's knobs (each group folds open) and, with nothing picked, a grid of quick moves. |
 | **Canvas** (centre) | Your design. The toolbar has **Add component**, undo/redo, save/share/load, reveal solution, full screen, a **scenario** dropdown, **Traffic** and **Details**. The scenario dropdown switches the load. |
 | **Run console** (bottom) | Appears after a run: tests, latency/traffic/busy charts, a components table, what to fix, logs, a **3D** view and your submissions. Drag its top edge to resize it. |
 

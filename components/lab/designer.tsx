@@ -728,25 +728,6 @@ function DesignerInner({
     </aside>
   );
   // Desktop: a slim labelled rail stands in for a closed column, so it's always one click away.
-  // Desktop: a closed column leaves a narrow strip with one icon tile, so it's always one click away.
-  const rail = (name: string, caption: string, Icon: typeof Shapes, onOpen: () => void, side: "left" | "right", tour?: string) => (
-    <div className={cn("hidden w-14 shrink-0 flex-col items-center bg-sidebar/40 pt-3 lg:flex", side === "left" ? "border-r border-border" : "border-l border-border")}>
-      <button
-        type="button"
-        onClick={onOpen}
-        data-tour={tour}
-        aria-label={`Show ${name}`}
-        title={`Show ${name}`}
-        className="group flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <span className="flex size-9 items-center justify-center rounded-xl border border-border bg-card transition-colors group-hover:border-brand-blue/40 group-hover:bg-brand-blue/10">
-          <Icon className="size-4" aria-hidden="true" />
-        </span>
-        <span className="text-[10.5px] font-medium">{caption}</span>
-      </button>
-    </div>
-  );
-
   return (
     <div ref={rootRef} className={cn("flex min-h-0 flex-1 flex-col bg-background", fullscreen && "h-screen")}>
       {header && <Slot render={header} ctx={ctx} />}
@@ -839,7 +820,7 @@ function DesignerInner({
                 data-tour="add-component"
                 data-keep-label
               >
-                <Shapes /> {mobilePalette ? "Done" : <>Add<span className="max-sm:hidden"> component</span></>}
+                <Shapes /> Add<span className="max-sm:hidden"> component</span>
               </Button>
               <span className={cn("mx-1 h-5 w-px bg-border", !workspace && "lg:hidden")} aria-hidden="true" />
               {!workspace && !showPalette && (
@@ -900,7 +881,7 @@ function DesignerInner({
                 {whatIf && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-status-warn" aria-hidden="true" />}
               </Button>
               {!panelOpen && (
-                <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setShowPanel(true)} aria-label="Show side panel" title="Show traffic and results panel">
+                <Button variant="ghost" size="sm" onClick={() => setShowPanel(true)} aria-label="Show side panel" title={workspace ? "Show settings and score" : "Show traffic and results panel"}>
                   <SlidersHorizontal /> <span className="max-sm:hidden">Details</span>
                 </Button>
               )}
@@ -989,7 +970,6 @@ function DesignerInner({
       </div>
 
       {/* Inspector / results: a docked column on desktop (or a slim rail when hidden), a bottom sheet on small screens. */}
-      {!panelOpen && rail(workspace ? "settings" : "side panel", workspace ? "Tune" : "Details", SlidersHorizontal, () => setShowPanel(true), "right", "inspector-rail")}
       <aside
         hidden={!panelOpen}
         aria-label={workspace ? "Settings" : "Details"}

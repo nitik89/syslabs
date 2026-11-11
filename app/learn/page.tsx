@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpen, Clock } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { LESSONS } from "@/data/lessons";
 import { ROADMAP } from "@/data/roadmap";
-import { readingMinutes } from "@/data/lesson-deep";
 
 export const metadata: Metadata = { title: "Learn" };
 
@@ -41,9 +40,6 @@ export default function LearnPage() {
                     >
                       <BookOpen className="size-3.5 shrink-0" style={{ color: stage.color }} aria-hidden="true" />
                       <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium group-hover:text-brand-blue">{l.title}</span>
-                      <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground">
-                        <Clock className="size-3" aria-hidden="true" /> {readingMinutes(l)}m
-                      </span>
                     </Link>
                   </li>
                 ))}

@@ -185,12 +185,17 @@ export interface NodeConfig {
   cdnTtlSeconds?: number;
   /** NoSQL only: "strong" reads always see the latest write but cost about twice as much. Unset = "eventual". */
   consistency?: "eventual" | "strong";
+  /** Machine size per replica (scale up): multiplies capacity and price. Unset = "medium" (the catalog numbers). */
+  instanceSize?: InstanceSize;
+  /** App servers and serverless: give up on a request after this many ms (it fails fast instead of hanging). Unset = no limit. */
+  timeoutMs?: number;
 }
 
 export type IndexLevel = "none" | "standard" | "heavy";
 export type EvictionPolicy = "lru" | "lfu" | "fifo" | "random";
 export type WritePolicy = "cache-aside" | "write-through" | "write-back";
 export type LbAlgorithm = "round-robin" | "least-connections" | "ip-hash" | "random";
+export type InstanceSize = "small" | "medium" | "large" | "xlarge";
 
 export interface SimNode {
   id: string;

@@ -111,3 +111,28 @@ describe("more component settings", () => {
     expect(simulate(g("strong"), rt).nodes.db.utilization).toBeCloseTo(simulate(g(), rt).nodes.db.utilization * 2, 5);
   });
 });
+
+describe("app server settings", () => {
+  const g = (extra: Record<string, unknown>): SimGraph => ({
+    nodes: [node("c", "client"), node("app", "appServer", extra)],
+    edges: [{ id: "e1", source: "c", target: "app" }],
+  });
+  const t: TrafficProfile = { rps: 2500, readRatio: 0.9, hotKeyFraction: 0.5, staticFraction: 0 };
+
+  it("a large instance doubles capacity and costs a bit more than double", () => {
+    const medium = simulate(g({}), t);
+    const large = simulate(g({ instanceSize: "large" }), t);
+    expect(medium.errorRate).toBeGreaterThan(0.3);
+    expect(large.errorRate).toBeLessThan(medium.errorRate);
+    expect(large.nodes.app.utilization).toBeCloseTo(medium.nodes.app.utilization / 2, 5);
+    expect(large.monthlyCost).toBeCloseTo(medium.monthlyCost * 2.2, 0);
+  });
+
+  it("a timeout caps latency and turns slow requests into fast errors", () => {
+    const slow = simulate(g({}), { ...t, rps: 1400 });
+    const capped = simulate(g({ timeoutMs: 20 }), { ...t, rps: 1400 });
+    expect(slow.nodes.app.latencyMs).toBeGreaterThan(20);
+    expect(capped.nodes.app.latencyMs).toBeLessThanOrEqual(20);
+    expect(capped.errorRate).toBeGreaterThan(slow.errorRate);
+  });
+});

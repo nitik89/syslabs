@@ -1,4 +1,4 @@
-import { CATALOG, behaviorOf, nodeMonthlyCost, nodeSpec, type ComponentSpec } from "./catalog";
+import { CATALOG, behaviorOf, nodeMonthlyCost, nodeSpec, sizeOf, type ComponentSpec } from "./catalog";
 import {
   TRAFFIC_CLASSES,
   type BaseKind,
@@ -428,7 +428,9 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     let replicasUsed: number | undefined;
     if (!spec.unlimited) {
       // Databases: an instance can't run more queries at once than it has connections.
-      const perReplica = DB_KINDS.has(node.kind) ? Math.min(cfg.capacity, connectionLimit(cfg.maxConnections, cfg.latencyMs)) : cfg.capacity;
+      // Instance size (scale up) multiplies what one replica can do.
+      const sized = cfg.capacity * sizeOf(cfg).capacity;
+      const perReplica = DB_KINDS.has(node.kind) ? Math.min(sized, connectionLimit(cfg.maxConnections, cfg.latencyMs)) : sized;
       // Autoscaling: add replicas until each runs at about 70%, up to the maximum.
       if (AUTOSCALE_KINDS.has(node.kind) && (cfg.autoscaleMax ?? 0) > cfg.replicas && load > 0 && perReplica > 0) {
         const needed = Math.ceil(load / (perReplica * AUTOSCALE_TARGET));
@@ -444,8 +446,13 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
       }
     }
     const isFailed = failed.has(id);
-    const serveFrac = isFailed ? 0 : utilization <= 1 ? 1 : 1 / utilization;
-    const latency = cfg.latencyMs * idx.latency * (node.kind === "nosqlDb" && cfg.consistency === "strong" ? 1.25 : 1) * queueingFactor(utilization);
+    let serveFrac = isFailed ? 0 : utilization <= 1 ? 1 : 1 / utilization;
+    let latency = cfg.latencyMs * idx.latency * (node.kind === "nosqlDb" && cfg.consistency === "strong" ? 1.25 : 1) * queueingFactor(utilization);
+    // Request timeout: requests that would take longer fail fast; the rest finish within the limit.
+    if (cfg.timeoutMs !== undefined && latency > cfg.timeoutMs) {
+      serveFrac *= cfg.timeoutMs / latency;
+      latency = cfg.timeoutMs;
+    }
 
     let dropped = 0;
     let hitRatio: number | undefined;
@@ -965,6 +972,8 @@ export function sanitizeConfig(c: NodeConfig): NodeConfig {
     ...(c.autoscaleMax !== undefined && Number.isFinite(c.autoscaleMax) ? { autoscaleMax: Math.min(200, Math.max(1, Math.floor(c.autoscaleMax))) } : {}),
     ...(c.cdnTtlSeconds !== undefined && Number.isFinite(c.cdnTtlSeconds) ? { cdnTtlSeconds: Math.max(1, c.cdnTtlSeconds) } : {}),
     ...(c.consistency === "eventual" || c.consistency === "strong" ? { consistency: c.consistency } : {}),
+    ...(c.instanceSize === "small" || c.instanceSize === "medium" || c.instanceSize === "large" || c.instanceSize === "xlarge" ? { instanceSize: c.instanceSize } : {}),
+    ...(c.timeoutMs !== undefined && Number.isFinite(c.timeoutMs) ? { timeoutMs: Math.max(1, c.timeoutMs) } : {}),
   };
 }
 

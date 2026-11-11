@@ -1,4 +1,4 @@
-import type { BaseKind, NodeConfig, NodeKind } from "./types";
+import type { BaseKind, InstanceSize, NodeConfig, NodeKind } from "./types";
 
 export type Vendor = "AWS" | "GCP" | "Open source" | "SaaS";
 
@@ -522,9 +522,18 @@ export function lockGraph<G extends { nodes: { kind: NodeKind; config: NodeConfi
  * default size, and the price scales with the square root of size, so each doubling of memory costs
  * about 41% more (8 GB → 32 GB doubles the price). Sizes below 1 GB are priced as 1 GB.
  */
+/** Instance sizes (scale up): capacity and price multipliers. Bigger machines cost a little more per unit of capacity. */
+export const INSTANCE_SIZES: Record<InstanceSize, { capacity: number; cost: number; label: string }> = {
+  small: { capacity: 0.5, cost: 0.5, label: "Small" },
+  medium: { capacity: 1, cost: 1, label: "Medium" },
+  large: { capacity: 2, cost: 2.2, label: "Large" },
+  xlarge: { capacity: 4, cost: 4.8, label: "X-large" },
+};
+export const sizeOf = (c: NodeConfig) => INSTANCE_SIZES[c.instanceSize ?? "medium"] ?? INSTANCE_SIZES.medium;
+
 export function replicaCost(n: { kind: NodeKind; config: NodeConfig }): number {
   const c = n.config;
-  const cost = Number.isFinite(c.costPerReplica) && c.costPerReplica > 0 ? c.costPerReplica : 0;
+  const cost = (Number.isFinite(c.costPerReplica) && c.costPerReplica > 0 ? c.costPerReplica : 0) * sizeOf(c).cost;
   if (nodeSpec(n).behavior !== "cache") return cost;
   const base = CATALOG[n.kind].defaults.cacheSizeGb ?? BASE.cache.defaults.cacheSizeGb ?? 8;
   const size = Number.isFinite(c.cacheSizeGb) ? Math.max(1, c.cacheSizeGb ?? base) : base;

@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { ArrowRight, Link2, Lock, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatioFor, nodeMonthlyCost, nodeSpec, replicaCost, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
+import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatioFor, nodeMonthlyCost, nodeSpec, replicaCost, sizeOf, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
 import { fmtPct, fmtUsd } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,7 +191,7 @@ export function NodeInspector({
           Monthly: <span className="font-mono text-foreground">{fmtUsd(nodeMonthlyCost({ kind: node.data.kind, config: cfg }))}</span>
           {hasCapacity && (
             <>
-              {" "}· Total capacity: <span className="font-mono text-foreground">{(cfg.capacity * cfg.replicas).toLocaleString()} rps</span>
+              {" "}· Total capacity: <span className="font-mono text-foreground">{Math.round(cfg.capacity * sizeOf(cfg).capacity * cfg.replicas).toLocaleString()} rps</span>
             </>
           )}
         </p>

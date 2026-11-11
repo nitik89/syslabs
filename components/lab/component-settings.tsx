@@ -5,12 +5,15 @@ import { BookOpen, ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AUTOSCALE_KINDS,
+  INSTANCE_SIZES,
+  sizeOf,
   cacheHitRatioFor,
   cdnHitRatio,
   connectionLimit,
   type BaseKind,
   type EvictionPolicy,
   type IndexLevel,
+  type InstanceSize,
   type LbAlgorithm,
   type NodeConfig,
   type TrafficProfile,
@@ -311,6 +314,82 @@ export function ComponentSettings({
               : "On: every few seconds it asks each server 'are you OK?' and stops sending traffic to one that doesn't answer."
           }
         />
+      </Section>,
+    );
+  }
+
+  // Scale up: a bigger (or smaller) machine for every replica.
+  if (AUTOSCALE_KINDS.has(behavior) || isDb || behavior === "cache") {
+    const size = sizeOf(cfg);
+    sections.push(
+      <Section key="size" title="Machine size (scale up)">
+        <Choice
+          label="Instance size"
+          value={cfg.instanceSize ?? "medium"}
+          options={(Object.keys(INSTANCE_SIZES) as InstanceSize[]).map((k) => ({
+            value: k,
+            label: `${INSTANCE_SIZES[k].label}${k === "medium" ? " (default)" : ""}: ${INSTANCE_SIZES[k].capacity}× capacity, ${INSTANCE_SIZES[k].cost}× price`,
+            detail:
+              k === "small"
+                ? "Half the power at half the price. Fine for light traffic, but less headroom for spikes."
+                : k === "medium"
+                  ? "The standard machine for this component."
+                  : k === "large"
+                    ? "Twice the power for a bit more than twice the price. Scaling up is simple, but one big machine is still one machine."
+                    : "Four times the power. Useful for a database that can't easily be split; past this you have to scale out (more copies or shards).",
+          }))}
+          onChange={(v) => onChange({ instanceSize: v === "medium" ? undefined : v })}
+        />
+        <Readout>
+          Each copy handles about <span className="font-semibold">{Math.round(cfg.capacity * size.capacity).toLocaleString("en-US")} req/s</span>; with {cfg.replicas}{" "}
+          {cfg.replicas === 1 ? "copy" : "copies"} that&apos;s {Math.round(cfg.capacity * size.capacity * cfg.replicas).toLocaleString("en-US")} req/s.{" "}
+          {behavior === "sqlDb" && "Read replicas add reads only: writes still go to one primary, so a bigger primary is how you add write room."}
+          {AUTOSCALE_KINDS.has(behavior) && "Scale out (more replicas) also survives a machine dying; scale up doesn't."}
+        </Readout>
+      </Section>,
+    );
+  }
+
+  if (behavior === "appServer" || behavior === "serverless") {
+    const v = cfg.timeoutMs === undefined ? "none" : String(cfg.timeoutMs);
+    sections.push(
+      <Section key="timeout" title="Request handling">
+        <Choice
+          label="Request timeout"
+          value={["none", "100", "500", "2000", "10000"].includes(v) ? v : "none"}
+          options={[
+            { value: "none", label: "No limit (default)", detail: "Requests wait as long as it takes. When the server is overloaded, users stare at a spinner for seconds." },
+            { value: "100", label: "100 ms", detail: "Very strict: anything slower fails at once. Good for internal calls where a quick fallback exists." },
+            { value: "500", label: "500 ms", detail: "Common for user-facing APIs: slow requests fail fast so the user can retry instead of waiting." },
+            { value: "2000", label: "2 seconds", detail: "Forgiving: only very slow requests fail." },
+            { value: "10000", label: "10 seconds", detail: "Long jobs like uploads or reports." },
+          ]}
+          onChange={(x) => onChange({ timeoutMs: x === "none" ? undefined : Number(x) })}
+        />
+        <Readout>
+          A timeout turns a slow request into a fast error. It doesn&apos;t add capacity, but it stops overloaded servers from holding users for seconds, and frees the server to
+          take new work.
+        </Readout>
+        <div className="space-y-1.5 text-[12px] leading-relaxed text-muted-foreground">
+          <p className="font-semibold text-foreground">Good habits for app servers</p>
+          <ul className="list-disc space-y-1 pl-4">
+            <li>
+              <span className="text-foreground">Stateless:</span> keep sessions in a cache or database, not in server memory, so any copy can serve any user.
+            </li>
+            <li>
+              <span className="text-foreground">Health endpoint:</span> a /health URL the load balancer checks every few seconds.
+            </li>
+            <li>
+              <span className="text-foreground">Graceful shutdown:</span> finish in-flight requests before stopping during a deploy.
+            </li>
+            <li>
+              <span className="text-foreground">Retries with backoff:</span> retry failed calls after a short, growing wait, never instantly, or a slowdown becomes a retry storm.
+            </li>
+            <li>
+              <span className="text-foreground">Connection pooling:</span> reuse a small pool of database connections instead of opening one per request.
+            </li>
+          </ul>
+        </div>
       </Section>,
     );
   }

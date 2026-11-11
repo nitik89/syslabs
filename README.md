@@ -1,103 +1,167 @@
 # SysLab
 
-A personal, interactive system design lab. Drag components onto a canvas, wire them up, and run a **deterministic simulator** that shows load, latency, errors, bottlenecks, single points of failure and cost. Seven guided challenges score your designs from 0 to 100.
+**Learn system design by breaking things.** Draw how an app is built (load balancers, servers, caches, databases, queues), push realistic traffic through it, watch exactly where it fails, and fix it until every test passes, including the hidden ones.
 
-Everything runs locally in your browser. There's no backend and no account. **Every metric is simulated** by a simple, documented model, not measured on real infrastructure.
+**Live:** https://syslab-blond.vercel.app · Free · No sign-up needed (sign in to sync progress and join the leaderboard)
 
-## Run it
+![The SysLab landing page: a live 3D scene of a database melting down under traffic](docs/screenshots/landing.png)
 
-Requires Node 22+ (developed on Node 24).
+> Every number in SysLab (latency, errors, cost) comes from a documented, deterministic **model**, not from real infrastructure. It's built for learning trade-offs, not for benchmarking hardware. See [docs/simulator.md](docs/simulator.md).
+
+---
+
+## What's inside
+
+| | |
+| --- | --- |
+| **52 problems** | 16 *challenges* (fix a broken system that's failing in production) and 36 *build* problems (design a product from scratch: shopping app, chat, food delivery, digital wallet, short-video feed…). |
+| **Tests on every problem** | Visible tests on every run, plus two hidden tests on Submit: a 30% viral spike and a cache restart. |
+| **30 lessons** | Design foundations with an animated diagram, a deep dive, a worked example, trade-offs, common mistakes and interview tips. |
+| **8 mock interviews** | 45 minutes, timed: requirements, estimates, a design, and a twist halfway through. Scorecard against the E4/E5/E6 bar. |
+| **73 flashcards** | Spaced repetition (1, 3, 7, 16, 35 days). |
+| **Roadmap** | Six stages from foundations to advanced, each ending in a checkpoint problem. |
+| **110+ components** | 26 building blocks and 86 real services (AWS, Redis, Kafka, PostgreSQL, Claude…), each with plain-language explanations. |
+| **Guided tours** | A site tour on the first visit, a workspace tour on the first problem, and *Solve it with me*: a real problem solved live on the canvas. |
+| **Community** | Accounts (Google, GitHub, email), streaks, XP, public profiles, a leaderboard of server-verified scores, and shareable designs. |
+| **Light and dark themes**, phones and tablets | |
+
+---
+
+## A tour in pictures
+
+### 1. Start with the problem, see it failing
+
+Fix-it challenges open with the broken system already running. The pager alert sits above the problem; components turn amber or red under load and the console shows which tests fail and why.
+
+![Workspace: the problem on the left, the failing system on the canvas, test results and charts in the console](docs/screenshots/workspace.png)
+
+### 2. Add components, connect them, tune them
+
+**Add component** opens a searchable drawer of 110+ components. Drag from a component's right dot to another's left dot to connect them. Double-click a component for its settings.
+
+![The components drawer over the canvas](docs/screenshots/components-drawer.png)
+
+Every component explains itself **in plain words** (what it is, an everyday comparison, when to use it, terms, what to watch out for) and has settings that really change the simulation: cache eviction, TTL and write policy; database connection pools, indexes and consistency; load-balancer algorithms and health checks; autoscaling; machine size; request timeouts; CDN TTL.
+
+| Plain-words guide | Settings with live readouts |
+| --- | --- |
+| ![The plain-words guide for a cache](docs/screenshots/component-guide.png) | ![Cache policies and machine size, with the live hit ratio](docs/screenshots/component-settings.png) |
+
+### 3. Change the traffic: from a quiet night to going viral
+
+One click switches the load (**Quiet night, Normal day, Lunch rush, Launch day, Gone viral**). The **Traffic** panel sets reads, writes and static files per second, hot keys, contended writes and AI share. On problem pages it's a *what-if*: Submit always grades against the brief.
+
+![The Traffic panel with reads, writes and presets](docs/screenshots/traffic-panel.png)
+
+### 4. Run, read the results, see it in 3D
+
+**Run** pushes 60 seconds of traffic through your design: p50/p95/p99 latency, errors, cost, cache hits, the busiest component, and what to fix next. The **3D** tab shows your own design as towers (height = load, colour = health).
+
+![The run console in 3D](docs/screenshots/run-3d.png)
+
+### 5. Never stuck: tours, a guided solve, articles
+
+The workspace tour shows every gesture with a small animation and a concrete example. **Solve it with me** builds a real fix on the canvas: diagnose, add a cache, run (still failing), make it bigger, run again (green). Then you press Submit.
+
+| Workspace tour | Guided solve |
+| --- | --- |
+| ![Tour step: adding a component, with an animation](docs/screenshots/workspace-tour.png) | ![Guided solve: the database back under its limit](docs/screenshots/guided-solve.png) |
+
+Each problem's **Articles** tab links the Learn lessons it relies on.
+
+### 6. Learn the ideas
+
+| Lessons, grouped by stage | A lesson: diagram, deep dive, worked example |
+| --- | --- |
+| ![The Learn page](docs/screenshots/learn.png) | ![The caching lesson](docs/screenshots/lesson.png) |
+
+### 7. Practise
+
+| Challenges | Build problems |
+| --- | --- |
+| ![Challenge cards](docs/screenshots/challenges.png) | ![Build problem cards with categories](docs/screenshots/build.png) |
+
+| Roadmap | Mock interviews | Flashcards |
+| --- | --- | --- |
+| ![Roadmap](docs/screenshots/roadmap.png) | ![Mock interviews](docs/screenshots/interviews.png) | ![Flashcards](docs/screenshots/flashcards.png) |
+
+### 8. Light theme, phones and tablets
+
+![Light theme: a solved Food Delivery design](docs/screenshots/light-theme.png)
+
+| Home | Learn | Workspace |
+| --- | --- | --- |
+| <img src="docs/screenshots/mobile-home.png" alt="Phone: home" width="260"> | <img src="docs/screenshots/mobile-learn.png" alt="Phone: learn" width="260"> | <img src="docs/screenshots/mobile-workspace.png" alt="Phone: workspace" width="260"> |
+
+On phones the workspace switches between **Problem / Design / Results**; tablets get an icon rail; touch screens get bigger connection handles.
+
+### First visit
+
+![The welcome tour](docs/screenshots/site-tour.png)
+
+---
+
+## Run it locally
+
+Requires **Node 22+** (developed on Node 24).
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000
+npm run dev            # http://localhost:3000
 ```
 
-Other scripts:
+Without Supabase settings the app runs in **guest mode**: everything works and saves in the browser; sign-in, sharing and the leaderboard are hidden. To enable accounts, see [docs/accounts-setup.md](docs/accounts-setup.md).
 
 | Command | What it does |
 | --- | --- |
-| `npm test` | Vitest: simulator, scoring, challenge data, storage, history (65 tests) |
-| `npm run e2e` | Playwright browser smoke tests using your installed Google Chrome (reuses a running dev server) |
+| `npm run dev` | Development server |
+| `npm test` | Unit tests (Vitest): simulator, scoring, every problem's reference solution, lessons, grading, storage (288 tests) |
+| `npm run e2e` | Browser tests (Playwright, your installed Chrome) against a production build (13 tests). `E2E_PORT=3000 npm run e2e` reuses a running dev server instead |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run build` / `npm start` | Production build / serve it |
 
-## Using it
+---
 
-- **Lab** (`/lab`): free-form canvas. Drag a component from the palette, or focus it and press Enter to drop it at the center. Connect nodes by dragging from a node's right handle to another node's left handle, or with **Send traffic to** in the properties panel (keyboard friendly). Press **Run simulation** (or ⌘/Ctrl + Enter). Nodes turn green, amber or red, and edges animate in proportion to traffic. **Undo/redo** with ⌘Z / ⇧⌘Z or the toolbar; Reset and Load are undoable too. Your canvas autosaves as a draft; **Save** keeps named designs.
-- **Challenges** (`/challenges`): fixed traffic, a limited palette, objectives, 3 progressive hints, and an explanation. Each run is scored and recorded.
-- **Progress** (`/progress`): XP, current and longest streak, a 12-week activity grid, best scores, and saved designs (open them in the Lab or their challenge). **Backup** exports everything to a JSON file and imports it with Merge or Replace.
-- **Dashboard** (`/`): your next unpassed challenge plus a summary.
+## How it's built
 
-## How the simulator works (`lib/sim`)
-
-Pure TypeScript: no React, no randomness, no I/O. The same input always gives the same output (this is tested).
-
-- **Traffic** is split into reads, writes and static assets, from the profile (RPS, read ratio, hot-key fraction, static share), and spread evenly across Client nodes.
-- **Routing:** load balancers and API gateways split each traffic type evenly across downstream nodes that accept it. App servers send reads to a **cache**, then **stores**, then other compute. Writes go to a **queue**, then **databases**, then other stores. CDNs absorb static traffic. An app server with no downstream serves requests itself. If its preferred tier is down it falls back to the next tier (cache down → DB), and if every tier is down the traffic fails.
-- **Cache hit ratio** = `(hot × 0.95 + cold × 0.3) × (1 − e^(−GB/6))`, capped at 98%. A cache with no outgoing link sends misses to the databases its parent uses (cache-aside).
-- **Queues** acknowledge writes immediately and deliver them asynchronously. If downstream can't keep up, the excess shows up as **backlog**, not client errors.
-- **Capacity:** `capacity × replicas`. **SQL replicas are read replicas**: writes are limited to the primary.
-- **Overload:** a node at utilization `u > 1` serves `1/u` of its traffic and drops the rest. Latency is multiplied by a queueing factor: flat to 50% utilization, rising to 5× at 100%.
-- **Single points of failure:** each single-replica component is failed in turn (load balancers route around it). If at least 10% of traffic then has no path, it's a SPOF. CDNs, object storage, clients and monitoring are treated as inherently redundant.
-- **Health:** critical if more than 5% of requests fail; degraded if more than 0.5% fail, there's backlog, or any bottleneck exists.
-
-## Challenges (`data/challenges/*.json`)
-
-| # | Challenge | Level | Teaches |
-| --- | --- | --- | --- |
-| 1 | The Overloaded Database | Easy | Cache-aside and cache sizing |
-| 2 | One Server to Rule Them All | Easy | Single points of failure, N+1 redundancy |
-| 3 | Design a URL Shortener | Medium | End-to-end design from a blank canvas |
-| 4 | Cloud Bill Shock | Easy | Right-sizing an over-provisioned stack |
-| 5 | Flash Sale Checkout | Medium | SQL's write ceiling; queues vs backlog |
-| 6 | The Image-Heavy Homepage | Medium | CDN offload, headroom, the next bottleneck |
-| 7 | Game Day: Live Scoreboard | Hard | 50k rps from scratch, trading latency against cost |
-
-Each file defines the scenario, objectives (`metric op value`), the starting graph, fixed traffic, allowed components, 3 hints, scoring weights, a latency target, a cost budget, and the explanation. To add one, drop in a JSON file and list it in `data/challenges/index.ts`. `challenges.test.ts` validates the shape, proves that each starting design fails and a reference solution passes, and pins the lesson each challenge claims to teach.
-
-**Score** (`lib/challenges/score.ts`) is a weighted average of four 0–100 categories, all computed from simulator output:
-
-- **Performance:** error rate (60%) and latency against the target (40%)
-- **Reliability:** penalties for SPOFs, backlog, components at 80% utilization or more, and error rate above 1%
-- **Cost:** full points within budget, dropping to zero at 2× budget
-- **Architecture:** penalties for design issues, unroutable traffic, missing monitoring, disallowed components, and components that receive no traffic
-
-**Pass** means every objective is met. **XP** is 1 per best-score point plus 50 on first pass; only improvements earn more.
-
-## Storage (`lib/storage`)
-
-Backups (`lib/storage/backup.ts`) are validated before import. Merging keeps the newest copy of each design and the best result per challenge, and recomputes XP so nothing is double-counted.
-
-The app talks only to an async `StorageDriver` (`get`, `set`, `remove`) through a small repository (designs, drafts, progress). `getRepo()` in `lib/storage/index.ts` wires in the localStorage driver. To move to Supabase, write one driver that implements the same three methods and swap it there. Keys are namespaced `syslab:v1:*`.
-
-## Folder structure
+| Layer | Technology |
+| --- | --- |
+| App | **Next.js 16** (App Router, Cache Components), **React 19**, TypeScript |
+| UI | Tailwind CSS v4, shadcn/ui (Base UI), lucide icons, Recharts |
+| Canvas | React Flow (`@xyflow/react`) |
+| 3D | three.js, loaded only when a scene is on screen (phones and low-power devices get 2D) |
+| Simulator | Pure TypeScript in `lib/sim`: deterministic, no I/O, runs in the browser and on the server |
+| Accounts and data | **Supabase** (Postgres + Auth) with row-level security |
+| Hosting | **Vercel** (pages at the edge, `/api/grade` as a serverless function) |
 
 ```
-app/                 routes: / (dashboard), /challenges, /challenges/[id], /lab, /progress
+app/                 routes: /, /learn, /challenges, /build, /lab, /interview, /api/grade, …
 components/
-  shell/             sidebar, mobile nav, logo, page header
-  lab/               canvas (designer), nodes, edges, palette, inspector, metrics, save/load/reset
-  challenges/        challenge list, challenge page, score card
-  progress/          dashboard + progress views, activity grid
-  ui/                shadcn/ui (Base UI) primitives
+  lab/               canvas, component settings, traffic panel, run console
+  challenges/        problem workspace, problem panel, tours, guided solve
+  learn/ landing/    lesson diagrams, 3D scenes
+  shell/             navigation, theme, site tour
+data/                problems (JSON), lessons, diagrams, deep dives, flashcards, roadmap, component guide
 lib/
-  history.ts         undo/redo core (pure, tested)
-  sim/               deterministic simulation engine + tests
-  challenges/        challenge types + scoring
-  storage/           storage driver + repository + tests
-data/
-  challenges/        challenge JSON + loader + tests
-  lab-starter.ts     the Lab's starting design
-e2e/                 Playwright smoke tests
+  sim/               the simulator: engine, catalog of components, 60-second timeline
+  challenges/        scoring, test cases, hidden tests, articles
+  grading/           server-side grading for verified scores
+  storage/           local and Supabase storage behind one interface
+supabase/            SQL migrations and branded auth email templates
+e2e/                 Playwright browser tests
+docs/                guides (below) and screenshots
 ```
 
-## Unfinished and known limitations
+## Documentation
 
-- **No Supabase driver yet.** The interface is ready, but only localStorage is implemented, so data lives in one browser. Use **Backup** to export it or move it to another browser.
-- **Model simplifications:** no network partitions, regions or tail latency (only averages). Load balancers always split evenly (no weighted or least-connections routing). Writes don't invalidate the cache. Queue consumers drain at the arrival rate, so bursts aren't modelled. That's why a queue is optional in Flash Sale Checkout. Monitoring affects only the challenge score, not the simulation.
-- **Touch devices:** dragging from the palette uses HTML5 drag-and-drop, which doesn't work on touch screens. Tapping a palette item to add it at the center does. The canvas is usable on phones but cramped.
-- **Canvas editing:** no copy/paste and no multi-select property editing.
-- **Unknown challenge URLs** show the not-found page, but return HTTP 200 instead of 404, because the page streams (Next.js partial prerendering).
-- **Smoke tests only:** `npm run e2e` covers the main flows (pages, Lab, a challenge pass, backup), not every interaction.
+| Guide | For |
+| --- | --- |
+| [docs/user-guide.md](docs/user-guide.md) | Learners: how to use every part of SysLab, step by step |
+| [docs/components.md](docs/components.md) | Every building block explained in plain words |
+| [docs/simulator.md](docs/simulator.md) | How the simulation works: routing, capacity, caching, settings, scoring, hidden tests |
+| [docs/architecture.md](docs/architecture.md) | Developers: code layout, data flow, storage, accounts, grading, tours, theming |
+| [docs/content-authoring.md](docs/content-authoring.md) | Adding problems, lessons, diagrams and flashcards (and how they're validated) |
+| [docs/deployment.md](docs/deployment.md) | Deploying to Vercel with Supabase: env vars, migrations, emails |
+| [docs/testing.md](docs/testing.md) | What the tests cover and how to run them |
+| [docs/accounts-setup.md](docs/accounts-setup.md) | Supabase project, sign-in providers, URL configuration, email templates |

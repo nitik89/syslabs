@@ -13,8 +13,11 @@ import { Button } from "@/components/ui/button";
 import { fmtLatency } from "@/components/lab/run-console";
 import { HiddenTestCards, TestCaseCard } from "./test-results";
 import { HIDDEN_TESTS } from "@/lib/challenges/hidden";
+import Link from "next/link";
+import { LESSONS } from "@/data/lessons";
+import { relatedLessons } from "@/lib/challenges/articles";
 
-export type ProblemTab = "description" | "hints" | "editorial" | "submissions";
+export type ProblemTab = "description" | "articles" | "hints" | "editorial" | "submissions";
 
 function Collapsible({ title, count, children, defaultOpen = true }: { title: string; count?: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -54,7 +57,7 @@ export function ProblemPanel({
   onRevealHint,
   editorialOpen,
   onRevealEditorial,
-  onShowPage,
+  pager,
 }: {
   challenge: Challenge;
   tab: ProblemTab;
@@ -67,13 +70,16 @@ export function ProblemPanel({
   editorialOpen: boolean;
   onRevealEditorial: () => void;
   /** Re-open the on-call page (fix challenges with an incident). */
-  onShowPage?: () => void;
+  /** Fix challenges: the alert that paged you, shown above the problem. */
+  pager?: string;
 }) {
   const req = challenge.requirements;
   const budget = challenge.objectives.find((o) => o.metric === "monthlyCost")?.value;
   const history = record?.history ?? [];
+  const articles = relatedLessons(challenge.id);
   const tabs: Array<{ id: ProblemTab; label: string }> = [
     { id: "description", label: "Description" },
+    { id: "articles", label: `Articles (${articles.length})` },
     { id: "hints", label: `Hints (${challenge.hints.length})` },
     { id: "editorial", label: "Editorial" },
     { id: "submissions", label: `Submissions${history.length ? ` (${history.length})` : ""}` },
@@ -87,6 +93,7 @@ export function ProblemPanel({
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
+            data-tour={t.id === "articles" ? "articles-tab" : undefined}
             onClick={() => onTabChange(t.id)}
             className={cn(
               "relative h-10 shrink-0 px-2.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground",
@@ -101,6 +108,11 @@ export function ProblemPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-4">
         {tab === "description" && (
           <>
+            {pager && (
+              <p className="mt-4 flex items-start gap-2 rounded-lg border border-status-crit/30 bg-status-crit/10 px-3 py-2 font-mono text-[12px] leading-snug text-status-crit">
+                <Siren className="mt-px size-3.5 shrink-0" aria-hidden="true" /> {pager}
+              </p>
+            )}
             <Collapsible title="Problem">
               <div className="space-y-2.5">
                 {challenge.scenario.map((p) => (
@@ -108,11 +120,6 @@ export function ProblemPanel({
                     {p}
                   </p>
                 ))}
-                {onShowPage && (
-                  <Button variant="outline" size="xs" onClick={onShowPage}>
-                    <Siren /> Show the on-call page
-                  </Button>
-                )}
               </div>
             </Collapsible>
             {req && (
@@ -163,6 +170,35 @@ export function ProblemPanel({
               </Collapsible>
             )}
           </>
+        )}
+
+        {tab === "articles" && (
+          <div className="space-y-3 py-4">
+            <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+              Short lessons on the ideas this problem tests, each with a diagram and a worked example. They open in a new tab, so your design stays here.
+            </p>
+            <ul className="space-y-2">
+              {articles.map((l, i) => (
+                <li key={l.id}>
+                  <Link
+                    href={`/learn/${l.id}`}
+                    target="_blank"
+                    className="group block rounded-xl border border-border bg-white/[0.02] p-3 outline-none transition-colors hover:border-brand-blue/40 focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <span className="flex items-center gap-2">
+                      <BookOpen className="size-3.5 shrink-0 text-brand-blue" aria-hidden="true" />
+                      <span className="flex-1 text-[13.5px] font-semibold group-hover:text-brand-blue">{l.title}</span>
+                      {i === 0 && LESSONS.find((x) => x.id === l.id)?.practice === challenge.id && (
+                        <span className="rounded bg-brand-blue/15 px-1.5 py-px font-mono text-[10px] font-semibold text-brand-blue">best match</span>
+                      )}
+                    </span>
+                    <span className="mt-1 block text-[12.5px] leading-relaxed text-muted-foreground">{l.summary}</span>
+                    <span className="mt-1.5 block font-mono text-[10.5px] text-muted-foreground/80">{l.minutes} min read ↗</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {tab === "hints" && (

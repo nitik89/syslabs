@@ -500,9 +500,11 @@ function DesignerInner({
     const id = requestAnimationFrame(() => {
       autoRan.current = true;
       void run();
+      // Problem pages: the canvas shows the live system; the console stays a slim bar until you press Run.
+      if (header) setConsoleCollapsed(true);
     });
     return () => cancelAnimationFrame(id);
-  }, [autoRun, run]);
+  }, [autoRun, run, header]);
 
   // Replay: one simulated second every 90 ms.
   useEffect(() => {
@@ -696,7 +698,7 @@ function DesignerInner({
       {workspace && paletteDrawer}
       <TrafficPanel open={trafficOpen} onClose={() => setTrafficOpen(false)} traffic={traffic} onChange={changeTraffic} base={briefTraffic} />
       {/* Canvas */}
-      <div ref={wrapperRef} className="relative min-h-0 flex-1 lg:min-h-[380px]" onDragOver={onDragOver} onDrop={onDrop}>
+      <div ref={wrapperRef} data-tour="canvas" className="relative min-h-0 flex-1 lg:min-h-[380px]" onDragOver={onDragOver} onDrop={onDrop}>
         <RenameNodeContext.Provider value={renameNode}>
         <ReactFlow<SysNode, FlowEdge>
           nodes={displayNodes}
@@ -759,6 +761,7 @@ function DesignerInner({
                 onClick={() => setMobilePalette((o) => !o)}
                 aria-expanded={mobilePalette}
                 aria-label={mobilePalette ? "Close components" : "Add components"}
+                data-tour="add-component"
               >
                 <Shapes /> {mobilePalette ? "Done" : <>Add<span className="max-sm:hidden"> component</span></>}
               </Button>
@@ -812,6 +815,7 @@ function DesignerInner({
                 }}
                 aria-expanded={trafficOpen}
                 aria-label="Traffic"
+                data-tour="traffic"
                 title={whatIf ? "Traffic: what-if load (Submit uses the brief)" : "Traffic: reads, writes and more"}
                 className="relative"
               >

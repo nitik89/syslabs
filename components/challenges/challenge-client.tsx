@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Loader2, PanelLeft, Play, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Compass, Eye, Loader2, PanelLeft, Play, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
@@ -18,12 +18,12 @@ import { ResizeHandle, usePanelWidth } from "@/components/lab/resize-handle";
 import { ShareButton } from "@/components/lab/share-button";
 import { LoadDesignButton, ResetButton, SaveDesignButton, type CurrentDesign } from "@/components/lab/design-actions";
 import { ObjectiveList, ScoreCard } from "./score-card";
-import { OnCallCard } from "./on-call";
 import { StartGuide, TestsPreview } from "./start-guide";
 import { ProblemPanel, type ProblemTab } from "./problem-panel";
 import { PassBadge, TestStatusLines } from "./test-results";
 import { cn } from "@/lib/utils";
 import { sameGraph } from "@/lib/grading/grade";
+import { TOUR_DONE_KEY, WorkspaceTour } from "./workspace-tour";
 import { verifySubmission, type Verification } from "@/lib/grading/client";
 
 type Phase = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; doc: DesignDoc; key: number };
@@ -59,17 +59,8 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
     cost: number;
   } | null>(null);
   const incident = challenge.mode === "build" ? undefined : INCIDENTS[challenge.id];
-  // The on-call page opens by itself only on the first visit to an unsolved challenge.
-  const [pageOpen, setPageOpen] = useState(false);
-  const seenKey = `syslab:oncall-seen:${challenge.id}`;
-  const closePage = useCallback(() => {
-    setPageOpen(false);
-    try {
-      localStorage.setItem(seenKey, "1");
-    } catch {
-      /* private mode: it will just show again next time */
-    }
-  }, [seenKey]);
+  // Guided tour: opens by itself the first time someone lands on any problem, then from the Tour button.
+  const [tourOpen, setTourOpen] = useState(false);
   const tests = useMemo(() => testCasesFor(challenge), [challenge]);
   const latencyObjective = challenge.objectives.find((o) => o.metric === "avgLatencyMs");
   const budget = challenge.objectives.find((o) => o.metric === "monthlyCost")?.value;
@@ -96,14 +87,14 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
         const doc = base ? { graph: base.graph, positions: base.positions, traffic: { ...challenge.traffic } } : startingDoc(challenge);
         if (saved) setCurrent({ id: saved.id, name: saved.name });
         setRecord(progress.challenges[challenge.id] ?? null);
-        let seen = false;
-        try {
-          seen = localStorage.getItem(`syslab:oncall-seen:${challenge.id}`) === "1";
-        } catch {
-          /* ignore */
-        }
-        setPageOpen(Boolean(INCIDENTS[challenge.id]) && challenge.mode !== "build" && !seen && !progress.challenges[challenge.id]?.passed);
         setState({ phase: "ready", doc, key: Date.now() });
+        let toured = false;
+        try {
+          toured = localStorage.getItem(TOUR_DONE_KEY) === "1";
+        } catch {
+          /* private mode */
+        }
+        if (!toured) setTimeout(() => setTourOpen(true), 600);
       },
       (e: unknown) => {
         if (!cancelled) setState({ phase: "error", message: e instanceof Error ? e.message : "Could not read saved data." });
@@ -195,6 +186,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
 
   return (
     <div className="flex h-[calc(100dvh-6.5rem)] flex-none flex-col overflow-hidden md:h-[calc(100dvh-3rem)]">
+      <WorkspaceTour open={tourOpen} onClose={() => setTourOpen(false)} />
       {state.phase === "loading" && (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
           <Loader2 className="size-4 animate-spin" /> Loading {noun}…
@@ -227,7 +219,8 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
           specsLocked
           brief={challenge.requirements}
           onDocChange={saveDraft}
-          autoRun={pageOpen}
+          // Fix challenges: run the broken system once on load, so it's visibly failing on the canvas.
+          autoRun={Boolean(incident)}
           latencyTarget={latencyObjective ? { ms: latencyObjective.value, label: `target avg ≤ ${latencyObjective.value} ms` } : undefined}
           header={(ctx) => {
             const overBudget = budget !== undefined && ctx.monthlyCost > budget;
@@ -236,6 +229,9 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                 <div className="flex flex-wrap items-center gap-2 px-3 py-2">
                   <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setLeftOpen((o) => !o)} aria-pressed={leftOpen} title="Show or hide the problem panel">
                     <PanelLeft /> Layout
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setTourOpen(true)} title="A quick walkthrough of this page">
+                    <Compass /> <span className="max-sm:hidden">Tour</span>
                   </Button>
                   <Link href={basePath} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label={isBuild ? "Back to build problems" : "Back to challenges"}>
                     <ArrowLeft />
@@ -294,11 +290,12 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                         </option>
                       ))}
                     </select>
-                    <Button variant="outline" size="sm" onClick={() => ctx.run()} title="Run 60 seconds of traffic (⌘↵)">
+                    <Button variant="outline" size="sm" data-tour="run" onClick={() => ctx.run()} title="Run 60 seconds of traffic (⌘↵)">
                       <Play /> Run
                     </Button>
                     <Button
                       size="sm"
+                      data-tour="submit"
                       onClick={() => {
                         const r = ctx.run();
                         if (!r) return;
@@ -333,6 +330,7 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
             (
               <aside
                 ref={problemRef}
+                data-tour="problem"
                 className={cn(
                   "relative h-full shrink-0 overflow-hidden bg-sidebar/40 lg:h-auto lg:w-[var(--problem-w)] lg:overflow-visible lg:border-r lg:border-border",
                   !leftOpen && "lg:hidden",
@@ -357,16 +355,14 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                   onRevealHint={() => setHintsShown((n) => n + 1)}
                   editorialOpen={editorialOpen}
                   onRevealEditorial={() => setEditorialOpen(true)}
-                  onShowPage={incident ? () => setPageOpen(true) : undefined}
+                  pager={incident?.page}
                 />
                 </div>
               </aside>
             )
           }
           canvasOverlay={({ getDoc, result }) =>
-            incident && pageOpen ? (
-              <OnCallCard id={challenge.id} incident={incident} intro={challenge.summary} onClose={closePage} />
-            ) : isBuild && !result && getDoc().graph.nodes.length <= 1 ? (
+            isBuild && !result && getDoc().graph.nodes.length <= 1 ? (
               <StartGuide challenge={challenge} />
             ) : null
           }

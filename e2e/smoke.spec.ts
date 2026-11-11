@@ -8,6 +8,10 @@ import { expect, test, type Page } from "@playwright/test";
  */
 const DEV_ONLY_NOISE = /Failed to execute 'measure' on 'Performance': .* cannot have a negative time stamp/;
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("syslab:tour-done", "1"));
+});
+
 function trackErrors(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", (e) => {
@@ -77,14 +81,9 @@ test("challenge: fix the overloaded database and pass", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/challenges/overloaded-database");
   await expect(nodes(page)).toHaveCount(4);
-  // First visit: the on-call page, with a root-cause question.
-  await expect(page.getByText("You are on call")).toBeVisible();
-  await page.getByRole("button", { name: /overloaded by repeated reads/ }).click();
-  await expect(page.getByText("Correct diagnosis.")).toBeVisible();
-  await page.getByRole("button", { name: /Start fixing/ }).click();
-  await expect(page.getByText("You are on call")).toBeHidden();
-  // The system was run as it is: the run console shows it failing.
-  await expect(page.getByText("FAIL", { exact: true }).first()).toBeVisible();
+  // The alert that paged you sits above the problem, and the broken system is already running on the canvas.
+  await expect(page.getByText(/PAGE: error rate/)).toBeVisible();
+  await expect(page.getByText(/tests passing/)).toBeVisible();
 
   // Problem pages keep components in a drawer over the canvas.
   await page.getByRole("button", { name: "Add components" }).click();
@@ -272,7 +271,6 @@ test("build: product problems with requirements and a reference architecture", a
 
 test("challenges can reveal their solution", async ({ page }) => {
   await page.goto("/challenges/missing-index");
-  await page.getByRole("button", { name: /Look at the system first/ }).click();
   await page.getByRole("button", { name: "Reveal solution", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Reveal solution" }).click();
   await page.getByRole("button", { name: "Submit", exact: true }).click();
@@ -298,4 +296,21 @@ test("mock interview: requirements, estimates, twist and a scorecard", async ({ 
   await page.goto("/interview");
   await expect(page.locator("ol li")).toHaveCount(1);
   expect(errors).toEqual([]);
+});
+
+test("guided tour: opens on the first problem visit and walks every step", async ({ browser }) => {
+  // A fresh context without the tour-done flag.
+  const page = await (await browser.newContext()).newPage();
+  await page.goto("/build/shopping-app");
+  await expect(page.locator("#tour-title")).toHaveText(/Start with the problem/);
+  for (let i = 0; i < 12; i++) {
+    const next = page.getByRole("button", { name: "Next", exact: true });
+    if (!(await next.isVisible())) break;
+    await next.click();
+  }
+  await page.getByRole("button", { name: "Start building" }).click();
+  await expect(page.locator("#tour-title")).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Add components" })).toBeVisible();
+  await expect(page.locator("#tour-title")).toBeHidden();
 });

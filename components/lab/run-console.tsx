@@ -184,9 +184,10 @@ export function RunConsole({
   return (
     <div
       ref={rootRef}
+      data-tour="console"
       className={cn(
         "relative flex min-h-0 shrink-0 flex-col border-t border-border bg-sidebar/80",
-        collapsed ? "h-10" : height === null && "h-[44%] min-h-[260px] max-h-[440px]",
+        collapsed ? "h-10" : height === null && "h-[38%] min-h-[220px] max-h-[380px]",
         className,
       )}
       style={!collapsed && height !== null ? { height } : undefined}

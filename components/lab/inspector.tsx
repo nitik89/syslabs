@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { ArrowRight, Link2, Lock, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatio, nodeMonthlyCost, nodeSpec, replicaCost, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
+import { CATALOG, CUSTOM_BEHAVIORS, INDEXABLE_KINDS, INDEX_EFFECT, cacheHitRatioFor, nodeMonthlyCost, nodeSpec, replicaCost, type BaseKind, type IndexLevel, type NodeConfig, type TrafficProfile } from "@/lib/sim";
 import { fmtPct, fmtUsd } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { KindIcon } from "./kind-icon";
 import { connectionProblem, nodeName, type FlowEdge, type SysNode } from "./model";
 import { FractionField, NumberField } from "./number-field";
+import { ComponentGuideCard, ComponentSettings } from "./component-settings";
 
 export function NodeInspector({
   node,
@@ -66,6 +67,7 @@ export function NodeInspector({
           <p className="text-xs text-muted-foreground">{spec.description}</p>
         </div>
       </div>
+      <ComponentGuideCard behavior={spec.behavior} />
       <p className="rounded-lg border border-border bg-secondary/40 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
         <span className="font-medium text-foreground">In the simulator: </span>
         {spec.simBehavior}
@@ -174,7 +176,7 @@ export function NodeInspector({
             max={1024}
             step={1}
             onCommit={(v) => onChangeConfig({ cacheSizeGb: v })}
-            hint={`Hit ratio at current traffic: ${fmtPct(cacheHitRatio(traffic.hotKeyFraction, cfg.cacheSizeGb ?? 0), 0)}`}
+            hint={`Hit ratio at current traffic: ${fmtPct(cacheHitRatioFor(cfg, traffic.hotKeyFraction), 0)}`}
           />
         )}
       </div>
@@ -194,6 +196,8 @@ export function NodeInspector({
           )}
         </p>
       )}
+
+      <ComponentSettings behavior={spec.behavior} cfg={cfg} traffic={traffic} onChange={onChangeConfig} />
 
       <Separator />
 

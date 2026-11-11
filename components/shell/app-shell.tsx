@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Flame, Menu, Moon, Sparkles, Sun, Trophy } from "lucide-react";
+import { Flame, HelpCircle, Menu, Moon, Sparkles, Sun, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CHALLENGES } from "@/data/challenges";
 import { DESIGNS } from "@/data/designs";
@@ -15,6 +15,7 @@ import { Logo } from "./logo";
 import { CommandMenu } from "./command-menu";
 import { UserMenu } from "@/components/auth/user-menu";
 import { useTheme } from "./use-theme";
+import { SITE_TOUR_DONE_KEY, SiteTour } from "./site-tour";
 import { NAV_ITEMS, isActive, isWorkspace, type NavItem } from "./nav";
 
 const TOTAL = CHALLENGES.length + DESIGNS.length;
@@ -68,6 +69,7 @@ function NavLinks({ onNavigate, progress, rail = false }: { onNavigate?: () => v
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 aria-label={rail ? item.label : undefined}
+                data-tour={`nav-${item.href}`}
                 className={cn(
                   "group relative flex items-center rounded-lg text-[13.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                   rail ? "size-10 justify-center" : "gap-3 px-3 py-2",
@@ -150,7 +152,7 @@ function LevelCard({ progress, rail = false }: { progress: ProgressState | null;
 }
 
 /** Always-visible stats: streak, XP and problems solved. */
-function StatsBar({ progress }: { progress: ProgressState | null }) {
+function StatsBar({ progress, onHelp }: { progress: ProgressState | null; onHelp: () => void }) {
   const pathname = usePathname();
   const here = NAV_ITEMS.find((i) => isActive(pathname, i.href));
   const streak = progress ? currentStreak(progress.activeDays, new Date()) : 0;
@@ -164,7 +166,7 @@ function StatsBar({ progress }: { progress: ProgressState | null }) {
       <span className="hidden shrink-0 text-[13px] font-medium text-foreground/90 lg:block">{here?.label ?? "SysLab"}</span>
       <span className="hidden h-4 w-px bg-border lg:block" aria-hidden="true" />
       <CommandMenu progress={progress} />
-      <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground sm:gap-1.5" aria-label="Your stats">
+      <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground sm:gap-1.5" aria-label="Your stats" data-tour="stats">
         <Link href="/progress" className={cn(chip, "outline-none transition-colors hover:ring-white/20 focus-visible:ring-2 focus-visible:ring-ring")} title="Days in a row you've run a simulation">
           <Flame className={cn("size-3.5", streak > 0 ? "text-status-warn" : "")} aria-hidden="true" />
           {value(streak)} <span className="hidden xl:inline">day streak</span>
@@ -179,6 +181,15 @@ function StatsBar({ progress }: { progress: ProgressState | null }) {
           <span className="max-sm:hidden">/ {TOTAL}</span>
           <span className="hidden xl:inline">solved</span>
         </Link>
+        <button
+          type="button"
+          onClick={onHelp}
+          aria-label="Take the tour"
+          title="Take the tour"
+          className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground ring-1 ring-inset ring-border transition-colors hover:text-foreground hover:ring-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <HelpCircle className="size-3.5" aria-hidden="true" />
+        </button>
         <ThemeToggle />
         <UserMenu />
       </div>
@@ -224,6 +235,7 @@ function BottomNav({ progress }: { progress: ProgressState | null }) {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                data-tour={`nav-${item.href}`}
                 className={cn(
                   "flex h-16 flex-col items-center justify-center gap-1 text-[10.5px] font-medium outline-none transition-colors focus-visible:bg-white/[0.06]",
                   active ? "text-brand-blue" : "text-muted-foreground",
@@ -250,6 +262,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const rail = isWorkspace(pathname);
   const progress = useShellProgress(pathname);
+  // First visit anywhere except a problem canvas (it has its own tour): show the site tour once.
+  const [siteTour, setSiteTour] = useState(false);
+  useEffect(() => {
+    if (rail) return;
+    let done = true;
+    try {
+      done = localStorage.getItem(SITE_TOUR_DONE_KEY) === "1";
+    } catch {
+      /* private mode: skip */
+    }
+    if (done) return;
+    const t = setTimeout(() => setSiteTour(true), 900);
+    return () => clearTimeout(t);
+  }, [rail]);
 
   return (
     <div className="flex min-h-dvh">
@@ -321,13 +347,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <div className="sticky top-0 z-30 max-md:top-14">
-          <StatsBar progress={progress} />
+          <StatsBar progress={progress} onHelp={() => setSiteTour(true)} />
         </div>
 
         <main id="main" className={cn("flex min-w-0 flex-1 flex-col", !rail && "max-md:pb-[calc(4rem+env(safe-area-inset-bottom))]")}>
           {children}
         </main>
         {!rail && <BottomNav progress={progress} />}
+        <SiteTour open={siteTour} onClose={() => setSiteTour(false)} />
       </div>
     </div>
   );

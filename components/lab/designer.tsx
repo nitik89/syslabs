@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FlowEdgeComponent } from "./flow-edge";
 import { NodeInspector } from "./inspector";
-import { TrafficControls, TrafficPanel } from "./traffic-panel";
+import { ScenarioSwitch, TrafficControls, TrafficPanel } from "./traffic-panel";
 import { MetricsPanel } from "./metrics-panel";
 import { connectionProblem, docToFlow, edgeId, flowToDoc, makeNode, type FlowEdge, type SysNode } from "./model";
 import { DRAG_MIME, Palette } from "./palette";
@@ -179,6 +179,8 @@ function DesignerInner({
   // Problem pages: the brief's traffic. Edits there are a what-if; Submit always grades against the brief.
   const [briefTraffic] = useState<TrafficProfile | undefined>(() => (trafficLocked ? { ...initial.traffic } : undefined));
   const [trafficOpen, setTrafficOpen] = useState(false);
+  // Scenario switch base in the Lab: the traffic the design opened with.
+  const [startTraffic] = useState<TrafficProfile>(() => ({ ...initial.traffic }));
   const whatIf = briefTraffic !== undefined && JSON.stringify(briefTraffic) !== JSON.stringify(traffic);
   const [requirements, setRequirements] = useState<DesignRequirements>(initial.requirements ?? NO_REQUIREMENTS);
   const [result, setResult] = useState<SimResult | null>(null);
@@ -880,6 +882,9 @@ function DesignerInner({
                 </Button>
               )}
             </div>
+          </Panel>
+          <Panel position="top-right" className="!m-3 !mt-[64px] max-sm:!hidden">
+            <ScenarioSwitch traffic={traffic} base={briefTraffic ?? startTraffic} onChange={changeTraffic} />
           </Panel>
           {tick && (
             <Panel position="bottom-center" className="!mb-3">

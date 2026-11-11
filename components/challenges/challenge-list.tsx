@@ -212,10 +212,10 @@ export function ChallengeList({ challenges, filters = false }: { challenges: Cha
                   <BuildPreview challenge={c} />
                 ) : (
                   <div className={cn("border-b border-border bg-gradient-to-br to-transparent to-70%", PREVIEW_TINT[c.difficulty])}>
-                    <MiniArch graph={c.startingDesign.graph} positions={c.startingDesign.positions} className="h-[104px]" />
+                    <MiniArch graph={c.startingDesign.graph} positions={c.startingDesign.positions} className="h-[76px]" />
                   </div>
                 )}
-                <div className="flex flex-1 flex-col gap-2 p-4 pt-3.5">
+                <div className="flex flex-1 flex-col gap-1.5 px-4 pb-3.5 pt-3">
                   <div className="flex items-center justify-between gap-2">
                     {c.mode === "build" && c.category ? (
                       <span
@@ -235,13 +235,11 @@ export function ChallengeList({ challenges, filters = false }: { challenges: Cha
                       <span className="font-mono text-[11px] text-muted-foreground">best {rec.bestScore}</span>
                     ) : null}
                   </div>
-                  <h2 className="text-[15px] font-semibold tracking-tight">{c.title}</h2>
-                  <p className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">{c.summary}</p>
-                  <div className="mt-auto flex items-center justify-between pt-2 text-[11.5px] text-muted-foreground">
-                    <span className="flex items-center gap-2">
-                      <DifficultyPill difficulty={c.difficulty} />
-                      {c.requirements ? `${c.requirements.functional.length} functional · ${c.requirements.nonFunctional.length} non-functional` : `${c.objectives.length} objectives`}
-                    </span>
+                  <h2 className="line-clamp-1 text-[15px] font-semibold tracking-tight" title={c.summary}>
+                    {c.title}
+                  </h2>
+                  <div className="mt-auto flex items-center justify-between pt-1 text-[11.5px] text-muted-foreground">
+                    <DifficultyPill difficulty={c.difficulty} />
                     <span className="flex items-center gap-0.5 font-medium text-brand-blue opacity-80 transition-opacity group-hover:opacity-100">
                       {progress === null ? "Open" : rec?.passed ? "Review" : rec ? "Continue" : "Start"}
                       <ArrowUpRight className="size-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />

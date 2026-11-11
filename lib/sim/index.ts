@@ -3,6 +3,13 @@ export { BUNDLES, CATALOG, CUSTOM_BEHAVIORS, behaviorOf, behaviorSatisfies, defa
 export {
   simulate,
   cacheHitRatio,
+  cacheHitRatioFor,
+  cachePolicyFactor,
+  connectionLimit,
+  cdnHitRatio,
+  AUTOSCALE_KINDS,
+  AUTOSCALE_TARGET,
+  WRITE_BACK_FLUSH_SHARE,
   queueingFactor,
   sanitizeConfig,
   sanitizeTraffic,

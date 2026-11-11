@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { FlaskConical, RotateCcw, X } from "lucide-react";
+import { Coffee, Flame, FlaskConical, Moon, Rocket, RotateCcw, Sun, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrafficProfile } from "@/lib/sim";
 import { Button } from "@/components/ui/button";
@@ -93,13 +93,54 @@ function ShareField({ label, hint, value, onChange }: { label: string; hint: str
   );
 }
 
-const PRESETS: { label: string; factor: number }[] = [
-  { label: "Quiet ×0.5", factor: 0.5 },
-  { label: "Normal", factor: 1 },
-  { label: "Peak ×2", factor: 2 },
-  { label: "Spike ×5", factor: 5 },
-  { label: "Viral ×10", factor: 10 },
+/** Named load scenarios, from a quiet night to going viral. Factors scale the brief's (or starting) traffic. */
+export const SCENARIOS: { id: string; icon: typeof Moon; label: string; factor: number; blurb: string }[] = [
+  { id: "quiet", icon: Moon, label: "Quiet night", factor: 0.3, blurb: "3 a.m. Barely anyone around." },
+  { id: "normal", icon: Sun, label: "Normal day", factor: 1, blurb: "The traffic in the brief." },
+  { id: "rush", icon: Coffee, label: "Lunch rush", factor: 2, blurb: "Everyone checks the app at once. 2× normal." },
+  { id: "launch", icon: Rocket, label: "Launch day", factor: 5, blurb: "You're on the front page. 5× normal." },
+  { id: "viral", icon: Flame, label: "Gone viral", factor: 10, blurb: "A celebrity shared your link. 10× normal." },
 ];
+const PRESETS = SCENARIOS.map((s) => ({ label: `${s.label} ×${s.factor}`, factor: s.factor }));
+
+/**
+ * One-click traffic scenarios, pinned on the canvas: switch from a quiet night to going viral and press Run.
+ * Scales from `base` (the brief's traffic, or the design's starting traffic in the Lab).
+ */
+export function ScenarioSwitch({ traffic, base, onChange }: { traffic: TrafficProfile; base: TrafficProfile; onChange: (t: TrafficProfile) => void }) {
+  const active = SCENARIOS.find((s) => Math.round(base.rps * s.factor) === traffic.rps && traffic.readRatio === base.readRatio);
+  return (
+    <div role="radiogroup" aria-label="Traffic scenario" className="flex items-center gap-0.5 rounded-xl border border-border bg-popover/90 p-1 shadow-[0_12px_32px_-12px_var(--shadow)] backdrop-blur-md">
+      {SCENARIOS.map((s) => {
+        const on = active?.id === s.id;
+        const Icon = s.icon;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange({ ...base, rps: Math.round(base.rps * s.factor) })}
+            title={`${s.label}: ${s.blurb} (${Math.round(base.rps * s.factor).toLocaleString("en-US")} req/s)`}
+            className={cn(
+              "flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              on
+                ? s.factor >= 5
+                  ? "bg-status-crit/15 text-status-crit"
+                  : s.factor > 1
+                    ? "bg-status-warn/15 text-status-warn"
+                    : "bg-brand-blue/15 text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden="true" />
+            <span className="max-xl:hidden">{s.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * Traffic controls: reads, writes and static requests per second, plus hot keys, contended writes and AI

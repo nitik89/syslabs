@@ -165,9 +165,32 @@ export interface NodeConfig {
    * full table scans; "heavy" (many or covering indexes) speeds reads up but makes every write maintain them.
    */
   indexes?: IndexLevel;
+  /** Databases only: columns that have an index (the inspector keeps `indexes` in step with this list). */
+  indexedColumns?: string[];
+  /** Databases only: connections each instance accepts at once. A small pool caps throughput. Unset = 100. */
+  maxConnections?: number;
+  /** Cache only: which items are thrown out when the cache is full. Unset = "lru". */
+  eviction?: EvictionPolicy;
+  /** Cache only: seconds an item stays before it's refetched. Unset = 3600. */
+  ttlSeconds?: number;
+  /** Cache only: how writes reach the cache. Unset = "cache-aside". */
+  writePolicy?: WritePolicy;
+  /** Load balancer only: how requests are spread across servers. Unset = "round-robin". */
+  lbAlgorithm?: LbAlgorithm;
+  /** Load balancer only: stop sending traffic to servers that are down. Unset = on. */
+  healthChecks?: boolean;
+  /** App servers, serverless, workers, WebSocket gateways: scale out up to this many replicas under load. Unset = off. */
+  autoscaleMax?: number;
+  /** CDN only: seconds files stay at the edge before being refetched from your servers. Unset = forever (versioned files). */
+  cdnTtlSeconds?: number;
+  /** NoSQL only: "strong" reads always see the latest write but cost about twice as much. Unset = "eventual". */
+  consistency?: "eventual" | "strong";
 }
 
 export type IndexLevel = "none" | "standard" | "heavy";
+export type EvictionPolicy = "lru" | "lfu" | "fifo" | "random";
+export type WritePolicy = "cache-aside" | "write-through" | "write-back";
+export type LbAlgorithm = "round-robin" | "least-connections" | "ip-hash" | "random";
 
 export interface SimNode {
   id: string;
@@ -230,6 +253,8 @@ export interface NodeResult {
   hitRatio?: number;
   /** Queue only: async writes that could not be delivered downstream, per second. */
   backlogRps?: number;
+  /** Autoscaled nodes: replicas running at this load (between the minimum and autoscaleMax). */
+  replicasUsed?: number;
 }
 
 export type BottleneckSeverity = "warn" | "crit";

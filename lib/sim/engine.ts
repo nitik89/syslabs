@@ -78,6 +78,51 @@ export function cacheHitRatio(hotKeyFraction: number, cacheSizeGb: number): numb
 }
 
 /**
+ * How the cache's policies change its hit ratio (1 = no change, the defaults).
+ * - Eviction: LFU keeps the popular items longest (best when a few keys are hot); FIFO and random throw
+ *   out popular items too.
+ * - TTL: items expire and must be refetched; very short TTLs mean many more misses.
+ * - Write policy: write-through / write-back keep the cache updated on writes, so fewer reads miss right
+ *   after an update.
+ */
+export function cachePolicyFactor(cfg: Pick<NodeConfig, "eviction" | "ttlSeconds" | "writePolicy">, hotKeyFraction: number): number {
+  const hot = clamp01(hotKeyFraction);
+  const eviction = { lru: 1, lfu: 1 + 0.06 * hot, fifo: 0.92, random: 0.88 }[cfg.eviction ?? "lru"] ?? 1;
+  const ttl = cfg.ttlSeconds === undefined || !Number.isFinite(cfg.ttlSeconds) ? 3600 : cfg.ttlSeconds;
+  const ttlF = ttl >= 600 ? 1 : ttl >= 60 ? 0.95 : ttl >= 10 ? 0.85 : 0.7;
+  const write = cfg.writePolicy === "write-through" || cfg.writePolicy === "write-back" ? 1.03 : 1;
+  return eviction * ttlF * write;
+}
+
+/** Hit ratio of a configured cache under a traffic profile: size and hot keys, then its policies. */
+export function cacheHitRatioFor(cfg: Pick<NodeConfig, "cacheSizeGb" | "eviction" | "ttlSeconds" | "writePolicy">, hotKeyFraction: number): number {
+  return Math.min(0.98, cacheHitRatio(hotKeyFraction, cfg.cacheSizeGb ?? 0) * cachePolicyFactor(cfg, hotKeyFraction));
+}
+
+/** Components that can autoscale (add replicas under load, up to autoscaleMax). */
+export const AUTOSCALE_KINDS: ReadonlySet<NodeKind> = new Set(["appServer", "serverless", "worker", "websocketGateway"]);
+/** Autoscaling aims to keep each replica at or below this utilisation. */
+export const AUTOSCALE_TARGET = 0.7;
+
+/** Share of static requests a CDN answers from the edge for a given TTL (unset = versioned files, all hits). */
+export function cdnHitRatio(ttlSeconds: number | undefined): number {
+  if (ttlSeconds === undefined || !Number.isFinite(ttlSeconds)) return 1;
+  return ttlSeconds >= 86_400 ? 0.99 : ttlSeconds >= 3600 ? 0.95 : ttlSeconds >= 300 ? 0.88 : ttlSeconds >= 60 ? 0.8 : 0.6;
+}
+
+/** Write-back caches acknowledge writes and flush them in batches: this share of writes reaches the database. */
+export const WRITE_BACK_FLUSH_SHARE = 0.3;
+
+/**
+ * Queries per second one database instance can run with `maxConnections` connections, each busy for
+ * `latencyMs` per query. With the default 100 connections this is far above any instance's capacity.
+ */
+export function connectionLimit(maxConnections: number | undefined, latencyMs: number): number {
+  const conns = maxConnections === undefined || !Number.isFinite(maxConnections) ? 100 : Math.max(1, maxConnections);
+  return (conns * 1000) / Math.max(0.5, latencyMs);
+}
+
+/**
  * Latency multiplier from utilization: flat until 50%, then rises quadratically to 5× at 100%.
  * Overloaded nodes stay at 5× (they are serving at capacity and dropping the excess).
  */
@@ -175,7 +220,12 @@ export function simulate(rawGraph: SimGraph, traffic: TrafficProfile): SimResult
     if (k === "llm") aiCalls += n.load;
   }
 
-  const monthlyCost = graph.nodes.reduce((sum, n) => sum + nodeMonthlyCost({ kind: n.kind, config: sanitizeConfig(n.config) }), 0);
+  // Autoscaled components cost what they run at this load.
+  const monthlyCost = graph.nodes.reduce((sum, n) => {
+    const cfg = sanitizeConfig(n.config);
+    const used = base.nodes[n.id]?.replicasUsed;
+    return sum + nodeMonthlyCost({ kind: n.kind, config: used ? { ...cfg, replicas: used } : cfg });
+  }, 0);
 
   const errorRate = base.offered > 0 ? base.errors / base.offered : 0;
 
@@ -375,17 +425,27 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     const idx = INDEXABLE_KINDS.has(node.kind) ? INDEX_EFFECT[cfg.indexes ?? "standard"] : INDEX_EFFECT.standard;
     let utilization = 0;
     let totalCapacity: number | null = null;
+    let replicasUsed: number | undefined;
     if (!spec.unlimited) {
-      totalCapacity = cfg.capacity * cfg.replicas;
+      // Databases: an instance can't run more queries at once than it has connections.
+      const perReplica = DB_KINDS.has(node.kind) ? Math.min(cfg.capacity, connectionLimit(cfg.maxConnections, cfg.latencyMs)) : cfg.capacity;
+      // Autoscaling: add replicas until each runs at about 70%, up to the maximum.
+      if (AUTOSCALE_KINDS.has(node.kind) && (cfg.autoscaleMax ?? 0) > cfg.replicas && load > 0 && perReplica > 0) {
+        const needed = Math.ceil(load / (perReplica * AUTOSCALE_TARGET));
+        replicasUsed = Math.min(cfg.autoscaleMax!, Math.max(cfg.replicas, needed));
+      }
+      totalCapacity = perReplica * (replicasUsed ?? cfg.replicas);
+      // Strong consistency on NoSQL: each read checks a majority of copies, so reads cost about twice as much.
+      const strongReads = node.kind === "nosqlDb" && cfg.consistency === "strong" ? 0.5 : 1;
       for (const cls of TRAFFIC_CLASSES) {
-        const raw = node.kind === "sqlDb" && cls === "write" ? cfg.capacity : totalCapacity;
-        const cap = raw * (cls === "read" ? idx.read : cls === "write" ? idx.write : 1);
+        const raw = node.kind === "sqlDb" && cls === "write" ? perReplica : totalCapacity;
+        const cap = raw * (cls === "read" ? idx.read * strongReads : cls === "write" ? idx.write : 1);
         if (loadByClass[cls] > 0) utilization += cap > 0 ? loadByClass[cls] / cap : Infinity;
       }
     }
     const isFailed = failed.has(id);
     const serveFrac = isFailed ? 0 : utilization <= 1 ? 1 : 1 / utilization;
-    const latency = cfg.latencyMs * idx.latency * queueingFactor(utilization);
+    const latency = cfg.latencyMs * idx.latency * (node.kind === "nosqlDb" && cfg.consistency === "strong" ? 1.25 : 1) * queueingFactor(utilization);
 
     let dropped = 0;
     let hitRatio: number | undefined;
@@ -433,7 +493,7 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
 
         // Cache: hits are answered here, misses continue downstream.
         if (node.kind === "cache" && cls === "read") {
-          const hr = cacheHitRatio(traffic.hotKeyFraction, cfg.cacheSizeGb ?? 0);
+          const hr = cacheHitRatioFor(cfg, traffic.hotKeyFraction);
           hitRatio = hr;
           if (mode === "sync") {
             out.cacheLookups += f.rps;
@@ -450,6 +510,27 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
               out.noRoute.push({ nodeId: id, cls, mode, rps: miss.rps });
             }
           }
+          continue;
+        }
+
+        // CDN with a TTL: some static requests miss the edge and go back to your servers.
+        if (node.kind === "cdn" && cls === "static" && cfg.cdnTtlSeconds !== undefined) {
+          const hr = cdnHitRatio(cfg.cdnTtlSeconds);
+          consume(mode, scale(f, hr));
+          const miss = scale(f, 1 - hr);
+          const origins = kids.filter((k) => accepts(nodeById.get(k.target)!, "static", children));
+          if (miss.rps > 0 && origins.length > 0) send(origins, "static", mode, miss);
+          else consume(mode, miss);
+          continue;
+        }
+
+        // Write-back cache: writes are acknowledged here and flushed to the database in batches.
+        if (node.kind === "cache" && cls === "write" && cfg.writePolicy === "write-back") {
+          consume(mode, scale(f, 1 - WRITE_BACK_FLUSH_SHARE));
+          const flush = scale(f, WRITE_BACK_FLUSH_SHARE);
+          const targets = kids.filter((k) => accepts(nodeById.get(k.target)!, "write", children));
+          if (targets.length > 0) send(targets, "write", "async", { rps: flush.rps, latSum: 0 });
+          else consume(mode, flush);
           continue;
         }
 
@@ -486,6 +567,22 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
         }
 
         const route = routeFor(node, cls, allKids, nodeById, children, failed);
+        if (route !== "consume" && route !== "none" && node.kind === "loadBalancer" && route.length > 1) {
+          // Sticky (IP hash) and random spreading are uneven: one server gets more than its share.
+          const skew = cfg.lbAlgorithm === "ip-hash" ? 0.5 : cfg.lbAlgorithm === "random" ? 0.2 : 0;
+          if (skew > 0) {
+            const w = route.map((_, i) => (i === 0 ? 1 + skew : 1 - skew / (route.length - 1)));
+            const sum = w.reduce((a, b) => a + b, 0);
+            route.forEach((t, i) => {
+              const share = w[i] / sum;
+              const tb = inbound.get(t.target)!;
+              tb[mode][cls].rps += f.rps * share;
+              tb[mode][cls].latSum += f.latSum * share;
+              if (t.edgeId) out.edgeFlows[t.edgeId] += f.rps * share;
+            });
+            continue;
+          }
+        }
         if (route === "consume") consume(mode, f);
         else if (route === "none") {
           drop(mode, f.rps, true);
@@ -521,6 +618,7 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
       status: nodeStatus(load, utilization, dropped, isFailed),
       ...(hitRatio !== undefined ? { hitRatio } : {}),
       ...(node.kind === "queue" ? { backlogRps: nodeBacklog } : {}),
+      ...(replicasUsed !== undefined ? { replicasUsed } : {}),
     };
   }
 
@@ -538,7 +636,7 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
       latencyMs: cfg.latencyMs,
       droppedRps: 0,
       status: "idle",
-      ...(n.kind === "cache" ? { hitRatio: cacheHitRatio(traffic.hotKeyFraction, cfg.cacheSizeGb ?? 0) } : {}),
+      ...(n.kind === "cache" ? { hitRatio: cacheHitRatioFor(cfg, traffic.hotKeyFraction) } : {}),
     };
   }
 
@@ -642,6 +740,8 @@ function routeFor(
         groups = [ofKind((k) => k === "cache"), ofKind((k) => STORE_KINDS.has(k)), ofKind((k) => COMPUTE_KINDS.has(k))];
       else
         groups = [
+          // A write-back cache takes writes first and flushes them to the database in batches.
+          accepting.filter((k) => kindOf(k) === "cache" && byId.get(k.target)!.config.writePolicy === "write-back"),
           ofKind((k) => k === "queue"),
           ofKind((k) => DB_KINDS.has(k)),
           ofKind((k) => STORE_KINDS.has(k) && !DB_KINDS.has(k)),
@@ -665,8 +765,10 @@ function routeFor(
 
   const nonEmpty = groups.filter((g) => g.length > 0);
   if (nonEmpty.length === 0) return whenNoDownstream;
+  // A load balancer without health checks keeps sending to servers that are down (those requests fail).
+  const blind = node.kind === "loadBalancer" && node.config.healthChecks === false;
   for (const g of nonEmpty) {
-    const live = g.filter((k) => !failed.has(k.target));
+    const live = blind ? g : g.filter((k) => !failed.has(k.target));
     if (live.length > 0) return live;
   }
   return "none";
@@ -851,6 +953,18 @@ export function sanitizeConfig(c: NodeConfig): NodeConfig {
     costPerReplica: nonNeg(c.costPerReplica),
     ...(c.cacheSizeGb !== undefined ? { cacheSizeGb: nonNeg(c.cacheSizeGb) } : {}),
     ...(c.indexes === "none" || c.indexes === "heavy" || c.indexes === "standard" ? { indexes: c.indexes } : {}),
+    ...(Array.isArray(c.indexedColumns) ? { indexedColumns: c.indexedColumns.filter((x) => typeof x === "string").slice(0, 20) } : {}),
+    ...(c.maxConnections !== undefined && Number.isFinite(c.maxConnections) ? { maxConnections: Math.max(1, Math.floor(c.maxConnections)) } : {}),
+    ...(c.eviction === "lru" || c.eviction === "lfu" || c.eviction === "fifo" || c.eviction === "random" ? { eviction: c.eviction } : {}),
+    ...(c.ttlSeconds !== undefined && Number.isFinite(c.ttlSeconds) ? { ttlSeconds: Math.max(1, c.ttlSeconds) } : {}),
+    ...(c.writePolicy === "cache-aside" || c.writePolicy === "write-through" || c.writePolicy === "write-back" ? { writePolicy: c.writePolicy } : {}),
+    ...(c.lbAlgorithm === "round-robin" || c.lbAlgorithm === "least-connections" || c.lbAlgorithm === "ip-hash" || c.lbAlgorithm === "random"
+      ? { lbAlgorithm: c.lbAlgorithm }
+      : {}),
+    ...(typeof c.healthChecks === "boolean" ? { healthChecks: c.healthChecks } : {}),
+    ...(c.autoscaleMax !== undefined && Number.isFinite(c.autoscaleMax) ? { autoscaleMax: Math.min(200, Math.max(1, Math.floor(c.autoscaleMax))) } : {}),
+    ...(c.cdnTtlSeconds !== undefined && Number.isFinite(c.cdnTtlSeconds) ? { cdnTtlSeconds: Math.max(1, c.cdnTtlSeconds) } : {}),
+    ...(c.consistency === "eventual" || c.consistency === "strong" ? { consistency: c.consistency } : {}),
   };
 }
 

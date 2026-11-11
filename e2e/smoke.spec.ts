@@ -9,7 +9,10 @@ import { expect, test, type Page } from "@playwright/test";
 const DEV_ONLY_NOISE = /Failed to execute 'measure' on 'Performance': .* cannot have a negative time stamp/;
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("syslab:tour-done", "1"));
+  await page.addInitScript(() => {
+    localStorage.setItem("syslab:tour-done", "1");
+    localStorage.setItem("syslab:site-tour-done", "1");
+  });
 });
 
 function trackErrors(page: Page) {

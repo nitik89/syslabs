@@ -166,6 +166,7 @@ export const SOLVE_STEPS: Step[] = [
 type Rect = { top: number; left: number; width: number; height: number };
 
 function findTarget(target: string): HTMLElement | null {
+  if (target === "center") return null;
   const selector = target.startsWith("node:") ? `.react-flow__node[data-id="${CSS.escape(target.slice(5))}"]` : `[data-tour="${target}"]`;
   const els = Array.from(document.querySelectorAll<HTMLElement>(selector));
   // The first one that's actually on screen (some targets exist twice, e.g. hidden on phones).
@@ -184,7 +185,15 @@ export function WorkspaceTour({
   onClose,
   steps: STEPS = TOUR_STEPS,
   onWatchSolve,
+  doneKey = TOUR_DONE_KEY,
+  endLabel = "Start building",
+  onEnd,
 }: {
+  /** localStorage flag set when the tour is finished or skipped. */
+  doneKey?: string;
+  /** Label of the last step's main button, and what it does (after closing). */
+  endLabel?: string;
+  onEnd?: () => void;
   open: boolean;
   onClose: () => void;
   steps?: Step[];
@@ -197,13 +206,13 @@ export function WorkspaceTour({
   const finish = useCallback(() => {
     designerAction("close-components");
     try {
-      localStorage.setItem(TOUR_DONE_KEY, "1");
+      localStorage.setItem(doneKey, "1");
     } catch {
       /* private mode: it may show again */
     }
     setI(0);
     onClose();
-  }, [onClose]);
+  }, [onClose, doneKey]);
   const finishThen = (after?: () => void) => {
     finish();
     after?.();
@@ -212,9 +221,11 @@ export function WorkspaceTour({
   // Measure the current target, skipping steps that aren't on screen.
   const measure = useCallback(() => {
     let k = i;
+    // "center" steps have no target: a welcome card in the middle of the screen.
+    if (STEPS[k].target === "center") return setRect(null);
     let el = findTarget(STEPS[k].target);
-    while (!el && k < STEPS.length - 1) el = findTarget(STEPS[++k].target);
-    if (!el) return setRect(null);
+    while (!el && k < STEPS.length - 1 && STEPS[k + 1].target !== "center") el = findTarget(STEPS[++k].target);
+    if (!el) return k !== i ? setI(k) : setRect(null);
     if (k !== i) return setI(k);
     el.scrollIntoView({ block: "nearest", inline: "nearest" });
     const r = el.getBoundingClientRect();
@@ -253,7 +264,8 @@ export function WorkspaceTour({
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const cardW = Math.min(360, vw - 24);
   // Place the card beside the target where there's room: right, then left, then below/above.
-  let cardStyle: React.CSSProperties = { left: 12, bottom: 12, width: cardW };
+  // No target (welcome steps): centre the card.
+  let cardStyle: React.CSSProperties = { left: Math.max(12, (vw - cardW) / 2), top: Math.max(12, vh / 2 - 180), width: cardW };
   if (rect) {
     const spaceRight = vw - (rect.left + rect.width);
     const spaceBelow = vh - (rect.top + rect.height);
@@ -327,8 +339,8 @@ export function WorkspaceTour({
               <ArrowLeft /> Back
             </Button>
           )}
-          <Button size="sm" onClick={() => (last ? finish() : setI(i + 1))} autoFocus>
-            {last ? "Start building" : "Next"} {!last && <ArrowRight />}
+          <Button size="sm" onClick={() => (last ? finishThen(onEnd) : setI(i + 1))} autoFocus>
+            {last ? endLabel : "Next"} {!last && <ArrowRight />}
           </Button>
         </div>
       </div>

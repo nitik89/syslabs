@@ -256,7 +256,7 @@ test("build: product problems with requirements and a reference architecture", a
   // The unchanged reference passes but earns nothing.
   await page.getByRole("button", { name: "Reveal solution", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Reveal solution" }).click();
-  await expect(nodes(page)).toHaveCount(11);
+  await expect(nodes(page)).toHaveCount(12);
   await page.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(page.getByText(/That's the revealed solution, unchanged/)).toBeVisible();
 

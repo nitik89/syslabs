@@ -61,7 +61,7 @@ export function SaveDesignButton({
         if (o) setName(current?.name ?? defaultName);
       }}
     >
-      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" title="Save this design" />}>
         <Save /> Save
       </DialogTrigger>
       <DialogContent>
@@ -172,7 +172,7 @@ export function LoadDesignButton({
         }
       }}
     >
-      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" title="Load a saved design or file" />}>
         <FolderOpen /> Load
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
@@ -274,7 +274,7 @@ export function ResetButton({
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" title={title} />}>
         {trigger ?? (
           <>
             <RotateCcw /> Reset

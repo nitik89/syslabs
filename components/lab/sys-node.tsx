@@ -80,6 +80,17 @@ function SysNodeView({ id, data, selected }: NodeProps<SysNode>) {
             no index
           </span>
         )}
+        {data.config.handles && data.config.handles.length > 0 && data.config.handles.length < 3 && (
+          <span
+            className="rounded-md bg-brand-blue/15 px-1.5 py-0.5 font-mono text-[10px] text-brand-blue"
+            title={`Handles only: ${data.config.handles.join(", ")} requests`}
+          >
+            {[...data.config.handles]
+              .sort()
+              .map((c) => (c === "read" ? "GET" : c === "write" ? "POST" : "static"))
+              .join("+")}
+          </span>
+        )}
         {data.config.replicas > 1 && (
           <span className="rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-secondary-foreground">
             ×{data.config.replicas}

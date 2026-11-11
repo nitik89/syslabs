@@ -37,13 +37,28 @@ Every component runs as one of 26 **building blocks** (`BASE_KINDS` in `lib/sim/
 
 Each component forwards traffic to the components it's connected to:
 
-- **Front doors** (DNS, load balancers, gateways, rate limiters) spread each class evenly over the next components that accept it. Static traffic prefers a connected CDN.
+- **Front doors** (DNS, load balancers, gateways, rate limiters) spread each class evenly over the next components that accept it (an app server set to *reads only* doesn't accept writes). Static traffic prefers a connected CDN.
 - **App servers** send **reads** to a cache first, then stores (databases, object storage, search), then other compute. **Writes** go to a write-back cache (if any), then a queue, then databases, then other stores. Static files go to object storage or a CDN. With nothing downstream, the app server answers by itself.
 - **Caches** answer hits and send misses on (cache-aside).
 - **Queues** acknowledge writes at once and deliver them asynchronously to workers.
 - **Stores** (databases, object storage, search) are terminal.
 
 If a preferred tier is down, traffic falls back to the next tier (cache down → database). If nothing can take it, it fails.
+
+### Which connections are allowed
+
+Connections follow real architecture (`lib/sim/connections.ts`). The canvas refuses the others and explains why; a design file that has one anyway shows it under *Design issues*, and that connection carries no traffic.
+
+| From | Can connect to |
+| --- | --- |
+| Client, DNS | CDN, load balancers and gateways, app servers, serverless, object storage |
+| Load balancer, gateways, rate limiter | Other front doors, app servers, serverless, CDN, object storage (API gateway also a queue; rate limiter also a cache) |
+| App server, serverless | Front doors, other services, cache, databases, object storage, search, queue, AI model, lock service, monitoring |
+| Worker | Services, cache, databases, object storage, search, queue, AI model, lock service, monitoring |
+| Cache | Databases, search, object storage (the store behind it) |
+| Queue | Its consumers: worker, serverless, app server (or another queue). **Never straight to a database.** |
+| Databases, search, object storage, locks | Monitoring only (they answer; they don't send traffic on) |
+
 
 ## Capacity, utilisation and queueing
 
@@ -108,6 +123,7 @@ Every setting defaults to a **neutral** value, so designs that don't touch them 
 | Load balancer | **Health checks** (default on) | Off: a server that's down keeps getting its share of traffic, and those requests fail |
 | App server, serverless, worker, WebSocket gateway | **Autoscaling** (max replicas) | Adds replicas until each runs at about 70%, up to the maximum. Cost counts the replicas running at peak |
 | App server, serverless, worker, WebSocket gateway, database, cache | **Machine size**: small / medium (default) / large / x-large | Capacity ×0.5 / 1 / 2 / 4, price ×0.5 / 1 / 2.2 / 4.8 |
+| App server, serverless | **Request types**: everything (default) / reads only / writes only / any mix incl. static | Load balancers and gateways send each kind of request only to services that take it, so you can split a *read service* (GET) from a *post service* (POST/PUT/DELETE) and scale them separately. If nothing takes a kind, those requests fail |
 | App server, serverless | **Request timeout** (default none) | Requests that would take longer fail fast; latency is capped at the timeout |
 | CDN | **Edge TTL** (default: versioned files, forever) | Share served at the edge: 1 day 99% · 1 h 95% · 5 min 88% · 1 min 80% · shorter 60%. Misses go to the origin |
 

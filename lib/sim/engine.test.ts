@@ -139,9 +139,9 @@ describe("routing", () => {
     const direct = simulate(overloadedDb(), writes);
 
     const g = overloadedDb();
-    g.nodes.push(node("q", "queue"));
+    g.nodes.push(node("q", "queue"), node("w", "worker", { capacity: 10_000 }));
     g.edges = g.edges.filter((e) => e.id !== "app-db");
-    g.edges.push(edge("app", "q"), edge("q", "db"));
+    g.edges.push(edge("app", "q"), edge("q", "w"), edge("w", "db"));
     const queued = simulate(g, writes);
 
     expect(direct.errorRps).toBeGreaterThan(0);
@@ -457,12 +457,14 @@ describe("idle explanations", () => {
     expect(reasons(g, reads)).toMatch(/q: .*read share is 100%/);
   });
 
-  it("a link out of a database is called out as reversed", () => {
+  it("a link out of a database is flagged and carries nothing", () => {
     const g: SimGraph = {
       nodes: [node("c", "client"), node("app", "appServer"), node("db", "postgres"), node("w", "appServer")],
       edges: [edge("c", "app"), edge("app", "db"), edge("db", "w")],
     };
-    expect(reasons(g, reads)).toMatch(/w: PostgreSQL → App Server carries nothing.*Reverse the link/);
+    const r = simulate(g, reads);
+    expect(r.issues.map((i) => i.message).join(" ")).toMatch(/SQL database can't send traffic to an app server/);
+    expect(r.nodes.w.load).toBe(0);
   });
 
   it("a model with AI share at 0% asks for it", () => {

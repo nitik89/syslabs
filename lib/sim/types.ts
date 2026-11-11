@@ -189,6 +189,12 @@ export interface NodeConfig {
   instanceSize?: InstanceSize;
   /** App servers and serverless: give up on a request after this many ms (it fails fast instead of hanging). Unset = no limit. */
   timeoutMs?: number;
+  /**
+   * App servers and serverless: which kinds of request this service takes, e.g. ["write"] for a post
+   * service that only handles POST/PUT/DELETE. Load balancers and gateways route each kind only to
+   * services that take it. Unset (or empty) = everything.
+   */
+  handles?: TrafficClass[];
 }
 
 export type IndexLevel = "none" | "standard" | "heavy";

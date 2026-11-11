@@ -1,3 +1,4 @@
+import { connectionRule } from "./connections";
 import { CATALOG, behaviorOf, nodeMonthlyCost, nodeSpec, sizeOf, type ComponentSpec } from "./catalog";
 import {
   TRAFFIC_CLASSES,
@@ -287,6 +288,12 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     }
     if (s.id === t.id) {
       issues.push({ edgeId: e.id, message: "A component cannot connect to itself." });
+      continue;
+    }
+    // Connections that make no sense (a queue straight into a database…) carry no traffic.
+    const why = connectionRule(s.kind as BaseKind, t.kind as BaseKind);
+    if (why) {
+      issues.push({ edgeId: e.id, message: why });
       continue;
     }
     if (NO_TRAFFIC_KINDS.has(s.kind) || NO_TRAFFIC_KINDS.has(t.kind)) continue;
@@ -656,6 +663,11 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
 
 type Kid = { target: string; edgeId: string | null };
 
+/** Whether a service takes this kind of request (its "handles" setting; unset or empty = everything). */
+export function handlesClass(cfg: NodeConfig, cls: TrafficClass): boolean {
+  return !Array.isArray(cfg.handles) || cfg.handles.length === 0 || cfg.handles.includes(cls);
+}
+
 function accepts(n: SimNode, cls: TrafficClass, children: Map<string, Kid[]>): boolean {
   const hasKids = (children.get(n.id)?.length ?? 0) > 0;
   switch (n.kind as BaseKind) {
@@ -678,10 +690,11 @@ function accepts(n: SimNode, cls: TrafficClass, children: Map<string, Kid[]>): b
     case "rateLimiter":
     case "appGateway":
     case "websocketGateway":
-    case "appServer":
-    case "serverless":
     case "objectStorage":
       return true;
+    case "appServer":
+    case "serverless":
+      return handlesClass(n.config, cls);
     case "cdn":
       return cls === "static" || hasKids;
     case "cache":
@@ -974,6 +987,9 @@ export function sanitizeConfig(c: NodeConfig): NodeConfig {
     ...(c.consistency === "eventual" || c.consistency === "strong" ? { consistency: c.consistency } : {}),
     ...(c.instanceSize === "small" || c.instanceSize === "medium" || c.instanceSize === "large" || c.instanceSize === "xlarge" ? { instanceSize: c.instanceSize } : {}),
     ...(c.timeoutMs !== undefined && Number.isFinite(c.timeoutMs) ? { timeoutMs: Math.max(1, c.timeoutMs) } : {}),
+    ...(Array.isArray(c.handles)
+      ? { handles: [...new Set(c.handles.filter((x): x is TrafficClass => x === "read" || x === "write" || x === "static"))] }
+      : {}),
   };
 }
 

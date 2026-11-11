@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { cloneElement, isValidElement, useId, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -10,17 +10,20 @@ import {
   cacheHitRatioFor,
   cdnHitRatio,
   connectionLimit,
+  handlesClass,
   type BaseKind,
   type EvictionPolicy,
   type IndexLevel,
   type InstanceSize,
   type LbAlgorithm,
   type NodeConfig,
+  type TrafficClass,
   type TrafficProfile,
   type WritePolicy,
 } from "@/lib/sim";
 import { fmtPct } from "@/lib/format";
 import { COMPONENT_GUIDE } from "@/data/component-guide";
+import { trafficSplit } from "./traffic-panel";
 
 /* ------------------------------ building blocks ------------------------------ */
 
@@ -92,12 +95,16 @@ function Readout({ children, tone = "neutral" }: { children: React.ReactNode; to
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+/** A collapsible group of settings; only the first one starts open, so the panel stays short. */
+function Section({ title, children, first }: { title: string; children: React.ReactNode; first?: boolean }) {
   return (
-    <section className="space-y-3 rounded-xl border border-border p-3">
-      <h4 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</h4>
-      {children}
-    </section>
+    <details open={first} className="group rounded-xl border border-border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-2.5 outline-none hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <h4 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground group-open:text-foreground">{title}</h4>
+        <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+      </summary>
+      <div className="space-y-3 px-3 pb-3">{children}</div>
+    </details>
   );
 }
 
@@ -216,6 +223,80 @@ function IndexedColumns({ cfg, onChange }: { cfg: NodeConfig; onChange: (patch: 
   );
 }
 
+const REQUEST_KINDS: { cls: TrafficClass; label: string; verbs: string; detail: string }[] = [
+  { cls: "read", label: "Reads", verbs: "GET", detail: "Fetching data: open a post, load a feed, view a profile." },
+  { cls: "write", label: "Writes", verbs: "POST · PUT · DELETE", detail: "Changing data: create a post, like, comment, update a profile." },
+  { cls: "static", label: "Static files", verbs: "GET /assets", detail: "Images, scripts and stylesheets (better served by a CDN or object storage)." },
+];
+
+const ROLES: { id: string; label: string; handles: TrafficClass[] | undefined; detail: string }[] = [
+  { id: "all", label: "Everything", handles: undefined, detail: "One service does it all (a monolith). Simple to start with." },
+  { id: "read", label: "Reads only", handles: ["read"], detail: "Only answers GETs, e.g. a feed or timeline service. Scale it for the busy read side." },
+  { id: "write", label: "Writes only", handles: ["write"], detail: "Only takes POST/PUT/DELETE, e.g. a post service. Usually needs far fewer copies." },
+];
+
+/** Which kinds of request a service takes: lets one design split reads and writes into separate services. */
+function RequestTypes({ cfg, traffic, onChange }: { cfg: NodeConfig; traffic: TrafficProfile; onChange: (patch: Partial<NodeConfig>) => void }) {
+  const on = (cls: TrafficClass) => handlesClass(cfg, cls);
+  const set = (next: TrafficClass[]) => onChange({ handles: next.length === 0 || next.length === 3 ? undefined : next });
+  const toggle = (cls: TrafficClass) => {
+    const cur = REQUEST_KINDS.map((k) => k.cls).filter(on);
+    const next = cur.includes(cls) ? cur.filter((c) => c !== cls) : [...cur, cls];
+    if (next.length === 0) return; // a service must take something
+    set(next);
+  };
+  const role = ROLES.find((r) => JSON.stringify(r.handles ?? null) === JSON.stringify(cfg.handles && cfg.handles.length > 0 && cfg.handles.length < 3 ? [...cfg.handles].sort() : null));
+  const { reads, writes, stat } = trafficSplit(traffic);
+  const perClass: Record<TrafficClass, number> = { read: reads, write: writes, static: stat };
+  const share = REQUEST_KINDS.filter((k) => on(k.cls)).reduce((a, k) => a + perClass[k.cls], 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <p className="text-[13px]">What is this service for?</p>
+        <div role="radiogroup" aria-label="Service role" className="grid grid-cols-3 gap-1 rounded-lg border border-border p-0.5">
+          {ROLES.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              role="radio"
+              aria-checked={role?.id === r.id}
+              onClick={() => set(r.handles ?? [])}
+              className={cn(
+                "rounded-md px-1.5 py-1.5 text-[12px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                role?.id === r.id ? "bg-white/[0.08] text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11.5px] leading-snug text-muted-foreground">{role ? role.detail : "A custom mix of request types."}</p>
+      </div>
+      <fieldset className="space-y-1.5">
+        <legend className="mb-1.5 text-[13px]">Requests it handles</legend>
+        {REQUEST_KINDS.map((k) => (
+          <label key={k.cls} className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border px-2.5 py-2 hover:bg-white/[0.03]">
+            <input type="checkbox" checked={on(k.cls)} onChange={() => toggle(k.cls)} className="mt-0.5 size-3.5 accent-[var(--primary)]" />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="text-[13px] font-medium">{k.label}</span>
+                <span className="font-mono text-[10.5px] text-muted-foreground">{k.verbs}</span>
+              </span>
+              <span className="block text-[11.5px] leading-snug text-muted-foreground">{k.detail}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <Readout>
+        In this traffic, that&apos;s up to <span className="font-semibold">{Math.round(share).toLocaleString("en-US")} req/s</span> across all services like this one. Load
+        balancers and gateways send each request only to services that take it. If no service takes a kind, those requests fail, so make sure something
+        handles reads <em>and</em> writes.
+      </Readout>
+    </div>
+  );
+}
+
 /**
  * Settings that change how a component behaves in the simulator, each explained in plain words, plus a
  * live readout of the effect. Shown in the component panel below capacity and replicas.
@@ -314,6 +395,14 @@ export function ComponentSettings({
               : "On: every few seconds it asks each server 'are you OK?' and stops sending traffic to one that doesn't answer."
           }
         />
+      </Section>,
+    );
+  }
+
+  if (behavior === "appServer" || behavior === "serverless") {
+    sections.push(
+      <Section key="handles" title="Request types">
+        <RequestTypes cfg={cfg} traffic={traffic} onChange={onChange} />
       </Section>,
     );
   }
@@ -447,11 +536,17 @@ export function ComponentSettings({
     );
   }
 
-  return <div className="space-y-3">{sections}</div>;
+  if (sections.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Settings</p>
+      {sections.map((el, i) => (i === 0 && isValidElement<{ first?: boolean }>(el) ? cloneElement(el, { first: true }) : el))}
+    </div>
+  );
 }
 
 /** The plain-language guide for a component type, collapsible. */
-export function ComponentGuideCard({ behavior }: { behavior: BaseKind }) {
+export function ComponentGuideCard({ behavior, simBehavior }: { behavior: BaseKind; simBehavior?: string }) {
   const g = COMPONENT_GUIDE[behavior];
   const [open, setOpen] = useState(false);
   if (!g) return null;
@@ -461,7 +556,7 @@ export function ComponentGuideCard({ behavior }: { behavior: BaseKind }) {
         <BookOpen className="mt-0.5 size-4 shrink-0 text-brand-blue" aria-hidden="true" />
         <span className="min-w-0 flex-1">
           <span className="block text-[12.5px] font-semibold">In plain words</span>
-          <span className="block text-[12.5px] leading-snug text-muted-foreground">
+          <span className={cn("block text-[12.5px] leading-snug text-muted-foreground", !open && "line-clamp-2")}>
             {g.what} <span className="italic">Like {g.analogy.charAt(0).toLowerCase() + g.analogy.slice(1)}</span>
           </span>
         </span>
@@ -500,6 +595,12 @@ export function ComponentGuideCard({ behavior }: { behavior: BaseKind }) {
             <p className="rounded-lg bg-white/[0.04] px-2.5 py-2">
               <span className="font-semibold">Rule of thumb: </span>
               {g.rule}
+            </p>
+          )}
+          {simBehavior && (
+            <p className="text-[12px] text-muted-foreground">
+              <span className="font-semibold text-foreground">In the simulator: </span>
+              {simBehavior}
             </p>
           )}
         </div>

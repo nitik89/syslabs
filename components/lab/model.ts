@@ -1,5 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
-import { CATALOG, defaultConfig, type NodeConfig, type NodeKind, type NodeResult, type SimGraph } from "@/lib/sim";
+import { CATALOG, connectionRule, defaultConfig, nodeSpec, type NodeConfig, type NodeKind, type NodeResult, type SimGraph } from "@/lib/sim";
 import type { DesignDoc } from "@/lib/storage";
 
 export type SysNodeData = {
@@ -99,6 +99,11 @@ export function connectionProblem(
   const t = nodes.find((n) => n.id === target);
   if (!t) return "Target not found.";
   if (t.data.kind === "client") return "Clients only send traffic; they can't receive it.";
+  const src = nodes.find((n) => n.id === source);
+  if (src) {
+    const why = connectionRule(nodeSpec(src.data).behavior, nodeSpec(t.data).behavior);
+    if (why) return why;
+  }
   if (edges.some((e) => e.source === source && e.target === target)) return "These are already connected.";
   return null;
 }

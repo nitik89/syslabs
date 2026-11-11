@@ -67,11 +67,7 @@ export function NodeInspector({
           <p className="text-xs text-muted-foreground">{spec.description}</p>
         </div>
       </div>
-      <ComponentGuideCard behavior={spec.behavior} />
-      <p className="rounded-lg border border-border bg-secondary/40 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
-        <span className="font-medium text-foreground">In the simulator: </span>
-        {spec.simBehavior}
-      </p>
+      <ComponentGuideCard behavior={spec.behavior} simBehavior={spec.simBehavior} />
       {spec.includes && (
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground">Built in</p>

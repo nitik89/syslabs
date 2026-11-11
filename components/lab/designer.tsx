@@ -22,7 +22,7 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { Activity, Boxes, ChevronsRight, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Activity, Boxes, ChevronsLeft, ChevronsRight, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, lockConfig, lockGraph, nodeMonthlyCost, nodeSpec, simulateTimeline, type NodeConfig, type NodeKind, type SimResult, type Timeline, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc, DesignRequirements } from "@/lib/storage";
@@ -202,7 +202,7 @@ function DesignerInner({
   // Problem workspace: the side panel is a drawer over the canvas, open while a component is selected (or pinned open).
   const workspace = Boolean(header);
   const [showPanel, setShowPanel] = useState(!workspace);
-  const panelSqueezes = !workspace && showPanel;
+  // Problem pages: the inspector is docked on wide screens (open by default from 1280px) and a sheet on small ones.
   const [inspectOpen, setInspectOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<MobilePane>(leftPanel ? "problem" : "design");
   // Small screens: the components list slides over the canvas instead of sitting beside it.
@@ -227,9 +227,10 @@ function DesignerInner({
     // Tablets (below 1280px): start with the components column collapsed so the canvas isn't squeezed;
     // the toolbar's Components button brings it back.
     if (window.matchMedia("(max-width: 1279.98px)").matches) void Promise.resolve().then(() => setShowPalette(false));
+    else if (workspace) void Promise.resolve().then(() => setShowPanel(true));
     if (!isNarrow()) return;
     void Promise.resolve().then(() => setShowPanel(false));
-  }, []);
+  }, [workspace]);
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     const sync = () => setFullscreen(document.fullscreenElement === rootRef.current);
@@ -251,7 +252,7 @@ function DesignerInner({
     }
     const id = requestAnimationFrame(() => void rf.fitView({ padding: 0.08, maxZoom: 1, duration: 250 }));
     return () => cancelAnimationFrame(id);
-  }, [showPalette, panelSqueezes, consoleCollapsed, rf]);
+  }, [showPalette, showPanel, inspectOpen, mobilePalette, consoleCollapsed, rf]);
 
   const allowed = useMemo(() => new Set<NodeKind>(allowedKinds ?? NODE_KINDS), [allowedKinds]);
   const markDirty = useCallback(() => setStale(true), []);
@@ -719,11 +720,29 @@ function DesignerInner({
       data-tour="components-drawer"
       className={cn(
         "absolute inset-y-0 left-0 z-30 w-[min(86vw,320px)] overflow-hidden border-r border-border bg-sidebar shadow-[24px_0_48px_-24px_var(--shadow)]",
+        "lg:relative lg:inset-auto lg:z-auto lg:w-[264px] lg:shrink-0 lg:bg-sidebar/60 lg:shadow-none",
         mobilePane !== "design" && "max-lg:hidden",
       )}
     >
       {paletteList}
     </aside>
+  );
+  // Desktop: a slim labelled rail stands in for a closed column, so it's always one click away.
+  const rail = (label: string, onOpen: () => void, side: "left" | "right", tour?: string) => (
+    <button
+      type="button"
+      onClick={onOpen}
+      data-tour={tour}
+      aria-label={`Show ${label.toLowerCase()}`}
+      title={`Show ${label.toLowerCase()}`}
+      className={cn(
+        "group hidden w-9 shrink-0 flex-col items-center gap-3 bg-sidebar/40 py-3 text-muted-foreground outline-none transition-colors hover:bg-white/[0.03] hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:flex",
+        side === "left" ? "border-r border-border" : "border-l border-border",
+      )}
+    >
+      {side === "left" ? <ChevronsRight className="size-4" aria-hidden="true" /> : <ChevronsLeft className="size-4" aria-hidden="true" />}
+      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] [writing-mode:vertical-rl]">{label}</span>
+    </button>
   );
 
   return (
@@ -745,14 +764,15 @@ function DesignerInner({
           {leftPanel}
         </div>
       )}
-      {/* Lab: the palette is a resizable column. Problem pages: a drawer over the canvas (see below). */}
+      {/* Lab: the palette is a resizable column. Problem pages: a docked column (or rail) on desktop, a drawer on small screens. */}
       {!workspace && paletteColumn}
+      {workspace && !mobilePalette && rail("Components", () => setMobilePalette(true), "left", "components-rail")}
+      {workspace && paletteDrawer}
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {workspace && paletteDrawer}
       <TrafficPanel open={trafficOpen} onClose={() => setTrafficOpen(false)} traffic={traffic} onChange={changeTraffic} base={briefTraffic} />
       {/* Canvas */}
-      <div ref={wrapperRef} data-tour="canvas" className="relative min-h-0 flex-1 lg:min-h-[380px]" onDragOver={onDragOver} onDrop={onDrop}>
+      <div ref={wrapperRef} data-tour="canvas" className="@container/canvas relative min-h-0 flex-1 lg:min-h-[380px]" onDragOver={onDragOver} onDrop={onDrop}>
         <RenameNodeContext.Provider value={renameNode}>
         <ReactFlow<SysNode, FlowEdge>
           nodes={displayNodes}
@@ -804,10 +824,10 @@ function DesignerInner({
           )}
           <Panel position="top-left" className={cn(
               "!m-3 max-w-[calc(100%-1.5rem)] transition-[margin]",
-              workspace && mobilePalette && "lg:!ml-[332px]",
               trafficOpen && "sm:max-w-[calc(100%-370px)]",
             )}>
-            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_var(--shadow)] backdrop-blur-md">
+            {/* A narrow canvas keeps the toolbar on one line: secondary buttons drop their labels (names stay for screen readers and tooltips). */}
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-popover/90 p-1.5 shadow-[0_12px_32px_-12px_var(--shadow)] backdrop-blur-md @max-[880px]/canvas:[&_button:not([data-keep-label]):not([role=menuitemradio])]:gap-0 @max-[880px]/canvas:[&_button:not([data-keep-label]):not([role=menuitemradio])]:text-[0px]">
               <Button
                 size="sm"
                 variant={workspace && mobilePalette ? "secondary" : "default"}
@@ -816,6 +836,7 @@ function DesignerInner({
                 aria-expanded={mobilePalette}
                 aria-label={mobilePalette ? "Close components" : "Add components"}
                 data-tour="add-component"
+                data-keep-label
               >
                 <Shapes /> {mobilePalette ? "Done" : <>Add<span className="max-sm:hidden"> component</span></>}
               </Button>
@@ -878,7 +899,7 @@ function DesignerInner({
                 {whatIf && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-status-warn" aria-hidden="true" />}
               </Button>
               {!panelOpen && (
-                <Button variant="ghost" size="sm" onClick={() => setShowPanel(true)} aria-label="Show side panel" title="Show traffic and results panel">
+                <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setShowPanel(true)} aria-label="Show side panel" title="Show traffic and results panel">
                   <SlidersHorizontal /> <span className="max-sm:hidden">Details</span>
                 </Button>
               )}
@@ -966,30 +987,32 @@ function DesignerInner({
       />
       </div>
 
-      {/* Inspector / results */}
+      {/* Inspector / results: a docked column on desktop (or a slim rail when hidden), a bottom sheet on small screens. */}
+      {!panelOpen && rail(workspace ? "Inspector" : "Details", () => setShowPanel(true), "right", "inspector-rail")}
       <aside
         hidden={!panelOpen}
+        aria-label={workspace ? "Inspector" : "Details"}
         className={cn(
           "shrink-0 overflow-y-auto border-t border-border",
           // Small screens: a bottom sheet over the canvas.
           "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[70dvh] max-lg:rounded-t-2xl max-lg:bg-sidebar max-lg:shadow-[0_-24px_48px_-12px_var(--shadow)]",
-          workspace
-            ? "bg-sidebar/95 backdrop-blur-md lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:w-[310px] lg:border-l lg:border-t-0 lg:shadow-[-24px_0_48px_-24px_var(--shadow)]"
-            : "bg-sidebar/60 lg:w-[300px] lg:border-l lg:border-t-0",
+          "bg-sidebar/60 lg:w-[320px] lg:border-l lg:border-t-0",
         )}
       >
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-0">
           <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-border bg-sidebar/95 p-2 backdrop-blur">
             <TabsList className="flex-1">
-              <TabsTrigger value="inspect">{selected ? "Component" : "Traffic"}</TabsTrigger>
+              <TabsTrigger value="inspect">{selected ? "Component" : workspace ? "Inspector" : "Traffic"}</TabsTrigger>
+              {!workspace && (
               <TabsTrigger value="requirements" title="Functional and non-functional requirements">
                 Reqs
                 {requirements.functional.length + requirements.nonFunctional.length > 0 && (
                   <span className="ml-1 font-mono text-[10px] text-muted-foreground">{requirements.functional.length + requirements.nonFunctional.length}</span>
                 )}
               </TabsTrigger>
+              )}
               <TabsTrigger value="results">
-                Results
+                {workspace ? "Score" : "Results"}
                 {result && stale && <span className="ml-1 size-1.5 rounded-full bg-status-warn" aria-label="(outdated)" />}
               </TabsTrigger>
             </TabsList>
@@ -1016,6 +1039,27 @@ function DesignerInner({
                 onSelect={focusNode}
                 specsLocked={specsLocked}
               />
+            ) : workspace ? (
+              <div className="space-y-4">
+                <p className="text-[14px] text-foreground">Select a component to configure it.</p>
+                <ul className="list-disc space-y-2 pl-4 text-[12.5px] leading-relaxed text-muted-foreground marker:text-border">
+                  <li>
+                    <span className="text-foreground">Add:</span> open <span className="text-foreground">Components</span> on the left and click or drag one onto the canvas.
+                  </li>
+                  <li>
+                    <span className="text-foreground">Connect:</span> drag from a component&apos;s right handle to another&apos;s left handle.
+                  </li>
+                  <li>
+                    <span className="text-foreground">Remove:</span> select a component and press Backspace; double-click a connection to delete it.
+                  </li>
+                  <li>
+                    <span className="text-foreground">Load:</span> switch the scenario in the toolbar, or fine-tune reads and writes under <span className="text-foreground">Traffic</span>.
+                  </li>
+                  <li>
+                    <span className="text-foreground">Run</span> to see how busy each component gets, then <span className="text-foreground">Submit</span>.
+                  </li>
+                </ul>
+              </div>
             ) : (
               <div className="space-y-5">
                 <TrafficControls traffic={traffic} onChange={changeTraffic} base={briefTraffic} />

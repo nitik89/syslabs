@@ -20,7 +20,7 @@
       "Error rate at or below 1%",
       "Average latency at or below 50 ms",
       "Uploads processed without backlog",
-      "Cost under $1,400 / month"
+      "Cost under $1,600 / month"
     ]
   },
   "objectives": [
@@ -47,10 +47,10 @@
     },
     {
       "id": "cost",
-      "label": "Monthly cost at or below $1,400",
+      "label": "Monthly cost at or below $1,600",
       "metric": "monthlyCost",
       "op": "<=",
-      "value": 1400
+      "value": 1600
     }
   ],
   "startingDesign": {
@@ -208,7 +208,7 @@
       "architecture": 0.2
     },
     "latencyTargetMs": 40,
-    "costBudget": 1300
+    "costBudget": 1500
   },
   "explanation": [
     "Separate the paths by traffic type. Static bytes go CDN \u2192 object storage and never touch your servers. Dynamic reads go cache-first. Writes go async where users don't need to wait.",

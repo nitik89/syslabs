@@ -136,3 +136,40 @@ describe("app server settings", () => {
     expect(capped.errorRate).toBeGreaterThan(slow.errorRate);
   });
 });
+
+describe("request types (read and write services)", () => {
+  const g = (readSvc: Record<string, unknown>, writeSvc: Record<string, unknown>): SimGraph => ({
+    nodes: [
+      node("c", "client"),
+      node("lb", "loadBalancer"),
+      node("feed", "appServer", { replicas: 2, ...readSvc }),
+      node("posts", "appServer", { replicas: 2, ...writeSvc }),
+      node("db", "sqlDb", { replicas: 2 }),
+    ],
+    edges: [
+      { id: "e1", source: "c", target: "lb" },
+      { id: "e2", source: "lb", target: "feed" },
+      { id: "e3", source: "lb", target: "posts" },
+      { id: "e4", source: "feed", target: "db" },
+      { id: "e5", source: "posts", target: "db" },
+    ],
+  });
+  const t: TrafficProfile = { rps: 1000, readRatio: 0.8, hotKeyFraction: 0.5, staticFraction: 0 };
+
+  it("by default every service takes everything (split evenly)", () => {
+    const r = simulate(g({}, {}), t);
+    expect(r.nodes.feed.load).toBeCloseTo(r.nodes.posts.load, 0);
+  });
+
+  it("a read service gets only reads and a post service only writes", () => {
+    const r = simulate(g({ handles: ["read"] }, { handles: ["write"] }), t);
+    expect(r.nodes.feed.load).toBeCloseTo(800, 0);
+    expect(r.nodes.posts.load).toBeCloseTo(200, 0);
+    expect(r.errorRate).toBeLessThan(0.01);
+  });
+
+  it("if no service handles writes, writes fail", () => {
+    const r = simulate(g({ handles: ["read"] }, { handles: ["read"] }), t);
+    expect(r.errorRate).toBeCloseTo(0.2, 2);
+  });
+});

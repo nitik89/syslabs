@@ -45,6 +45,7 @@ Now try the next problem on your own.
 | --- | --- |
 | **Header** | Problem name and difficulty, live cost per hour against the budget, **Run**, **Submit**, reset, **Tour** and (on the first challenge) **Solve it with me**. **Layout** hides the problem panel for a bigger canvas. |
 | **Problem panel** (left) | *Description* (scenario, functional and non-functional requirements, back-of-envelope numbers, test cases), *Articles* (lessons this problem uses), *Hints* (revealed one at a time), *Editorial*, *Submissions*. |
+| **Components** and **Inspector** (rails) | On desktop, a slim *Components* rail sits left of the canvas and an *Inspector* rail on the right; click either to open it as a docked column. The inspector shows the selected component's settings (each group folds open) and, with nothing selected, quick how-tos. |
 | **Canvas** (centre) | Your design. The toolbar has **Add component**, undo/redo, save/share/load, reveal solution, full screen, a **scenario** dropdown, **Traffic** and **Details**. The scenario dropdown switches the load. |
 | **Run console** (bottom) | Appears after a run: tests, latency/traffic/busy charts, a components table, what to fix, logs, a **3D** view and your submissions. Drag its top edge to resize it. |
 
@@ -72,7 +73,7 @@ Below that are the settings. In graded problems, capacity, latency and price per
 | Component | Settings |
 | --- | --- |
 | Every component | **Replicas** (identical copies: more capacity, and survive one failing) |
-| App servers, serverless, workers, WebSocket gateways | **Machine size** (scale up), **Autoscaling** with a maximum, **Request timeout** (app servers and serverless) |
+| App servers, serverless, workers, WebSocket gateways | **Machine size** (scale up), **Autoscaling** with a maximum; for app servers and serverless also **Request types** (everything, reads only like a feed service, writes only like a post service) and a **Request timeout** |
 | Cache | **Cache size**, **Eviction** (LRU, LFU, FIFO, random), **TTL**, **Write policy** (cache-aside, write-through, write-back), machine size. A live readout shows the hit ratio. |
 | Databases | **Max connections**, **Indexed columns** (or index level), machine size, **Read consistency** (NoSQL) |
 | Load balancer | **Algorithm** (round robin, least connections, IP hash, random), **Health checks** |

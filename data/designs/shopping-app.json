@@ -25,7 +25,7 @@
     ]
   },
   "estimates": [
-    "10M daily users \u00d7 ~50 requests each \u2248 6,000 requests/s at peak",
+    "10M daily users × ~50 requests each ≈ 6,000 requests/s at peak",
     "Half of all requests are images, JS and CSS",
     "85% of API calls are reads; 30% of writes fight over the same stock"
   ],
@@ -208,6 +208,17 @@
           "kind": "monitoring",
           "label": "Monitoring",
           "config": {}
+        },
+        {
+          "id": "worker-1",
+          "kind": "worker",
+          "label": "Consumer Workers",
+          "config": {
+            "capacity": 2000,
+            "latencyMs": 10,
+            "replicas": 2,
+            "costPerReplica": 60
+          }
         }
       ],
       "edges": [
@@ -247,9 +258,9 @@
           "target": "db-1"
         },
         {
-          "id": "e:queue-1->db-1",
+          "id": "e-queue-1-worker-1",
           "source": "queue-1",
-          "target": "db-1"
+          "target": "worker-1"
         },
         {
           "id": "e:catalog->lock-1",
@@ -265,6 +276,11 @@
           "id": "e:searchsvc->lock-1",
           "source": "searchsvc",
           "target": "lock-1"
+        },
+        {
+          "id": "e-worker-1-db-1",
+          "source": "worker-1",
+          "target": "db-1"
         }
       ]
     },
@@ -312,6 +328,10 @@
       "monitoring-1": {
         "x": 0,
         "y": 420
+      },
+      "worker-1": {
+        "x": 980.0,
+        "y": 215.0
       }
     }
   },
@@ -367,7 +387,7 @@
   "explanation": [
     "The biggest wins come from routing each kind of traffic to the cheapest thing that can serve it: CDN for static files, cache for hot product pages, search engine for keyword queries.",
     "Search is its own service because inverted indexes answer \"red running shoes\" in milliseconds, while LIKE '%red%' on SQL scans the whole table.",
-    "Checkout is the one place correctness beats speed: lock the item (or use a conditional UPDATE \u2026 WHERE stock > 0) so the last unit sells exactly once.",
+    "Checkout is the one place correctness beats speed: lock the item (or use a conditional UPDATE … WHERE stock > 0) so the last unit sells exactly once.",
     "Order confirmation emails don't need to block checkout. Put an event on a queue and let workers send the email."
   ]
 }

@@ -33,7 +33,7 @@ export function ShareButton({ getDoc, defaultName, challengeId }: { getDoc: () =
         }
       }}
     >
-      <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" title="Share a read-only link" />}>
         <Share2 /> Share
       </DialogTrigger>
       <DialogContent>

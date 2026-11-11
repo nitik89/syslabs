@@ -4,6 +4,7 @@ export {
   simulate,
   cacheHitRatio,
   cacheHitRatioFor,
+  handlesClass,
   cachePolicyFactor,
   connectionLimit,
   cdnHitRatio,
@@ -21,3 +22,4 @@ export {
 } from "./engine";
 export { analyzePipeline, type PipelineReport } from "./pipeline";
 export { simulateTimeline, latencyPercentiles, percentilesOf, loadFactor, TIMEOUT_MS, type Timeline, type Tick, type LogEvent, type LogLevel, type Percentiles } from "./timeline";
+export { connectionRule, allowedTargets } from "./connections";

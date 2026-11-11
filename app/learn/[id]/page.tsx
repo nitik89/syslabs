@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ArrowRight, Clock, Cog, Lightbulb, MessageSquareQuote, Scale, Workflow } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Cog, Lightbulb, MessageSquareQuote, Scale, Target, Workflow } from "lucide-react";
 import { LESSONS, getLesson } from "@/data/lessons";
 import { ROADMAP } from "@/data/roadmap";
 import { getChallenge } from "@/data/challenges";
@@ -11,7 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { LESSON_DIAGRAMS } from "@/data/lesson-diagrams";
 import { LESSON_DEEP } from "@/data/lesson-deep";
 import { LessonDiagram } from "@/components/learn/lesson-diagram";
-import { readingMinutes } from "@/data/lesson-deep";
+import { relatedProblems } from "@/lib/challenges/articles";
 
 function SectionTitle({ icon: Icon, children, tone = "text-brand-blue" }: { icon: typeof Cog; children: React.ReactNode; tone?: string }) {
   return (
@@ -49,6 +49,7 @@ async function Lesson({ params }: { params: PageProps<"/learn/[id]">["params"] }
   const next = LESSONS[idx + 1];
   const diagram = LESSON_DIAGRAMS[lesson.id];
   const deep = LESSON_DEEP[lesson.id];
+  const related = relatedProblems(lesson.id);
 
   return (
     <article className="mx-auto w-full max-w-3xl space-y-8 px-6 py-10 md:px-10">
@@ -58,9 +59,6 @@ async function Lesson({ params }: { params: PageProps<"/learn/[id]">["params"] }
       <header className="space-y-3">
         <p className="flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: stage.color }}>
           {stage.title} · lesson {idx + 1} of {LESSONS.length}
-          <span className="flex items-center gap-1 font-normal normal-case tracking-normal text-muted-foreground">
-            <Clock className="size-3" aria-hidden="true" /> {readingMinutes(lesson)} min
-          </span>
         </p>
         <h1 className="text-3xl font-semibold tracking-[-0.02em]">{lesson.title}</h1>
         <p className="text-[16px] leading-relaxed text-muted-foreground">{lesson.summary}</p>
@@ -185,6 +183,35 @@ async function Lesson({ params }: { params: PageProps<"/learn/[id]">["params"] }
           <Link href={href} className={buttonVariants({ size: "lg" })}>
             Practise <ArrowRight />
           </Link>
+        </section>
+      )}
+
+      {related.length > 1 && (
+        <section className="space-y-3">
+          <SectionTitle icon={Target}>Related problems</SectionTitle>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {related.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`${p.mode === "build" ? "/build" : "/challenges"}/${p.id}`}
+                  className="surface surface-hover flex items-center gap-2.5 rounded-xl px-3.5 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-semibold">{p.title}</span>
+                    <span className="block text-[11.5px] text-muted-foreground">{p.mode === "build" ? `Build · ${p.category}` : "Challenge"}</span>
+                  </span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 font-mono text-[10.5px] font-semibold ${
+                      p.difficulty === "Easy" ? "bg-status-ok/12 text-status-ok" : p.difficulty === "Medium" ? "bg-status-warn/12 text-status-warn" : "bg-status-crit/12 text-status-crit"
+                    }`}
+                  >
+                    {p.difficulty}
+                  </span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

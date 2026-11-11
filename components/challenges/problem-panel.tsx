@@ -193,7 +193,7 @@ export function ProblemPanel({
                       )}
                     </span>
                     <span className="mt-1 block text-[12.5px] leading-relaxed text-muted-foreground">{l.summary}</span>
-                    <span className="mt-1.5 block font-mono text-[10.5px] text-muted-foreground/80">{l.minutes} min read ↗</span>
+                    <span className="mt-1.5 block font-mono text-[10.5px] text-muted-foreground/80">Open lesson ↗</span>
                   </Link>
                 </li>
               ))}

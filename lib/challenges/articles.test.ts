@@ -8,3 +8,15 @@ describe("challenge articles", () => {
     for (const p of [...CHALLENGES, ...DESIGNS]) expect(relatedLessons(p.id).length, p.id).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("lesson → problems", () => {
+  it("every lesson links its practice problem first", async () => {
+    const { LESSONS } = await import("@/data/lessons");
+    const { relatedProblems } = await import("./articles");
+    for (const l of LESSONS) {
+      const r = relatedProblems(l.id);
+      expect(r.length, l.id).toBeGreaterThanOrEqual(1);
+      expect(r[0].id, l.id).toBe(l.practice);
+    }
+  });
+});

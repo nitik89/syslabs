@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { DifficultyPill } from "@/components/challenges/challenge-list";
 import { ErrorBlock, LoadingBlock } from "@/components/progress/bits";
 import { useProgressData } from "@/components/progress/use-progress";
-import { readingMinutes } from "@/data/lesson-deep";
 
 const BY_ID = new Map<string, Challenge>([...CHALLENGES, ...DESIGNS].map((c) => [c.id, c]));
 const problemsOf = (s: Stage) => s.problems.map((id) => BY_ID.get(id)!).filter(Boolean);
@@ -149,7 +148,6 @@ export function RoadmapView() {
                     >
                       <BookOpen className="size-3.5" style={{ color: s.color }} aria-hidden="true" />
                       {l.title}
-                      <span className="font-mono text-[10.5px] text-muted-foreground">{readingMinutes(l)} min</span>
                     </Link>
                   ))}
                 </div>

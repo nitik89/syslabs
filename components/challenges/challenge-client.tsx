@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, CheckCircle2, Compass, Eye, Loader2, PanelLeft, Play, RotateCcw, Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Compass, Eye, Loader2, Play, RotateCcw, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
@@ -15,6 +15,7 @@ import { PROGRESS_EVENT, getRepo, type ChallengeRecord, type DesignDoc } from "@
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Designer } from "@/components/lab/designer";
 import { ResizeHandle, usePanelWidth } from "@/components/lab/resize-handle";
+import { LayoutMenu, applyDesignerLayout, savedLayout, type LayoutPreset } from "./layout-menu";
 import { ShareButton } from "@/components/lab/share-button";
 import { LoadDesignButton, ResetButton, SaveDesignButton, type CurrentDesign } from "@/components/lab/design-actions";
 import { ObjectiveList, ScoreCard } from "./score-card";
@@ -43,9 +44,21 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
   const [hintsShown, setHintsShown] = useState(0);
   const [editorialOpen, setEditorialOpen] = useState(false);
   const [problemTab, setProblemTab] = useState<ProblemTab>("description");
-  const [leftOpen, setLeftOpen] = useState(true);
-  const problemRef = useRef<HTMLElement>(null);
   const problemWidth = usePanelWidth({ min: 260, max: 560 });
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [layoutId, setLayoutId] = useState("classic");
+  const applyLayout = useCallback(
+    (l: LayoutPreset) => {
+      setLayoutId(l.id);
+      setLeftOpen(l.problem);
+      if (l.problemWidth) problemWidth.setWidth(l.problemWidth);
+      else problemWidth.reset();
+      applyDesignerLayout(l);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- problemWidth's setters are stable enough; re-creating per render is harmless
+    [],
+  );
+  const problemRef = useRef<HTMLElement>(null);
   const [testFilter, setTestFilter] = useState<string>("all");
   // Server-side check of the last submission (what the leaderboard counts).
   const [verification, setVerification] = useState<Verification | "checking" | null>(null);
@@ -120,6 +133,15 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
   }, [challenge, draftScope, designParam, router, basePath]);
 
   useEffect(() => boot(), [boot]);
+  // Desktop: bring back the layout picked last time (after the designer has set itself up).
+  const ready = state.phase === "ready";
+  useEffect(() => {
+    if (!ready || !window.matchMedia("(min-width: 1024px)").matches) return;
+    const l = savedLayout();
+    if (!l) return;
+    const id = window.setTimeout(() => applyLayout(l), 0);
+    return () => window.clearTimeout(id);
+  }, [ready, applyLayout]);
 
   const saveDraft = useCallback(
     (doc: DesignDoc) => {
@@ -250,9 +272,9 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
             return (
               <div className="shrink-0 border-b border-border bg-sidebar/80">
                 <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setLeftOpen((o) => !o)} aria-pressed={leftOpen} title="Show or hide the problem panel">
-                    <PanelLeft /> Layout
-                  </Button>
+                  <div className="max-lg:hidden">
+                    <LayoutMenu value={layoutId} onChange={applyLayout} />
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"

@@ -213,6 +213,18 @@ function DesignerInner({
     window.addEventListener("syslab:components", onTour);
     return () => window.removeEventListener("syslab:components", onTour);
   }, []);
+  // Workspace layout presets (the header's Layout menu) show or hide the designer's panels.
+  useEffect(() => {
+    const onLayout = (e: Event) => {
+      const d = (e as CustomEvent<{ settings: boolean; components: boolean; console: "open" | "closed" }>).detail;
+      setShowPanel(d.settings);
+      setInspectOpen(false);
+      setMobilePalette(d.components);
+      setConsoleCollapsed(d.console === "closed");
+    };
+    window.addEventListener("syslab:layout", onLayout);
+    return () => window.removeEventListener("syslab:layout", onLayout);
+  }, []);
   // Escape closes the components drawer.
   useEffect(() => {
     if (!mobilePalette) return;

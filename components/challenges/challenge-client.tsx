@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, CheckCircle2, Compass, Eye, Loader2, PanelLeft, Play, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Compass, Eye, Loader2, PanelLeft, Play, RotateCcw, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Challenge } from "@/lib/challenges/types";
 import { scoreChallenge } from "@/lib/challenges/score";
@@ -23,7 +23,7 @@ import { ProblemPanel, type ProblemTab } from "./problem-panel";
 import { PassBadge, TestStatusLines } from "./test-results";
 import { cn } from "@/lib/utils";
 import { sameGraph } from "@/lib/grading/grade";
-import { TOUR_DONE_KEY, WorkspaceTour } from "./workspace-tour";
+import { SOLVE_PROBLEM, SOLVE_STEPS, TOUR_DONE_KEY, TOUR_STEPS, WorkspaceTour } from "./workspace-tour";
 import { verifySubmission, type Verification } from "@/lib/grading/client";
 
 type Phase = { phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; doc: DesignDoc; key: number };
@@ -61,11 +61,20 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
   const incident = challenge.mode === "build" ? undefined : INCIDENTS[challenge.id];
   // Guided tour: opens by itself the first time someone lands on any problem, then from the Tour button.
   const [tourOpen, setTourOpen] = useState(false);
+  // "tour" walks the controls; "solve" builds a real solution on the canvas (The Overloaded Database).
+  const [tourMode, setTourMode] = useState<"tour" | "solve">("tour");
+  const canSolve = challenge.id === SOLVE_PROBLEM;
   const tests = useMemo(() => testCasesFor(challenge), [challenge]);
   const latencyObjective = challenge.objectives.find((o) => o.metric === "avgLatencyMs");
   const budget = challenge.objectives.find((o) => o.metric === "monthlyCost")?.value;
   const draftWarned = useRef(false);
   const router = useRouter();
+  const watchSolve = useCallback(() => {
+    if (challenge.id === SOLVE_PROBLEM) {
+      setTourMode("solve");
+      setTourOpen(true);
+    } else router.push(`/challenges/${SOLVE_PROBLEM}?solve=1`);
+  }, [challenge.id, router]);
   const nextHref = next ? `${basePath}/${next.id}` : null;
   const params = useSearchParams();
   // Read ?design= once: clearing it from the URL afterwards must not reload the draft over it.
@@ -94,7 +103,12 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
         } catch {
           /* private mode */
         }
-        if (!toured) setTimeout(() => setTourOpen(true), 600);
+        // Arriving from "Watch a full solve": start the guided solve. Otherwise, first visit: the tour.
+        const solveNow = challenge.id === SOLVE_PROBLEM && new URLSearchParams(window.location.search).get("solve") === "1";
+        if (solveNow) {
+          setTourMode("solve");
+          setTimeout(() => setTourOpen(true), 900);
+        } else if (!toured) setTimeout(() => setTourOpen(true), 600);
       },
       (e: unknown) => {
         if (!cancelled) setState({ phase: "error", message: e instanceof Error ? e.message : "Could not read saved data." });
@@ -186,7 +200,16 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
 
   return (
     <div className="flex h-[calc(100dvh-6.5rem)] flex-none flex-col overflow-hidden md:h-[calc(100dvh-3rem)]">
-      <WorkspaceTour open={tourOpen} onClose={() => setTourOpen(false)} />
+      <WorkspaceTour
+        key={tourMode}
+        open={tourOpen}
+        steps={tourMode === "solve" ? SOLVE_STEPS : TOUR_STEPS}
+        onClose={() => {
+          setTourOpen(false);
+          setTourMode("tour");
+        }}
+        onWatchSolve={tourMode === "tour" ? watchSolve : undefined}
+      />
       {state.phase === "loading" && (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
           <Loader2 className="size-4 animate-spin" /> Loading {noun}…
@@ -230,9 +253,22 @@ export function ChallengeClient({ challenge, next }: { challenge: Challenge; nex
                   <Button variant="outline" size="sm" className="max-lg:hidden" onClick={() => setLeftOpen((o) => !o)} aria-pressed={leftOpen} title="Show or hide the problem panel">
                     <PanelLeft /> Layout
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setTourOpen(true)} title="A quick walkthrough of this page">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setTourMode("tour");
+                      setTourOpen(true);
+                    }}
+                    title="A quick walkthrough of this page"
+                  >
                     <Compass /> <span className="max-sm:hidden">Tour</span>
                   </Button>
+                  {canSolve && (
+                    <Button variant="outline" size="sm" onClick={watchSolve} title="Build the solution together, step by step">
+                      <Wand2 /> <span className="max-sm:hidden">Solve it with me</span>
+                    </Button>
+                  )}
                   <Link href={basePath} className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label={isBuild ? "Back to build problems" : "Back to challenges"}>
                     <ArrowLeft />
                   </Link>

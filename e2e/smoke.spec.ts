@@ -314,3 +314,18 @@ test("guided tour: opens on the first problem visit and walks every step", async
   await expect(page.getByRole("button", { name: "Add components" })).toBeVisible();
   await expect(page.locator("#tour-title")).toBeHidden();
 });
+
+test("guided solve: builds the fix on the canvas, then the learner submits", async ({ page }) => {
+  await page.goto("/challenges/overloaded-database");
+  await page.getByRole("button", { name: /Solve it with me/ }).click();
+  await expect(page.locator("#tour-title")).toHaveText(/Diagnose/);
+  for (let i = 0; i < 10; i++) {
+    const next = page.getByRole("button", { name: "Next", exact: true });
+    if (!(await next.isVisible())) break;
+    await next.click();
+  }
+  await expect(page.locator(".react-flow__node", { hasText: "Redis Cache" })).toHaveCount(1);
+  await page.getByRole("button", { name: "Start building" }).click();
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
+});

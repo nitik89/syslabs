@@ -216,7 +216,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .diagram-flow {
+  .diagram-flow,
+  .tour-demo {
     display: none;
   }
   *, *::before, *::after {

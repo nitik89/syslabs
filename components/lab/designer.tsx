@@ -72,6 +72,15 @@ function isTextEntry(t: EventTarget | null): boolean {
   return t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 }
 
+/** Commands the guided solve sends to the canvas (see the "syslab:demo" event). Nodes are referred to by id or kind. */
+export type DemoCommand =
+  | { op: "add"; kind: NodeKind; at: { x: number; y: number } }
+  | { op: "connect"; from: string; to: string }
+  | { op: "config"; node: string; patch: Partial<NodeConfig> }
+  | { op: "select"; node: string }
+  | { op: "deselect" }
+  | { op: "run" };
+
 export interface DesignerContext {
   getDoc: () => DesignDoc;
   loadDoc: (doc: DesignDoc) => void;
@@ -196,6 +205,12 @@ function DesignerInner({
   const [mobilePane, setMobilePane] = useState<MobilePane>(leftPanel ? "problem" : "design");
   // Small screens: the components list slides over the canvas instead of sitting beside it.
   const [mobilePalette, setMobilePalette] = useState(false);
+  // The guided tour opens and closes the drawer to show the real list.
+  useEffect(() => {
+    const onTour = (e: Event) => setMobilePalette(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener("syslab:components", onTour);
+    return () => window.removeEventListener("syslab:components", onTour);
+  }, []);
   // Escape closes the components drawer.
   useEffect(() => {
     if (!mobilePalette) return;
@@ -569,6 +584,42 @@ function DesignerInner({
     [selectOnly, rf],
   );
 
+  // Guided solve (the tour): commands that build a design on the real canvas, step by step.
+  // Each is safe to repeat, so stepping back and forward doesn't duplicate anything.
+  const demoRef = useRef<(cmd: DemoCommand) => void>(() => {});
+  useEffect(() => {
+    demoRef.current = (cmd: DemoCommand) => {
+    const find = (ref: string) => nodes.find((n) => n.id === ref) ?? nodes.find((n) => n.data.kind === ref);
+    if (cmd.op === "add") {
+      if (nodes.some((n) => n.data.kind === cmd.kind)) return;
+      addNode(cmd.kind, cmd.at);
+      requestAnimationFrame(() => void rf.fitView({ padding: 0.12, maxZoom: 1, duration: 300 }));
+    } else if (cmd.op === "connect") {
+      const a = find(cmd.from);
+      const b = find(cmd.to);
+      if (!a || !b || edges.some((e) => e.source === a.id && e.target === b.id)) return;
+      connect(a.id, b.id);
+    } else if (cmd.op === "config") {
+      const n = find(cmd.node);
+      if (n) updateNode(n.id, { config: cmd.patch });
+    } else if (cmd.op === "select") {
+      const n = find(cmd.node);
+      if (n) focusNode(n.id);
+    } else if (cmd.op === "deselect") {
+      selectOnly(null);
+      setInspectOpen(false);
+      void rf.fitView({ padding: 0.12, maxZoom: 1, duration: 300 });
+    } else if (cmd.op === "run") {
+      run();
+    }
+    };
+  });
+  useEffect(() => {
+    const onDemo = (e: Event) => demoRef.current((e as CustomEvent<DemoCommand>).detail);
+    window.addEventListener("syslab:demo", onDemo);
+    return () => window.removeEventListener("syslab:demo", onDemo);
+  }, []);
+
   /* ------------------------------ rendering ------------------------------ */
 
   const showResults = result !== null && !stale;
@@ -663,6 +714,7 @@ function DesignerInner({
     <aside
       aria-label="Components"
       hidden={!mobilePalette}
+      data-tour="components-drawer"
       className={cn(
         "absolute inset-y-0 left-0 z-30 w-[min(86vw,320px)] overflow-hidden border-r border-border bg-sidebar shadow-[24px_0_48px_-24px_var(--shadow)]",
         mobilePane !== "design" && "max-lg:hidden",

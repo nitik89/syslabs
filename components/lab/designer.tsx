@@ -22,7 +22,7 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { Activity, Boxes, ChevronsLeft, ChevronsRight, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Activity, Boxes, Cable, ChevronsRight, Trash2, Unlink, FileText, Gauge, Network, Maximize2, MousePointerClick, Minimize2, Play, Redo2, Shapes, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { NODE_KINDS, NO_TRAFFIC_KINDS, isKindAllowed, lockConfig, lockGraph, nodeMonthlyCost, nodeSpec, simulateTimeline, type NodeConfig, type NodeKind, type SimResult, type Timeline, type TrafficProfile } from "@/lib/sim";
 import type { DesignDoc, DesignRequirements } from "@/lib/storage";
@@ -728,21 +728,23 @@ function DesignerInner({
     </aside>
   );
   // Desktop: a slim labelled rail stands in for a closed column, so it's always one click away.
-  const rail = (label: string, onOpen: () => void, side: "left" | "right", tour?: string) => (
-    <button
-      type="button"
-      onClick={onOpen}
-      data-tour={tour}
-      aria-label={`Show ${label.toLowerCase()}`}
-      title={`Show ${label.toLowerCase()}`}
-      className={cn(
-        "group hidden w-9 shrink-0 flex-col items-center gap-3 bg-sidebar/40 py-3 text-muted-foreground outline-none transition-colors hover:bg-white/[0.03] hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:flex",
-        side === "left" ? "border-r border-border" : "border-l border-border",
-      )}
-    >
-      {side === "left" ? <ChevronsRight className="size-4" aria-hidden="true" /> : <ChevronsLeft className="size-4" aria-hidden="true" />}
-      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] [writing-mode:vertical-rl]">{label}</span>
-    </button>
+  // Desktop: a closed column leaves a narrow strip with one icon tile, so it's always one click away.
+  const rail = (name: string, caption: string, Icon: typeof Shapes, onOpen: () => void, side: "left" | "right", tour?: string) => (
+    <div className={cn("hidden w-14 shrink-0 flex-col items-center bg-sidebar/40 pt-3 lg:flex", side === "left" ? "border-r border-border" : "border-l border-border")}>
+      <button
+        type="button"
+        onClick={onOpen}
+        data-tour={tour}
+        aria-label={`Show ${name}`}
+        title={`Show ${name}`}
+        className="group flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="flex size-9 items-center justify-center rounded-xl border border-border bg-card transition-colors group-hover:border-brand-blue/40 group-hover:bg-brand-blue/10">
+          <Icon className="size-4" aria-hidden="true" />
+        </span>
+        <span className="text-[10.5px] font-medium">{caption}</span>
+      </button>
+    </div>
   );
 
   return (
@@ -766,7 +768,6 @@ function DesignerInner({
       )}
       {/* Lab: the palette is a resizable column. Problem pages: a docked column (or rail) on desktop, a drawer on small screens. */}
       {!workspace && paletteColumn}
-      {workspace && !mobilePalette && rail("Components", () => setMobilePalette(true), "left", "components-rail")}
       {workspace && paletteDrawer}
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -988,10 +989,10 @@ function DesignerInner({
       </div>
 
       {/* Inspector / results: a docked column on desktop (or a slim rail when hidden), a bottom sheet on small screens. */}
-      {!panelOpen && rail(workspace ? "Inspector" : "Details", () => setShowPanel(true), "right", "inspector-rail")}
+      {!panelOpen && rail(workspace ? "settings" : "side panel", workspace ? "Tune" : "Details", SlidersHorizontal, () => setShowPanel(true), "right", "inspector-rail")}
       <aside
         hidden={!panelOpen}
-        aria-label={workspace ? "Inspector" : "Details"}
+        aria-label={workspace ? "Settings" : "Details"}
         className={cn(
           "shrink-0 overflow-y-auto border-t border-border",
           // Small screens: a bottom sheet over the canvas.
@@ -1002,7 +1003,7 @@ function DesignerInner({
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-0">
           <div className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-border bg-sidebar/95 p-2 backdrop-blur">
             <TabsList className="flex-1">
-              <TabsTrigger value="inspect">{selected ? "Component" : workspace ? "Inspector" : "Traffic"}</TabsTrigger>
+              <TabsTrigger value="inspect">{selected ? "Component" : workspace ? "Settings" : "Traffic"}</TabsTrigger>
               {!workspace && (
               <TabsTrigger value="requirements" title="Functional and non-functional requirements">
                 Reqs
@@ -1041,24 +1042,25 @@ function DesignerInner({
               />
             ) : workspace ? (
               <div className="space-y-4">
-                <p className="text-[14px] text-foreground">Select a component to configure it.</p>
-                <ul className="list-disc space-y-2 pl-4 text-[12.5px] leading-relaxed text-muted-foreground marker:text-border">
-                  <li>
-                    <span className="text-foreground">Add:</span> open <span className="text-foreground">Components</span> on the left and click or drag one onto the canvas.
-                  </li>
-                  <li>
-                    <span className="text-foreground">Connect:</span> drag from a component&apos;s right handle to another&apos;s left handle.
-                  </li>
-                  <li>
-                    <span className="text-foreground">Remove:</span> select a component and press Backspace; double-click a connection to delete it.
-                  </li>
-                  <li>
-                    <span className="text-foreground">Load:</span> switch the scenario in the toolbar, or fine-tune reads and writes under <span className="text-foreground">Traffic</span>.
-                  </li>
-                  <li>
-                    <span className="text-foreground">Run</span> to see how busy each component gets, then <span className="text-foreground">Submit</span>.
-                  </li>
-                </ul>
+                <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-4 py-6 text-center">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue">
+                    <MousePointerClick className="size-5" aria-hidden="true" />
+                  </span>
+                  <p className="mt-3 text-[14px] font-semibold">Nothing picked yet</p>
+                  <p className="mt-1 text-[12.5px] leading-snug text-muted-foreground">Click any box on the canvas and its knobs show up here.</p>
+                </div>
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Quick moves</p>
+                  <ul className="grid grid-cols-2 gap-2">
+                    {QUICK_MOVES.map(({ icon: Icon, title, how }) => (
+                      <li key={title} className="rounded-xl border border-border bg-white/[0.02] p-2.5">
+                        <Icon className="size-4 text-brand-blue" aria-hidden="true" />
+                        <p className="mt-1.5 text-[12.5px] font-medium">{title}</p>
+                        <p className="text-[11.5px] leading-snug text-muted-foreground">{how}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             ) : (
               <div className="space-y-5">
@@ -1083,6 +1085,16 @@ function DesignerInner({
     </div>
   );
 }
+
+/** Short how-tos for the empty settings panel on problem pages. */
+const QUICK_MOVES: { icon: typeof Shapes; title: string; how: string }[] = [
+  { icon: Shapes, title: "Add", how: "Press Add component, then click or drag one in." },
+  { icon: Cable, title: "Link", how: "Pull a line out of one box into another." },
+  { icon: Trash2, title: "Delete", how: "Pick a box, press Backspace." },
+  { icon: Unlink, title: "Unlink", how: "Double-click a line." },
+  { icon: Gauge, title: "Load", how: "Quiet night to gone viral, in the toolbar." },
+  { icon: Play, title: "Test", how: "Run to watch it, Submit to grade it." },
+];
 
 function MobilePaneSwitcher({
   pane,

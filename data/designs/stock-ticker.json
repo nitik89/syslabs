@@ -182,11 +182,6 @@
           "target": "cache-1"
         },
         {
-          "id": "e:cache-1->ts-1",
-          "source": "cache-1",
-          "target": "ts-1"
-        },
-        {
           "id": "e:api->kin-1",
           "source": "api",
           "target": "kin-1"
@@ -199,6 +194,11 @@
         {
           "id": "e:worker-1->ts-1",
           "source": "worker-1",
+          "target": "ts-1"
+        },
+        {
+          "id": "e-api-ts-1",
+          "source": "api",
           "target": "ts-1"
         }
       ]

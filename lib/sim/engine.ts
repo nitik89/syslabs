@@ -279,6 +279,7 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     parents.set(id, []);
   }
   const seenPairs = new Set<string>();
+  const legacyCachePaths: Array<[string, string]> = [];
   for (const e of graph.edges) {
     const s = nodeById.get(e.source);
     const t = nodeById.get(e.target);
@@ -294,6 +295,8 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     const why = connectionRule(s.kind as BaseKind, t.kind as BaseKind);
     if (why) {
       issues.push({ edgeId: e.id, message: why });
+      // Older designs drew cache → database; keep them working as cache-aside paths.
+      if (s.kind === "cache" && (DB_KINDS.has(t.kind) || t.kind === "search")) legacyCachePaths.push([s.id, t.id]);
       continue;
     }
     if (NO_TRAFFIC_KINDS.has(s.kind) || NO_TRAFFIC_KINDS.has(t.kind)) continue;
@@ -308,14 +311,17 @@ function runCore(graph: SimGraph, rawTraffic: TrafficProfile, opts: RunOptions):
     parents.get(t.id)!.push(s.id);
   }
 
-  // Cache-aside: a cache with no downstream gets virtual read paths to the databases its parents use.
+  for (const [c, t] of legacyCachePaths) {
+    if (!children.get(c)!.some((k) => k.target === t)) children.get(c)!.push({ target: t, edgeId: null });
+  }
+  // Cache-aside: a cache gets virtual read paths to the databases (and search indexes) its parents use.
   for (const n of nodeById.values()) {
     if (n.kind !== "cache" || children.get(n.id)!.length > 0) continue;
     const added = new Set<string>();
     for (const p of parents.get(n.id)!) {
       for (const c of children.get(p)!) {
         const k = nodeById.get(c.target)!.kind;
-        if (DB_KINDS.has(k) && !added.has(c.target)) {
+        if ((DB_KINDS.has(k) || k === "search") && !added.has(c.target)) {
           added.add(c.target);
           children.get(n.id)!.push({ target: c.target, edgeId: null });
         }

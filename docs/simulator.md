@@ -39,7 +39,7 @@ Each component forwards traffic to the components it's connected to:
 
 - **Front doors** (DNS, load balancers, gateways, rate limiters) spread each class evenly over the next components that accept it (an app server set to *reads only* doesn't accept writes). Static traffic prefers a connected CDN.
 - **App servers** send **reads** to a cache first, then stores (databases, object storage, search), then other compute. **Writes** go to a write-back cache (if any), then a queue, then databases, then other stores. Static files go to object storage or a CDN. With nothing downstream, the app server answers by itself.
-- **Caches** answer hits and send misses on (cache-aside).
+- **Caches** answer hits; misses go to the database or search index that the same app server is connected to (**cache-aside**: the app talks to both; the cache itself never calls the database).
 - **Queues** acknowledge writes at once and deliver them asynchronously to workers.
 - **Stores** (databases, object storage, search) are terminal.
 
@@ -51,11 +51,11 @@ Connections follow real architecture (`lib/sim/connections.ts`). The canvas refu
 
 | From | Can connect to |
 | --- | --- |
-| Client, DNS | CDN, load balancers and gateways, app servers, serverless, object storage |
-| Load balancer, gateways, rate limiter | Other front doors, app servers, serverless, CDN, object storage (API gateway also a queue; rate limiter also a cache) |
+| Client, DNS | CDN, load balancers and gateways, app servers, serverless, object storage (only clients and DNS reach a CDN) |
+| Load balancer, gateways, rate limiter | Other front doors, app servers, serverless, object storage (API gateway also a queue; rate limiter also a cache) |
 | App server, serverless | Front doors, other services, cache, databases, object storage, search, queue, AI model, lock service, monitoring |
 | Worker | Services, cache, databases, object storage, search, queue, AI model, lock service, monitoring |
-| Cache | Databases, search, object storage (the store behind it) |
+| Cache | Monitoring only. Use cache-aside: connect the app server to the cache **and** to the database |
 | Queue | Its consumers: worker, serverless, app server (or another queue). **Never straight to a database.** |
 | Databases, search, object storage, locks | Monitoring only (they answer; they don't send traffic on) |
 

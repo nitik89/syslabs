@@ -26,7 +26,8 @@ describe("connection rules", () => {
     expect(connectionRule("cache", "appServer")).not.toBeNull();
     expect(connectionRule("appServer", "worker")).toMatch(/queue/i);
     expect(connectionRule("appServer", "cache")).toBeNull();
-    expect(connectionRule("cache", "sqlDb")).toBeNull();
+    expect(connectionRule("cache", "sqlDb")).toMatch(/cache-aside/);
+    expect(connectionRule("loadBalancer", "cdn")).toMatch(/CDN first/);
   });
 
   it("the simulator ignores a queue wired straight to a database (writes pile up as backlog)", () => {
@@ -47,6 +48,25 @@ describe("connection rules", () => {
     expect(r.nodes.db.load).toBe(0);
     expect(r.backlogRps).toBeGreaterThan(0);
     expect(r.issues.some((i) => i.edgeId === "3")).toBe(true);
+  });
+
+  it("cache-aside (app → cache, app → database) works; an old cache → database link still does but is flagged", () => {
+    const cfg = (capacity: number, latencyMs: number, extra = {}) => ({ capacity, latencyMs, replicas: 1, costPerReplica: 50, ...extra });
+    const nodes = [
+      { id: "c", kind: "client" as const, config: cfg(0, 0) },
+      { id: "app", kind: "appServer" as const, config: cfg(5000, 10) },
+      { id: "cache", kind: "cache" as const, config: cfg(100000, 1, { cacheSizeGb: 16 }) },
+      { id: "db", kind: "sqlDb" as const, config: cfg(1000, 8) },
+    ];
+    const t = { rps: 2000, readRatio: 1, hotKeyFraction: 0.9, staticFraction: 0 };
+    const aside = simulate({ nodes, edges: [{ id: "1", source: "c", target: "app" }, { id: "2", source: "app", target: "cache" }, { id: "3", source: "app", target: "db" }] }, t);
+    const legacy = simulate({ nodes, edges: [{ id: "1", source: "c", target: "app" }, { id: "2", source: "app", target: "cache" }, { id: "3", source: "cache", target: "db" }] }, t);
+    expect(aside.errorRate).toBeLessThan(0.01);
+    expect(aside.nodes.db.load).toBeGreaterThan(0);
+    expect(aside.nodes.db.load).toBeLessThan(2000 * 0.5);
+    expect(legacy.nodes.db.load).toBeCloseTo(aside.nodes.db.load, 6);
+    expect(aside.issues).toEqual([]);
+    expect(legacy.issues.some((i) => i.edgeId === "3" && /cache-aside/.test(i.message))).toBe(true);
   });
 
   it.each([...CHALLENGES, ...DESIGNS].map((c) => [c.id, c] as const))("%s: every connection in the starting design and reference makes sense", (id, c) => {

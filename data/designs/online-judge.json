@@ -209,11 +209,6 @@
           "target": "cache-1"
         },
         {
-          "id": "e:cache-1->db-1",
-          "source": "cache-1",
-          "target": "db-1"
-        },
-        {
           "id": "e:api->q-1",
           "source": "api",
           "target": "q-1"
@@ -227,6 +222,11 @@
           "id": "e:worker-1->db-2",
           "source": "worker-1",
           "target": "db-2"
+        },
+        {
+          "id": "e-api-db-1",
+          "source": "api",
+          "target": "db-1"
         }
       ]
     },

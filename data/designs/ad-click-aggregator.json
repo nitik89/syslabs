@@ -197,8 +197,8 @@
           "target": "cache-1"
         },
         {
-          "id": "e:cache-1->ts-1",
-          "source": "cache-1",
+          "id": "e-api-ts-1",
+          "source": "api",
           "target": "ts-1"
         }
       ]

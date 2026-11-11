@@ -193,11 +193,6 @@
           "target": "cache-1"
         },
         {
-          "id": "e:cache-1->es-1",
-          "source": "cache-1",
-          "target": "es-1"
-        },
-        {
           "id": "e:api->q-1",
           "source": "api",
           "target": "q-1"
@@ -210,6 +205,11 @@
         {
           "id": "e:worker-1->es-1",
           "source": "worker-1",
+          "target": "es-1"
+        },
+        {
+          "id": "e-api-es-1",
+          "source": "api",
           "target": "es-1"
         }
       ]

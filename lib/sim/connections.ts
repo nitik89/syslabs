@@ -14,15 +14,16 @@ const ALLOWED: Record<BaseKind, readonly BaseKind[]> = {
   client: ["dns", "cdn", ...FRONT_DOORS, ...SERVICES, "objectStorage"],
   dns: ["cdn", ...FRONT_DOORS, ...SERVICES, "objectStorage"],
   cdn: [...FRONT_DOORS, ...SERVICES, "objectStorage"],
-  loadBalancer: [...FRONT_DOORS, ...SERVICES, "cdn", "objectStorage", "monitoring"],
-  apiGateway: [...FRONT_DOORS, ...SERVICES, "cdn", "objectStorage", "queue", "monitoring"],
-  rateLimiter: [...FRONT_DOORS, ...SERVICES, "cdn", "objectStorage", "cache", "monitoring"],
-  appGateway: [...FRONT_DOORS, ...SERVICES, "cdn", "objectStorage", "monitoring"],
+  loadBalancer: [...FRONT_DOORS, ...SERVICES, "objectStorage", "monitoring"],
+  apiGateway: [...FRONT_DOORS, ...SERVICES, "objectStorage", "queue", "monitoring"],
+  rateLimiter: [...FRONT_DOORS, ...SERVICES, "objectStorage", "cache", "monitoring"],
+  appGateway: [...FRONT_DOORS, ...SERVICES, "objectStorage", "monitoring"],
   websocketGateway: ["loadBalancer", ...SERVICES, "queue", "cache", "monitoring"],
-  appServer: [...FRONT_DOORS, ...SERVICES, "cdn", "cache", ...STORES, "queue", "llm", ...COORDINATION, "monitoring"],
-  serverless: [...FRONT_DOORS, ...SERVICES, "cdn", "cache", ...STORES, "queue", "llm", ...COORDINATION, "monitoring"],
+  appServer: [...FRONT_DOORS, ...SERVICES, "cache", ...STORES, "queue", "llm", ...COORDINATION, "monitoring"],
+  serverless: [...FRONT_DOORS, ...SERVICES, "cache", ...STORES, "queue", "llm", ...COORDINATION, "monitoring"],
   worker: [...SERVICES, "cache", ...STORES, "queue", "llm", ...COORDINATION, "monitoring"],
-  cache: [...STORES, "monitoring"],
+  // Cache-aside: the service talks to the cache and to the database; the cache never calls the database.
+  cache: ["monitoring"],
   queue: ["worker", "serverless", "appServer", "queue", "monitoring"],
   sqlDb: ["monitoring"],
   nosqlDb: ["monitoring"],
@@ -77,7 +78,9 @@ function hint(source: BaseKind, target: BaseKind): string {
   if (FRONT_DOORS.includes(source) && (DATABASES.includes(target) || target === "search"))
     return "Load balancers and gateways forward requests to services. Connect it to an app server, and the app server to the data store.";
   if (source === "cache")
-    return "A cache sits in front of a data store: connect your app server to the cache, and the cache to the database it speeds up.";
+    return "The cache doesn't fetch from the database itself. Connect the app server to both the cache and the database: it checks the cache first and goes to the database on a miss (cache-aside).";
+  if (target === "cdn")
+    return "Users reach a CDN first; the CDN then fetches from your servers or storage. Connect the client (or DNS) to the CDN, and the CDN to the origin.";
   if (STORES.includes(source) || COORDINATION.includes(source))
     return "Data stores answer requests; they don't send traffic on. Connect from the service that uses it instead.";
   if (source === "llm") return "An AI model only answers calls; connect the service that calls it to the model.";

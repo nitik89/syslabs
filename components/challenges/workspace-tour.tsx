@@ -61,7 +61,7 @@ export const TOUR_STEPS: Step[] = [
     target: "canvas",
     title: "Connect components",
     body: "Each component has a dot on its right (traffic out) and on its left (traffic in). Drag from a right dot to another component's left dot. Traffic flows along the arrow.",
-    example: "Drag from Catalog API → Redis Cache, then Redis Cache → SQL Database.",
+    example: "Drag from Catalog API → Redis Cache. The API keeps its link to the SQL Database too: it checks the cache first and goes to the database on a miss.",
     demo: ConnectDemo,
     action: "close-components",
   },

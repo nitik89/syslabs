@@ -161,8 +161,8 @@
           "target": "cache-1"
         },
         {
-          "id": "e:cache-1->es-1",
-          "source": "cache-1",
+          "id": "e-api-es-1",
+          "source": "api",
           "target": "es-1"
         }
       ]
@@ -230,7 +230,7 @@
   "hints": [
     "Every keystroke is a request, and most prefixes are popular. What answers repeated lookups in a millisecond?",
     "Cache misses need an index that can find completions for a prefix quickly.",
-    "LB (2) \u2192 Suggest API (30) \u2192 Prefix Cache (2 \u00d7 32 GB) \u2192 Elasticsearch (3). Connect the cache to the index so misses fall through to it."
+    "LB (2) → Suggest API (30) → Prefix Cache (2 × 32 GB) → Elasticsearch (3). Connect the Suggest API to both the cache and the index: it checks the cache first and falls back to the index on a miss."
   ],
   "scoring": {
     "weights": {

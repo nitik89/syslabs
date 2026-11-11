@@ -45,7 +45,7 @@ Now try the next problem on your own.
 | --- | --- |
 | **Header** | Problem name and difficulty, live cost per hour against the budget, **Run**, **Submit**, reset, **Tour** and (on the first challenge) **Solve it with me**. **Layout** hides the problem panel for a bigger canvas. |
 | **Problem panel** (left) | *Description* (scenario, functional and non-functional requirements, back-of-envelope numbers, test cases), *Articles* (lessons this problem uses), *Hints* (revealed one at a time), *Editorial*, *Submissions*. |
-| **Canvas** (centre) | Your design. The toolbar has **Add component**, undo/redo, save/share/load, reveal solution, full screen, **Traffic** and **Details**. The scenario bar (top right) switches the load. |
+| **Canvas** (centre) | Your design. The toolbar has **Add component**, undo/redo, save/share/load, reveal solution, full screen, a **scenario** dropdown, **Traffic** and **Details**. The scenario dropdown switches the load. |
 | **Run console** (bottom) | Appears after a run: tests, latency/traffic/busy charts, a components table, what to fix, logs, a **3D** view and your submissions. Drag its top edge to resize it. |
 
 On a phone the workspace has three views: **Problem**, **Design** and **Results**.
@@ -84,7 +84,7 @@ Every option shows a one-line consequence, and most have a live readout. What ea
 
 ## Traffic
 
-The **scenario bar** on the canvas switches the load in one click: **Quiet night** (×0.3), **Normal day** (×1), **Lunch rush** (×2), **Launch day** (×5), **Gone viral** (×10).
+The **scenario dropdown** in the canvas toolbar switches the load in one click: **Quiet night** (×0.3), **Normal day** (×1), **Lunch rush** (×2), **Launch day** (×5), **Gone viral** (×10).
 
 **Traffic** opens the full panel:
 

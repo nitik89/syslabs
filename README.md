@@ -49,7 +49,7 @@ Every component explains itself **in plain words** (what it is, an everyday comp
 
 ### 3. Change the traffic: from a quiet night to going viral
 
-One click switches the load (**Quiet night, Normal day, Lunch rush, Launch day, Gone viral**). The **Traffic** panel sets reads, writes and static files per second, hot keys, contended writes and AI share. On problem pages it's a *what-if*: Submit always grades against the brief.
+The scenario dropdown in the toolbar switches the load (**Quiet night, Normal day, Lunch rush, Launch day, Gone viral**). The **Traffic** panel sets reads, writes and static files per second, hot keys, contended writes and AI share. On problem pages it's a *what-if*: Submit always grades against the brief.
 
 ![The Traffic panel with reads, writes and presets](docs/screenshots/traffic-panel.png)
 

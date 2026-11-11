@@ -1,7 +1,7 @@
 "use client";
 
-import { useId } from "react";
-import { Coffee, Flame, FlaskConical, Moon, Rocket, RotateCcw, Sun, X } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Coffee, Flame, FlaskConical, Moon, Rocket, RotateCcw, SlidersHorizontal, Sun, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrafficProfile } from "@/lib/sim";
 import { Button } from "@/components/ui/button";
@@ -108,36 +108,100 @@ const PRESETS = SCENARIOS.map((s) => ({ label: `${s.label} ×${s.factor}`, facto
  * Scales from `base` (the brief's traffic, or the design's starting traffic in the Lab).
  */
 export function ScenarioSwitch({ traffic, base, onChange }: { traffic: TrafficProfile; base: TrafficProfile; onChange: (t: TrafficProfile) => void }) {
+  const [open, setOpen] = useState(false);
+  const [shift, setShift] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const menuId = useId();
   const active = SCENARIOS.find((s) => Math.round(base.rps * s.factor) === traffic.rps && traffic.readRatio === base.readRatio);
+  const Icon = active?.icon ?? SlidersHorizontal;
+  const tone = (f: number) => (f >= 5 ? "text-status-crit" : f > 1 ? "text-status-warn" : "text-brand-blue");
+
+  // Keep the menu on screen: right-aligned to the button, nudged in from the viewport edges.
+  useLayoutEffect(() => {
+    if (!open || !root.current || !menu.current) return;
+    const b = root.current.getBoundingClientRect();
+    const w = menu.current.offsetWidth;
+    const left = Math.min(Math.max(b.right - w, 12), window.innerWidth - w - 12);
+    setShift(left - (b.right - w));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <div role="radiogroup" aria-label="Traffic scenario" className="flex items-center gap-0.5 rounded-xl border border-border bg-popover/90 p-1 shadow-[0_12px_32px_-12px_var(--shadow)] backdrop-blur-md">
-      {SCENARIOS.map((s) => {
-        const on = active?.id === s.id;
-        const Icon = s.icon;
-        return (
-          <button
-            key={s.id}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            onClick={() => onChange({ ...base, rps: Math.round(base.rps * s.factor) })}
-            title={`${s.label}: ${s.blurb} (${Math.round(base.rps * s.factor).toLocaleString("en-US")} req/s)`}
-            className={cn(
-              "flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-              on
-                ? s.factor >= 5
-                  ? "bg-status-crit/15 text-status-crit"
-                  : s.factor > 1
-                    ? "bg-status-warn/15 text-status-warn"
-                    : "bg-brand-blue/15 text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Icon className="size-3.5" aria-hidden="true" />
-            <span className="max-xl:hidden">{s.label}</span>
-          </button>
-        );
-      })}
+    <div ref={root} className="relative">
+      <Button
+        variant={open ? "secondary" : "ghost"}
+        size="sm"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={`Traffic scenario: ${active?.label ?? "Custom"}`}
+        title="Switch the load: quiet night to gone viral"
+        data-tour="scenario"
+      >
+        <Icon className={active ? tone(active.factor) : undefined} />
+        <span className="max-md:hidden">{active?.label ?? "Custom load"}</span>
+        <ChevronDown className="size-3.5 opacity-60" />
+      </Button>
+      {open && (
+        <div
+          ref={menu}
+          id={menuId}
+          role="menu"
+          style={{ transform: `translateX(${shift}px)` }}
+          aria-label="Traffic scenario"
+          className="absolute right-0 top-full z-50 mt-2 w-[min(300px,calc(100vw-24px))] rounded-xl border border-border bg-popover p-1.5 shadow-[0_16px_40px_-12px_var(--shadow)]"
+        >
+          <p className="px-2.5 pb-1.5 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">How busy is it?</p>
+          {SCENARIOS.map((s) => {
+            const on = active?.id === s.id;
+            const SIcon = s.icon;
+            const rps = Math.round(base.rps * s.factor);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={on}
+                onClick={() => {
+                  onChange({ ...base, rps });
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.06]",
+                  on && "bg-white/[0.06]",
+                )}
+              >
+                <SIcon className={cn("mt-0.5 size-4 shrink-0", tone(s.factor))} aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="text-[13px] font-medium">{s.label}</span>
+                    <span className="font-mono text-[11px] tabular-nums text-muted-foreground">×{s.factor} · {fmt(rps)}/s</span>
+                  </span>
+                  <span className="block text-[11.5px] leading-snug text-muted-foreground">{s.blurb}</span>
+                </span>
+                {on && <Check className="mt-0.5 size-3.5 shrink-0 text-foreground" aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

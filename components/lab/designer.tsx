@@ -859,6 +859,7 @@ function DesignerInner({
               >
                 {fullscreen ? <Minimize2 /> : <Maximize2 />}
               </Button>
+              <ScenarioSwitch traffic={traffic} base={briefTraffic ?? startTraffic} onChange={changeTraffic} />
               <Button
                 variant={trafficOpen ? "secondary" : "ghost"}
                 size="sm"
@@ -882,9 +883,6 @@ function DesignerInner({
                 </Button>
               )}
             </div>
-          </Panel>
-          <Panel position="top-right" className="!m-3 !mt-[64px] max-sm:!hidden">
-            <ScenarioSwitch traffic={traffic} base={briefTraffic ?? startTraffic} onChange={changeTraffic} />
           </Panel>
           {tick && (
             <Panel position="bottom-center" className="!mb-3">
